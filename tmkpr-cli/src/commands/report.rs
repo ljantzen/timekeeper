@@ -11,6 +11,7 @@ pub fn run(
     storage: &dyn Storage,
     user_id: &str,
     time_fmt: TimeFormat,
+    format: &str,
     color: bool,
 ) -> Result<()> {
     let from = args
@@ -27,6 +28,6 @@ pub fn run(
     let svc = EntryService::new(storage, user_id);
     let report = svc.report(from, until, args.project.as_deref())?;
 
-    output::print_report_table(&report, color);
+    output::print_report(&report, format, color);
     Ok(())
 }

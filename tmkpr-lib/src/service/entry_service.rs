@@ -1,11 +1,12 @@
 use chrono::{DateTime, Duration, Utc};
+use serde::Serialize;
 
 use crate::error::{TmkprError, TmkprResult};
 use crate::models::entry::{Entry, EntryFilter, NewEntry, UpdateEntry};
 use crate::service::{ProjectService, TaskService};
 use crate::storage::Storage;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ReportData {
     pub from: Option<DateTime<Utc>>,
     pub until: Option<DateTime<Utc>>,
@@ -13,14 +14,14 @@ pub struct ReportData {
     pub by_project: Vec<ProjectReport>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ProjectReport {
     pub project_name: String,
     pub total_secs: i64,
     pub by_task: Vec<TaskReport>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct TaskReport {
     pub task_name: String,
     pub total_secs: i64,

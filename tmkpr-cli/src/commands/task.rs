@@ -14,10 +14,10 @@ pub fn add(args: TaskAddArgs, storage: &dyn Storage, user_id: &str) -> Result<()
     Ok(())
 }
 
-pub fn list(args: TaskListArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn list(args: TaskListArgs, storage: &dyn Storage, user_id: &str, format: &str) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     let tasks = TaskService::new(storage, user_id).list(&project.name, args.archived)?;
-    output::print_tasks_table(&tasks);
+    output::print_tasks(&tasks, format);
     Ok(())
 }
 

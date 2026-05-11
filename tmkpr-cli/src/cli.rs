@@ -165,6 +165,10 @@ pub struct ListArgs {
     /// Filter by tag (can be specified multiple times)
     #[arg(long)]
     pub tag: Vec<String>,
+
+    /// Show untracked gaps instead of entries
+    #[arg(long)]
+    pub gaps: bool,
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────

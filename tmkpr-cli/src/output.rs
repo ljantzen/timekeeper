@@ -271,10 +271,156 @@ pub fn print_status(
     }
 }
 
-// ── JSON helpers ──────────────────────────────────────────────────────────────
+// ── Gaps table ────────────────────────────────────────────────────────────────
 
-#[allow(dead_code)]
-pub fn print_json<T: serde::Serialize>(value: &T) {
+pub fn print_gaps_table(
+    gaps: &[(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)],
+    date_fmt: &str,
+    color: bool,
+) {
+    if gaps.is_empty() {
+        println!("No gaps found.");
+        return;
+    }
+
+    let total_secs: i64 = gaps
+        .iter()
+        .map(|(s, e)| (*e - *s).num_seconds())
+        .sum();
+
+    let mut table = Table::new();
+    table.set_header(vec!["From", "To", "Duration"]);
+
+    for (start, end) in gaps {
+        let dur = (*end - *start).num_seconds();
+        let from_cell = Cell::new(format_datetime(start, date_fmt));
+        let to_cell = Cell::new(format_datetime(end, date_fmt));
+        let dur_cell = if color {
+            Cell::new(format_duration(dur)).fg(Color::Yellow)
+        } else {
+            Cell::new(format_duration(dur))
+        };
+        table.add_row(vec![
+            from_cell,
+            to_cell,
+            dur_cell.set_alignment(CellAlignment::Right),
+        ]);
+    }
+
+    println!("{table}");
+    println!("Total untracked: {}", format_duration(total_secs));
+}
+
+// ── Format-dispatching helpers ────────────────────────────────────────────────
+
+pub fn print_projects(projects: &[Project], format: &str) {
+    match format {
+        "json" => print_json(projects),
+        "csv" => {
+            println!("num_id,name,description,color,archived");
+            for p in projects {
+                println!(
+                    "{},{},{},{},{}",
+                    p.num_id,
+                    csv_escape(&p.name),
+                    csv_escape(p.description.as_deref().unwrap_or("")),
+                    csv_escape(p.color.as_deref().unwrap_or("")),
+                    p.archived,
+                );
+            }
+        }
+        _ => print_projects_table(projects),
+    }
+}
+
+pub fn print_tasks(tasks: &[Task], format: &str) {
+    match format {
+        "json" => print_json(tasks),
+        "csv" => {
+            println!("num_id,name,description,archived");
+            for t in tasks {
+                println!(
+                    "{},{},{},{}",
+                    t.num_id,
+                    csv_escape(&t.name),
+                    csv_escape(t.description.as_deref().unwrap_or("")),
+                    t.archived,
+                );
+            }
+        }
+        _ => print_tasks_table(tasks),
+    }
+}
+
+pub fn print_entries(
+    entries: &[Entry],
+    projects: &ProjectIndex,
+    tasks: &TaskIndex,
+    date_fmt: &str,
+    format: &str,
+    color: bool,
+) {
+    match format {
+        "json" => print_json(entries),
+        "csv" => {
+            println!("id,project,task,note,started,finished,duration_secs");
+            for e in entries {
+                let project = e.project_id.as_deref().map(|id| projects.name(id)).unwrap_or_else(|| "-".to_string());
+                let task = e.task_id.as_deref().map(|id| tasks.name(id)).unwrap_or_else(|| "-".to_string());
+                let note = e.note.as_deref().unwrap_or("");
+                let started = format_datetime(&e.started_at, date_fmt);
+                let finished = e.finished_at.as_ref().map(|f| format_datetime(f, date_fmt)).unwrap_or_else(|| "active".to_string());
+                let secs = e.elapsed().num_seconds();
+                println!(
+                    "{},{},{},{},{},{},{}",
+                    e.id,
+                    csv_escape(&project),
+                    csv_escape(&task),
+                    csv_escape(note),
+                    csv_escape(&started),
+                    csv_escape(&finished),
+                    secs,
+                );
+            }
+        }
+        _ => print_entries_table(entries, projects, tasks, date_fmt, color),
+    }
+}
+
+pub fn print_report(report: &ReportData, format: &str, color: bool) {
+    match format {
+        "json" => print_json(report),
+        "csv" => {
+            println!("project,task,entries,duration_secs");
+            for proj in &report.by_project {
+                for task in &proj.by_task {
+                    println!(
+                        "{},{},{},{}",
+                        csv_escape(&proj.project_name),
+                        csv_escape(&task.task_name),
+                        task.entry_count,
+                        task.total_secs,
+                    );
+                }
+            }
+        }
+        _ => print_report_table(report, color),
+    }
+}
+
+pub fn print_json_entry(entry: &Entry) {
+    print_json(entry);
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
     println!(
         "{}",
         serde_json::to_string_pretty(value).unwrap_or_default()

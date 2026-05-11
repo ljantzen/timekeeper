@@ -25,6 +25,7 @@ fn run() -> anyhow::Result<()> {
     let date_fmt = config.display.date_format.clone();
     let time_fmt = config.display.time_format;
     let user_id = config.user.user_id.clone();
+    let format = cli.format.as_str();
 
     let db_path = cli.db.unwrap_or(config.database.path);
     let storage = open_sqlite(&db_path)?;
@@ -39,17 +40,17 @@ fn run() -> anyhow::Result<()> {
         Commands::Log(args) => {
             commands::log::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
         }
-        Commands::Status => commands::status::run(storage.as_ref(), &user_id, &date_fmt, color)?,
+        Commands::Status => commands::status::run(storage.as_ref(), &user_id, &date_fmt, format, color)?,
         Commands::List(args) => {
-            commands::list::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
+            commands::list::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, format, color)?
         }
         Commands::Report(args) => {
-            commands::report::run(args, storage.as_ref(), &user_id, time_fmt, color)?
+            commands::report::run(args, storage.as_ref(), &user_id, time_fmt, format, color)?
         }
         Commands::Project(sub) => match sub {
             ProjectCommands::Add(args) => commands::project::add(args, storage.as_ref(), &user_id)?,
             ProjectCommands::List(args) => {
-                commands::project::list(args, storage.as_ref(), &user_id)?
+                commands::project::list(args, storage.as_ref(), &user_id, format)?
             }
             ProjectCommands::Edit(args) => {
                 commands::project::edit(args, storage.as_ref(), &user_id)?
@@ -60,7 +61,7 @@ fn run() -> anyhow::Result<()> {
         },
         Commands::Task(sub) => match sub {
             TaskCommands::Add(args) => commands::task::add(args, storage.as_ref(), &user_id)?,
-            TaskCommands::List(args) => commands::task::list(args, storage.as_ref(), &user_id)?,
+            TaskCommands::List(args) => commands::task::list(args, storage.as_ref(), &user_id, format)?,
             TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id)?,
             TaskCommands::Delete(args) => {
                 commands::task::delete(args, storage.as_ref(), &user_id)?
