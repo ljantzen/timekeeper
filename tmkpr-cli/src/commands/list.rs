@@ -39,6 +39,7 @@ pub fn run(
     };
 
     if args.gaps {
+        let explicit_from = from.is_some();
         let window_start = from.unwrap_or_else(|| {
             let today = Local::now().date_naive();
             Local
@@ -60,7 +61,14 @@ pub fn run(
             limit: None,
         })?;
 
-        let gaps = compute_gaps(&entries, window_start, window_end);
+        let mut gaps = compute_gaps(&entries, window_start, window_end);
+        if !explicit_from {
+            if let Some(first) = gaps.first() {
+                if first.0 == window_start {
+                    gaps.remove(0);
+                }
+            }
+        }
         output::print_gaps_table(&gaps, date_fmt, color);
         return Ok(());
     }

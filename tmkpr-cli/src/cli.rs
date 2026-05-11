@@ -33,38 +33,43 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Start tracking time
-    #[command(alias = "track")]
+    #[command(aliases = ["track", "s"])]
     Start(StartArgs),
 
     /// Stop the current tracking session
-    #[command(alias = "finish")]
+    #[command(aliases = ["finish", "x"])]
     Stop(StopArgs),
 
     /// Add a completed time entry directly
-    #[command(alias = "record")]
+    #[command(aliases = ["record", "l"])]
     Log(LogArgs),
 
     /// Show the currently active entry
+    #[command(alias = "st")]
     Status,
 
     /// List time entries
+    #[command(alias = "ls")]
     List(ListArgs),
 
     /// Show a summarized report grouped by project/task
+    #[command(alias = "r")]
     Report(ReportArgs),
 
     /// Manage projects
-    #[command(subcommand)]
+    #[command(subcommand, alias = "p")]
     Project(ProjectCommands),
 
     /// Manage tasks
-    #[command(subcommand)]
+    #[command(subcommand, alias = "t")]
     Task(TaskCommands),
 
     /// Edit a time entry
+    #[command(alias = "e")]
     Edit(EditArgs),
 
     /// Delete a time entry
+    #[command(aliases = ["d", "rm"])]
     Delete(DeleteArgs),
 
     /// Generate shell completion scripts
@@ -193,12 +198,16 @@ pub struct ReportArgs {
 #[derive(Subcommand)]
 pub enum ProjectCommands {
     /// Add a new project
+    #[command(alias = "a")]
     Add(ProjectAddArgs),
     /// List all projects
+    #[command(alias = "ls")]
     List(ProjectListArgs),
     /// Edit a project
+    #[command(alias = "e")]
     Edit(ProjectEditArgs),
     /// Delete (archive) a project
+    #[command(aliases = ["d", "rm"])]
     Delete(ProjectDeleteArgs),
 }
 
@@ -247,12 +256,16 @@ pub struct ProjectDeleteArgs {
 #[derive(Subcommand)]
 pub enum TaskCommands {
     /// Add a new task
+    #[command(alias = "a")]
     Add(TaskAddArgs),
     /// List tasks for a project
+    #[command(alias = "ls")]
     List(TaskListArgs),
     /// Edit a task
+    #[command(alias = "e")]
     Edit(TaskEditArgs),
     /// Delete (archive) a task
+    #[command(aliases = ["d", "rm"])]
     Delete(TaskDeleteArgs),
 }
 
