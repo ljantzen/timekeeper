@@ -174,4 +174,20 @@ mod tests {
         assert_eq!(updated.name, "new");
         assert!(updated.description.is_none());
     }
+
+    #[test]
+    fn edit_color() {
+        let s = storage();
+        svc(&s).add("proj", None, None).unwrap();
+        let updated = svc(&s).edit("proj", crate::models::project::UpdateProject {
+            color: Some(Some("#abcdef".into())),
+            ..Default::default()
+        }).unwrap();
+        assert_eq!(updated.color.as_deref(), Some("#abcdef"));
+        let cleared = svc(&s).edit("proj", crate::models::project::UpdateProject {
+            color: Some(None),
+            ..Default::default()
+        }).unwrap();
+        assert!(cleared.color.is_none());
+    }
 }

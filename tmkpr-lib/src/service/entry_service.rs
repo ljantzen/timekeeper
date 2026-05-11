@@ -575,4 +575,66 @@ mod tests {
         let err = svc(&s).report(None, None, Some("ghost")).unwrap_err();
         assert!(matches!(err, TmkprError::ProjectNotFound(_)));
     }
+
+    #[test]
+    fn report_with_unassigned_entries() {
+        let s = storage();
+        let now = Utc::now();
+
+        // Entry with no project and no task
+        s.create_entry(crate::models::entry::NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(2),
+            finished_at: Some(now - Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+        // Second entry in same "(no project)" bucket so the existing-bucket branch is hit
+        s.create_entry(crate::models::entry::NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(4),
+            finished_at: Some(now - Duration::hours(3)),
+            tags: vec![],
+        }).unwrap();
+
+        let report = svc(&s).report(None, None, None).unwrap();
+        assert_eq!(report.by_project.len(), 1);
+        assert_eq!(report.by_project[0].project_name, "(no project)");
+        assert_eq!(report.by_project[0].by_task[0].task_name, "(no task)");
+        assert_eq!(report.by_project[0].by_task[0].entry_count, 2);
+        assert_eq!(report.total_secs, 7200);
+    }
+
+    #[test]
+    fn update_entry_time_and_tags() {
+        let s = storage();
+        let now = Utc::now();
+        let entry = s.create_entry(crate::models::entry::NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(2),
+            finished_at: Some(now - Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+
+        let new_start = now - Duration::hours(3);
+        let new_end = now - Duration::minutes(30);
+        let updated = svc(&s).update(&entry.id, UpdateEntry {
+            started_at: Some(new_start),
+            finished_at: Some(Some(new_end)),
+            tags: Some(vec!["billable".to_string()]),
+            ..Default::default()
+        }).unwrap();
+
+        assert_eq!(updated.started_at, new_start);
+        assert_eq!(updated.finished_at, Some(new_end));
+        assert_eq!(updated.tags, vec!["billable"]);
+    }
 }

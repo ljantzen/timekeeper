@@ -30,10 +30,10 @@ tmkpr report
 tmkpr start [-p PROJECT] [-t TASK] [-n NOTE] [-s TIME] [--tags t1,t2]
 tmkpr stop  [-e TIME]
 tmkpr status
-tmkpr log   -s START [-e END] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
+tmkpr log   [-s START] [-e END] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
 ```
 
-`log` (alias: `record`) adds a completed entry directly without a start/stop cycle. `--end` defaults to now if omitted.
+`log` (alias: `record`) adds a completed entry directly without a start/stop cycle. `--end` defaults to now if omitted. If `--start` is omitted, tmkpr will suggest the end time of the last entry logged today.
 
 If a session is already running when you run `start`, you will be prompted to stop it first. Answering `n` aborts without making any changes.
 
@@ -113,4 +113,20 @@ In `24h` mode, bare timestamps like `07:51` and `14:50` are accepted wherever a 
 
 ## Output format
 
-All commands accept `--format table` (default), `--format json`, or `--format csv`.
+All list-producing commands accept `--format table` (default), `--format json`, or `--format csv`.
+
+```
+tmkpr list --format json
+tmkpr report --format csv
+tmkpr project list --format json
+tmkpr task list -p myproject --format csv
+```
+
+`project list --format json` includes a `tasks` array on each project object, making it suitable for scripting:
+
+```bash
+tmkpr project list --format json \
+  | jq -r '.[] | . as $p | .tasks[] | "\($p.name) / \(.name)"'
+```
+
+CSV output uses raw seconds for duration fields to keep it machine-readable.

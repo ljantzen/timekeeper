@@ -756,4 +756,239 @@ mod tests {
         assert!(s.list_tasks(&proj_a.id, false).unwrap().is_empty());
         assert_eq!(s.list_tasks(&proj_b.id, false).unwrap().len(), 1);
     }
+
+    #[test]
+    fn duplicate_task_is_conflict() {
+        let s = storage();
+        let p = s.create_project(NewProject {
+            user_id: LOCAL_USER_ID.to_string(),
+            name: "proj".to_string(),
+            description: None,
+            color: None,
+        }).unwrap();
+        let new_task = || NewTask {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: p.id.clone(),
+            name: "work".to_string(),
+            description: None,
+        };
+        s.create_task(new_task()).unwrap();
+        let err = s.create_task(new_task()).unwrap_err();
+        assert!(matches!(err, TmkprError::Conflict(_)));
+    }
+
+    #[test]
+    fn list_entries_filter_by_task() {
+        let s = storage();
+        let p = s.create_project(NewProject {
+            user_id: LOCAL_USER_ID.to_string(),
+            name: "proj".to_string(),
+            description: None,
+            color: None,
+        }).unwrap();
+        let t = s.create_task(NewTask {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: p.id.clone(),
+            name: "task".to_string(),
+            description: None,
+        }).unwrap();
+
+        let now = Utc::now();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: Some(p.id.clone()),
+            task_id: Some(t.id.clone()),
+            note: None,
+            started_at: now,
+            finished_at: Some(now + chrono::Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: Some(p.id.clone()),
+            task_id: None,
+            note: None,
+            started_at: now,
+            finished_at: Some(now + chrono::Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+
+        let entries = s.list_entries(&EntryFilter {
+            user_id: LOCAL_USER_ID.to_string(),
+            task_id: Some(t.id.clone()),
+            include_active: true,
+            ..Default::default()
+        }).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].task_id.as_deref(), Some(t.id.as_str()));
+    }
+
+    #[test]
+    fn list_entries_filter_by_date_range() {
+        let s = storage();
+        let now = Utc::now();
+
+        for offset_hours in [1i64, 5, 10] {
+            s.create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: now - chrono::Duration::hours(offset_hours),
+                finished_at: Some(now - chrono::Duration::hours(offset_hours - 1)),
+                tags: vec![],
+            }).unwrap();
+        }
+
+        // from 6h ago until 2h ago: should match only the 5h-ago entry
+        let entries = s.list_entries(&EntryFilter {
+            user_id: LOCAL_USER_ID.to_string(),
+            from: Some(now - chrono::Duration::hours(6)),
+            until: Some(now - chrono::Duration::hours(2)),
+            include_active: true,
+            ..Default::default()
+        }).unwrap();
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn list_entries_filter_by_tags() {
+        let s = storage();
+        let now = Utc::now();
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - chrono::Duration::hours(2),
+            finished_at: Some(now - chrono::Duration::hours(1)),
+            tags: vec!["work".to_string(), "deep".to_string()],
+        }).unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - chrono::Duration::hours(4),
+            finished_at: Some(now - chrono::Duration::hours(3)),
+            tags: vec!["work".to_string()],
+        }).unwrap();
+
+        let work_entries = s.list_entries(&EntryFilter {
+            user_id: LOCAL_USER_ID.to_string(),
+            tags: vec!["work".to_string()],
+            include_active: true,
+            ..Default::default()
+        }).unwrap();
+        assert_eq!(work_entries.len(), 2);
+
+        let deep_entries = s.list_entries(&EntryFilter {
+            user_id: LOCAL_USER_ID.to_string(),
+            tags: vec!["work".to_string(), "deep".to_string()],
+            include_active: true,
+            ..Default::default()
+        }).unwrap();
+        assert_eq!(deep_entries.len(), 1);
+    }
+
+    #[test]
+    fn update_entry_fields() {
+        let s = storage();
+        let p = s.create_project(NewProject {
+            user_id: LOCAL_USER_ID.to_string(),
+            name: "proj".to_string(),
+            description: None,
+            color: None,
+        }).unwrap();
+        let t = s.create_task(NewTask {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: p.id.clone(),
+            name: "task".to_string(),
+            description: None,
+        }).unwrap();
+
+        let now = Utc::now();
+        let entry = s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - chrono::Duration::hours(2),
+            finished_at: Some(now - chrono::Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+
+        let new_start = now - chrono::Duration::hours(3);
+        let new_end = now - chrono::Duration::minutes(30);
+        let updated = s.update_entry(&entry.id, UpdateEntry {
+            project_id: Some(Some(p.id.clone())),
+            task_id: Some(Some(t.id.clone())),
+            started_at: Some(new_start),
+            finished_at: Some(Some(new_end)),
+            tags: Some(vec!["billable".to_string()]),
+            ..Default::default()
+        }).unwrap();
+
+        assert_eq!(updated.project_id.as_deref(), Some(p.id.as_str()));
+        assert_eq!(updated.task_id.as_deref(), Some(t.id.as_str()));
+        assert_eq!(updated.started_at, new_start);
+        assert_eq!(updated.finished_at, Some(new_end));
+        assert_eq!(updated.tags, vec!["billable"]);
+    }
+
+    #[test]
+    fn finish_entry_before_start_errors() {
+        let s = storage();
+        let now = Utc::now();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now,
+            finished_at: None,
+            tags: vec![],
+        }).unwrap();
+        let err = s.finish_entry(LOCAL_USER_ID, now - chrono::Duration::hours(1)).unwrap_err();
+        assert!(matches!(err, TmkprError::InvalidTimeRange));
+    }
+
+    #[test]
+    fn resolve_entry_id_not_found() {
+        let s = storage();
+        let err = s.resolve_entry_id(LOCAL_USER_ID, "deadbeef").unwrap_err();
+        assert!(matches!(err, TmkprError::NotFound { .. }));
+    }
+
+    #[test]
+    fn resolve_entry_id_ambiguous() {
+        let s = storage();
+        // Create two entries whose IDs share a common prefix by using the same prefix in lookup
+        let now = Utc::now();
+        let e1 = s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now,
+            finished_at: Some(now + chrono::Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now + chrono::Duration::hours(2),
+            finished_at: Some(now + chrono::Duration::hours(3)),
+            tags: vec![],
+        }).unwrap();
+        // An empty prefix matches everything
+        let err = s.resolve_entry_id(LOCAL_USER_ID, "").unwrap_err();
+        assert!(matches!(err, TmkprError::Conflict(_)));
+        // A full ID should resolve unambiguously
+        let found = s.resolve_entry_id(LOCAL_USER_ID, &e1.id).unwrap();
+        assert_eq!(found, e1.id);
+    }
 }
