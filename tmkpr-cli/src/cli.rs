@@ -109,9 +109,9 @@ pub struct StopArgs {
 
 #[derive(Args)]
 pub struct LogArgs {
-    /// Start time — natural language or ISO 8601
-    #[arg(short, long, required = true)]
-    pub start: String,
+    /// Start time — natural language or ISO 8601 (omit to use last entry's end time)
+    #[arg(short, long)]
+    pub start: Option<String>,
 
     /// End time — natural language or ISO 8601 (defaults to now)
     #[arg(short, long)]

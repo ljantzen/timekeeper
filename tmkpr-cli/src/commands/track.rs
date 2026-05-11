@@ -1,4 +1,5 @@
 use anyhow::Result;
+use tmkpr_lib::models::entry::EntryFilter;
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
 use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
@@ -15,11 +16,11 @@ pub fn run(
     time_fmt: TimeFormat,
     color: bool,
 ) -> Result<()> {
-    let started_at = args
-        .start
-        .as_deref()
-        .map(|s| parse_datetime_now(s, time_fmt))
-        .transpose()?;
+    let started_at = match args.start.as_deref() {
+        Some("continue" | "cont") => Some(last_entry_end(storage, user_id)?),
+        Some(s) => Some(parse_datetime_now(s, time_fmt)?),
+        None => None,
+    };
 
     let project = args
         .project
@@ -86,4 +87,19 @@ pub fn run(
     println!("Started tracking.");
     output::print_status(&entry, &projects, &TaskIndex(tasks), date_fmt, color);
     Ok(())
+}
+
+fn last_entry_end(storage: &dyn Storage, user_id: &str) -> Result<chrono::DateTime<chrono::Utc>> {
+    let entries = EntryService::new(storage, user_id).list(EntryFilter {
+        user_id: user_id.to_string(),
+        include_active: false,
+        limit: Some(1),
+        ..Default::default()
+    })?;
+
+    entries
+        .into_iter()
+        .next()
+        .and_then(|e| e.finished_at)
+        .ok_or_else(|| anyhow::anyhow!("No previous entry found. Please provide an explicit start time."))
 }

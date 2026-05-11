@@ -1,4 +1,6 @@
 use anyhow::Result;
+use chrono::{Local, TimeZone, Utc};
+use tmkpr_lib::models::entry::EntryFilter;
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
 use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
@@ -15,13 +17,17 @@ pub fn run(
     time_fmt: TimeFormat,
     color: bool,
 ) -> Result<()> {
-    let started_at = parse_datetime_now(&args.start, time_fmt)?;
+    let started_at = match args.start.as_deref() {
+        Some(s) => parse_datetime_now(s, time_fmt)?,
+        None => suggest_start(storage, user_id, date_fmt)?,
+    };
+
     let finished_at = args
         .end
         .as_deref()
         .map(|s| parse_datetime_now(s, time_fmt))
         .transpose()?
-        .unwrap_or_else(chrono::Utc::now);
+        .unwrap_or_else(Utc::now);
 
     let project = args
         .project
@@ -69,4 +75,40 @@ pub fn run(
         color,
     );
     Ok(())
+}
+
+fn suggest_start(
+    storage: &dyn Storage,
+    user_id: &str,
+    date_fmt: &str,
+) -> Result<chrono::DateTime<Utc>> {
+    let today_local = Local::now().date_naive();
+    let today_start = Local
+        .from_local_datetime(&today_local.and_hms_opt(0, 0, 0).unwrap())
+        .single()
+        .unwrap()
+        .with_timezone(&Utc);
+
+    let entries = EntryService::new(storage, user_id).list(EntryFilter {
+        user_id: user_id.to_string(),
+        from: Some(today_start),
+        include_active: false,
+        ..Default::default()
+    })?;
+
+    let last_end = entries.iter().filter_map(|e| e.finished_at).max();
+
+    match last_end {
+        Some(t) => {
+            let formatted = output::format_datetime(&t, date_fmt);
+            if prompt::confirm(&format!("Use last entry end ({}) as start?", formatted)) {
+                Ok(t)
+            } else {
+                Err(anyhow::anyhow!("Please provide --start"))
+            }
+        }
+        None => Err(anyhow::anyhow!(
+            "No previous entry found today. Please provide --start."
+        )),
+    }
 }
