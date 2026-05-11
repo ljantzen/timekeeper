@@ -206,4 +206,46 @@ mod tests {
         assert_eq!(updated.name, "new");
         assert!(updated.description.is_none());
     }
+
+    #[test]
+    fn move_task_to_another_project() {
+        let s = storage();
+        let proj_a = setup_project(&s);
+        let proj_b = ProjectService::new(&s, LOCAL_USER_ID)
+            .add("proj_b", None, None).unwrap().name;
+        let proj_a_id = ProjectService::new(&s, LOCAL_USER_ID)
+            .get_by_name(&proj_a).unwrap().unwrap().id;
+        let proj_b_id = ProjectService::new(&s, LOCAL_USER_ID)
+            .get_by_name(&proj_b).unwrap().unwrap().id;
+
+        TaskService::new(&s, LOCAL_USER_ID).add(&proj_a, "mytask", None).unwrap();
+
+        let moved = TaskService::new(&s, LOCAL_USER_ID).edit(&proj_a_id, "mytask", crate::models::task::UpdateTask {
+            project_id: Some(proj_b_id.clone()),
+            ..Default::default()
+        }).unwrap();
+
+        assert_eq!(moved.project_id, proj_b_id);
+        assert_eq!(moved.num_id, 1);
+        assert!(TaskService::new(&s, LOCAL_USER_ID).list(&proj_a, false).unwrap().is_empty());
+        assert_eq!(TaskService::new(&s, LOCAL_USER_ID).list(&proj_b, false).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn add_unknown_project_errors() {
+        let s = storage();
+        let err = TaskService::new(&s, LOCAL_USER_ID)
+            .add("ghost", "task", None)
+            .unwrap_err();
+        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+    }
+
+    #[test]
+    fn list_unknown_project_errors() {
+        let s = storage();
+        let err = TaskService::new(&s, LOCAL_USER_ID)
+            .list("ghost", false)
+            .unwrap_err();
+        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+    }
 }

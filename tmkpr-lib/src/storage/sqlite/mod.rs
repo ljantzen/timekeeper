@@ -360,6 +360,17 @@ impl Storage for SqliteStorage {
             binds.push(Box::new(archived as i64));
             sets.push(format!("archived = ?{}", binds.len()));
         }
+        if let Some(pid) = u.project_id {
+            binds.push(Box::new(pid.clone()));
+            sets.push(format!("project_id = ?{}", binds.len()));
+            // Reassign num_id within the destination project.
+            // The task still lives in its old project at this point, so MAX is correct.
+            binds.push(Box::new(pid));
+            sets.push(format!(
+                "num_id = (SELECT COALESCE(MAX(num_id), 0) + 1 FROM tasks WHERE project_id = ?{})",
+                binds.len()
+            ));
+        }
 
         binds.push(Box::new(id.to_string()));
         let id_pos = binds.len();
@@ -710,5 +721,39 @@ mod tests {
         };
         let entries = s.list_entries(&filter).unwrap();
         assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn move_task_between_projects() {
+        let s = storage();
+        let proj_a = s.create_project(NewProject {
+            user_id: LOCAL_USER_ID.to_string(),
+            name: "a".to_string(),
+            description: None,
+            color: None,
+        }).unwrap();
+        let proj_b = s.create_project(NewProject {
+            user_id: LOCAL_USER_ID.to_string(),
+            name: "b".to_string(),
+            description: None,
+            color: None,
+        }).unwrap();
+
+        let task = s.create_task(NewTask {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: proj_a.id.clone(),
+            name: "work".to_string(),
+            description: None,
+        }).unwrap();
+
+        let moved = s.update_task(&task.id, UpdateTask {
+            project_id: Some(proj_b.id.clone()),
+            ..Default::default()
+        }).unwrap();
+
+        assert_eq!(moved.project_id, proj_b.id);
+        assert_eq!(moved.num_id, 1);
+        assert!(s.list_tasks(&proj_a.id, false).unwrap().is_empty());
+        assert_eq!(s.list_tasks(&proj_b.id, false).unwrap().len(), 1);
     }
 }

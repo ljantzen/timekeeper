@@ -274,9 +274,12 @@ pub struct TaskListArgs {
 pub struct TaskEditArgs {
     /// Task name or numeric ID
     pub task: String,
-    /// Project name or numeric ID
+    /// Project name or numeric ID (current project, used to locate the task)
     #[arg(short, long)]
     pub project: String,
+    /// Move task to a different project (name or numeric ID)
+    #[arg(long)]
+    pub move_to: Option<String>,
     /// New name
     #[arg(long)]
     pub name: Option<String>,

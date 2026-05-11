@@ -155,4 +155,12 @@ mod tests {
     fn rejects_invalid_24h_minute() {
         assert!(parse_datetime("10:61", fixed_now(), TimeFormat::H24).is_err());
     }
+
+    #[test]
+    fn parses_12h_am_pm() {
+        let dt = parse_datetime("9am", fixed_now(), TimeFormat::H12).unwrap();
+        assert_eq!(dt.with_timezone(&Local).hour(), 9);
+        let dt2 = parse_datetime("2pm", fixed_now(), TimeFormat::H12).unwrap();
+        assert_eq!(dt2.with_timezone(&Local).hour(), 14);
+    }
 }

@@ -35,6 +35,8 @@ tmkpr log   -s START [-e END] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
 
 `log` (alias: `record`) adds a completed entry directly without a start/stop cycle. `--end` defaults to now if omitted.
 
+If a session is already running when you run `start`, you will be prompted to stop it first. Answering `n` aborts without making any changes.
+
 All time flags accept natural language or ISO 8601:
 
 ```
@@ -72,9 +74,11 @@ Deleting a project archives it by default. Use `--hard` to permanently remove it
 ```
 tmkpr task add <NAME> -p PROJECT [-d DESCRIPTION]
 tmkpr task list -p PROJECT [--archived]
-tmkpr task edit <NAME|ID> -p PROJECT [--name NAME] [-d DESCRIPTION]
+tmkpr task edit <NAME|ID> -p PROJECT [--name NAME] [-d DESCRIPTION] [--move-to PROJECT]
 tmkpr task delete <NAME|ID> -p PROJECT [--hard]
 ```
+
+`-p` identifies the project the task currently belongs to. Use `--move-to` to reassign it to a different project.
 
 ### Shell completion
 

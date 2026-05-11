@@ -41,7 +41,34 @@ pub fn run(
         _ => None,
     };
 
-    let entry = EntryService::new(storage, user_id).start(
+    let svc = EntryService::new(storage, user_id);
+
+    if let Some((active, elapsed)) = svc.status()? {
+        let projects = ProjectIndex(storage.list_projects(user_id, false).unwrap_or_default());
+        let tasks = active
+            .project_id
+            .as_ref()
+            .and_then(|pid| storage.list_tasks(pid, false).ok())
+            .unwrap_or_default();
+        let proj = active.project_id.as_deref()
+            .map(|id| projects.name(id))
+            .unwrap_or_else(|| "-".to_string());
+        let task_name = active.task_id.as_deref()
+            .map(|id| TaskIndex(tasks).name(id))
+            .unwrap_or_else(|| "-".to_string());
+        let question = format!(
+            "Currently tracking '{}/{}' for {}. Stop and start new?",
+            proj,
+            task_name,
+            output::format_duration(elapsed.num_seconds()),
+        );
+        if !prompt::confirm(&question) {
+            return Ok(());
+        }
+        svc.stop(None)?;
+    }
+
+    let entry = svc.start(
         project.as_ref().map(|p| p.name.as_str()),
         task.as_ref().map(|t| t.name.as_str()),
         args.note,

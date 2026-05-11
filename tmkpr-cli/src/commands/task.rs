@@ -23,6 +23,14 @@ pub fn list(args: TaskListArgs, storage: &dyn Storage, user_id: &str) -> Result<
 
 pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let project = prompt::resolve_or_create_project(storage, user_id, &args.project)?;
+
+    let dest_project_id = args
+        .move_to
+        .as_deref()
+        .map(|input| prompt::resolve_or_create_project(storage, user_id, input))
+        .transpose()?
+        .map(|p| p.id);
+
     let update = UpdateTask {
         name: args.name,
         description: match args.description.as_deref() {
@@ -30,6 +38,7 @@ pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str) -> Result<
             Some(s) => Some(Some(s.to_string())),
             None => None,
         },
+        project_id: dest_project_id,
         archived: None,
     };
     let task = TaskService::new(storage, user_id).edit(&project.id, &args.task, update)?;
