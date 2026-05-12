@@ -412,8 +412,42 @@ pub fn print_report(report: &ReportData, format: &str, color: bool) {
                 }
             }
         }
+        "markdown" => print_report_markdown(report),
         _ => print_report_table(report, color),
     }
+}
+
+fn print_report_markdown(report: &ReportData) {
+    if report.by_project.is_empty() {
+        println!("No entries in the selected range.");
+        return;
+    }
+
+    println!("| Project | Task | Entries | Duration |");
+    println!("|---------|------|--------:|---------:|");
+
+    for proj in &report.by_project {
+        for (i, task) in proj.by_task.iter().enumerate() {
+            let proj_cell = if i == 0 { proj.project_name.as_str() } else { "" };
+            println!(
+                "| {} | {} | {} | {} |",
+                proj_cell,
+                task.task_name,
+                task.entry_count,
+                format_duration(task.total_secs),
+            );
+        }
+        println!(
+            "| **{}** | | | **{}** |",
+            proj.project_name,
+            format_duration(proj.total_secs),
+        );
+    }
+
+    println!(
+        "| **TOTAL** | | | **{}** |",
+        format_duration(report.total_secs),
+    );
 }
 
 pub fn print_json_entry(entry: &Entry) {

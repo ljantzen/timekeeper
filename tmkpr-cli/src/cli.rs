@@ -18,7 +18,7 @@ pub struct Cli {
         short = 'f',
         global = true,
         default_value = "table",
-        value_parser = ["table", "json", "csv"]
+        value_parser = ["table", "json", "csv", "markdown"]
     )]
     pub format: String,
 
