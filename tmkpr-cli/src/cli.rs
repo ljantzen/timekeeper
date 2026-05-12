@@ -384,6 +384,9 @@ pub enum CommentCommands {
 
 #[derive(Args)]
 pub struct CommentAddArgs {
+    /// Entry ID or UUID prefix (defaults to active entry)
+    #[arg(short, long)]
+    pub entry: Option<String>,
     /// Comment text (multiple words without quotes)
     #[arg(num_args = 1..)]
     pub body: Vec<String>,

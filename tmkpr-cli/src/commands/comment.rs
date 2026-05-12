@@ -8,7 +8,7 @@ use crate::prompt;
 
 pub fn add(args: CommentAddArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let body = args.body.join(" ");
-    let comment = CommentService::new(storage, user_id).add(body)?;
+    let comment = CommentService::new(storage, user_id).add(args.entry.as_deref(), body)?;
     println!(
         "Added comment {} to active entry.",
         &comment.id[..comment.id.len().min(8)]

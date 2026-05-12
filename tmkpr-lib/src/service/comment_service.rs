@@ -12,15 +12,16 @@ impl<'a> CommentService<'a> {
         Self { storage, user_id }
     }
 
-    pub fn add(&self, body: String) -> TmkprResult<Comment> {
-        let entry = self
-            .storage
-            .get_active_entry(self.user_id)?
-            .ok_or(TmkprError::NotTracking)?;
-        self.storage.create_comment(NewComment {
-            entry_id: entry.id,
-            body,
-        })
+    pub fn add(&self, entry_id_or_prefix: Option<&str>, body: String) -> TmkprResult<Comment> {
+        let entry_id = match entry_id_or_prefix {
+            Some(prefix) => self.storage.resolve_entry_id(self.user_id, prefix)?,
+            None => self
+                .storage
+                .get_active_entry(self.user_id)?
+                .ok_or(TmkprError::NotTracking)?
+                .id,
+        };
+        self.storage.create_comment(NewComment { entry_id, body })
     }
 
     pub fn list(&self, entry_id_or_prefix: Option<&str>) -> TmkprResult<Vec<Comment>> {
@@ -84,14 +85,25 @@ mod tests {
     fn add_to_active_entry() {
         let s = storage();
         start_entry(&s);
-        let comment = svc(&s).add("hello world".to_string()).unwrap();
+        let comment = svc(&s).add(None, "hello world".to_string()).unwrap();
         assert_eq!(comment.body, "hello world");
+    }
+
+    #[test]
+    fn add_to_explicit_entry() {
+        let s = storage();
+        let entry_id = start_entry(&s);
+        // finish it so it is no longer active, then add by prefix
+        s.finish_entry(LOCAL_USER_ID, Utc::now() + chrono::Duration::hours(1)).unwrap();
+
+        let comment = svc(&s).add(Some(&entry_id), "on finished entry".to_string()).unwrap();
+        assert_eq!(comment.entry_id, entry_id);
     }
 
     #[test]
     fn add_without_active_entry_errors() {
         let s = storage();
-        let err = svc(&s).add("oops".to_string()).unwrap_err();
+        let err = svc(&s).add(None, "oops".to_string()).unwrap_err();
         assert!(matches!(err, TmkprError::NotTracking));
     }
 
@@ -99,8 +111,8 @@ mod tests {
     fn list_by_entry_prefix() {
         let s = storage();
         let entry_id = start_entry(&s);
-        svc(&s).add("first".to_string()).unwrap();
-        svc(&s).add("second".to_string()).unwrap();
+        svc(&s).add(None, "first".to_string()).unwrap();
+        svc(&s).add(None, "second".to_string()).unwrap();
 
         let comments = svc(&s).list(Some(&entry_id)).unwrap();
         assert_eq!(comments.len(), 2);
@@ -112,7 +124,7 @@ mod tests {
     fn list_defaults_to_active_entry() {
         let s = storage();
         start_entry(&s);
-        svc(&s).add("note".to_string()).unwrap();
+        svc(&s).add(None, "note".to_string()).unwrap();
 
         let comments = svc(&s).list(None).unwrap();
         assert_eq!(comments.len(), 1);
@@ -122,7 +134,7 @@ mod tests {
     fn edit_comment() {
         let s = storage();
         start_entry(&s);
-        let comment = svc(&s).add("original".to_string()).unwrap();
+        let comment = svc(&s).add(None, "original".to_string()).unwrap();
 
         let updated = svc(&s).edit(&comment.id, "updated".to_string()).unwrap();
         assert_eq!(updated.body, "updated");
@@ -133,7 +145,7 @@ mod tests {
     fn delete_comment() {
         let s = storage();
         let entry_id = start_entry(&s);
-        let comment = svc(&s).add("bye".to_string()).unwrap();
+        let comment = svc(&s).add(None, "bye".to_string()).unwrap();
 
         svc(&s).delete(&comment.id).unwrap();
         let remaining = svc(&s).list(Some(&entry_id)).unwrap();
@@ -144,7 +156,7 @@ mod tests {
     fn resolve_comment_id_prefix() {
         let s = storage();
         start_entry(&s);
-        let comment = svc(&s).add("test".to_string()).unwrap();
+        let comment = svc(&s).add(None, "test".to_string()).unwrap();
 
         let prefix = &comment.id[..8];
         let updated = svc(&s).edit(prefix, "via prefix".to_string()).unwrap();
