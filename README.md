@@ -101,7 +101,7 @@ Add free-form notes to any entry.
 ```
 tmkpr comment add just deployed the fix
 tmkpr comment list              # comments on active entry
-tmkpr comment list <ENTRY-ID>   # comments on a specific entry
+tmkpr comment list -e <ENTRY-ID>   # comments on a specific entry
 tmkpr comment edit <ID> corrected: deployed to staging only
 tmkpr comment delete <ID> [-y]
 ```
