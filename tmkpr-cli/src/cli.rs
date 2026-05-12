@@ -395,7 +395,6 @@ pub struct CommentAddArgs {
 #[derive(Args)]
 pub struct CommentListArgs {
     /// Entry ID or UUID prefix (defaults to active entry)
-    #[arg(short, long)]
     pub entry: Option<String>,
 }
 
