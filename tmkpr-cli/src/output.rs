@@ -68,7 +68,7 @@ pub fn print_entries_table(
 
     let mut table = Table::new();
     table.set_header(vec![
-        "ID", "Project", "Task", "Note", "Started", "Finished", "Duration",
+        "ID", "Project", "Task", "Note", "Tags", "Started", "Finished", "Duration",
     ]);
 
     for entry in entries {
@@ -83,6 +83,11 @@ pub fn print_entries_table(
             .map(|id| tasks.name(id))
             .unwrap_or_else(|| "-".to_string());
         let note = entry.note.as_deref().unwrap_or("-");
+        let tags = if entry.tags.is_empty() {
+            "-".to_string()
+        } else {
+            entry.tags.join(", ")
+        };
         let started = format_datetime(&entry.started_at, date_fmt);
         let finished = entry
             .finished_at
@@ -108,6 +113,7 @@ pub fn print_entries_table(
             Cell::new(project),
             Cell::new(task),
             Cell::new(note),
+            Cell::new(tags),
             Cell::new(started),
             finished_cell,
             Cell::new(duration).set_alignment(CellAlignment::Right),
@@ -363,20 +369,22 @@ pub fn print_entries(
     match format {
         "json" => print_json(entries),
         "csv" => {
-            println!("id,project,task,note,started,finished,duration_secs");
+            println!("id,project,task,note,tags,started,finished,duration_secs");
             for e in entries {
                 let project = e.project_id.as_deref().map(|id| projects.name(id)).unwrap_or_else(|| "-".to_string());
                 let task = e.task_id.as_deref().map(|id| tasks.name(id)).unwrap_or_else(|| "-".to_string());
                 let note = e.note.as_deref().unwrap_or("");
+                let tags = e.tags.join(" ");
                 let started = format_datetime(&e.started_at, date_fmt);
                 let finished = e.finished_at.as_ref().map(|f| format_datetime(f, date_fmt)).unwrap_or_else(|| "active".to_string());
                 let secs = e.elapsed().num_seconds();
                 println!(
-                    "{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{}",
                     e.id,
                     csv_escape(&project),
                     csv_escape(&task),
                     csv_escape(note),
+                    csv_escape(&tags),
                     csv_escape(&started),
                     csv_escape(&finished),
                     secs,
