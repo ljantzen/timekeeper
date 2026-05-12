@@ -9,8 +9,12 @@ use crate::prompt;
 
 pub fn add(args: TaskAddArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let project = prompt::resolve_or_create_project(storage, user_id, &args.project)?;
-    let task = TaskService::new(storage, user_id).add(&project.name, args.name, args.description)?;
-    println!("Created task '{}' in project '{}'.", task.name, project.name);
+    let task =
+        TaskService::new(storage, user_id).add(&project.name, args.name, args.description)?;
+    println!(
+        "Created task '{}' in project '{}'.",
+        task.name, project.name
+    );
     Ok(())
 }
 

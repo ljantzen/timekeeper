@@ -4,6 +4,6 @@ pub mod project_service;
 pub mod task_service;
 
 pub use comment_service::CommentService;
-pub use entry_service::EntryService;
+pub use entry_service::{EntryService, WeekReport};
 pub use project_service::ProjectService;
 pub use task_service::TaskService;

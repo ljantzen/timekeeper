@@ -18,11 +18,12 @@ impl<'a> CommentService<'a> {
     pub fn add(&self, entry_id_or_prefix: Option<&str>, body: String) -> TmkprResult<Comment> {
         let entry_id = match entry_id_or_prefix {
             Some(prefix) => self.storage.resolve_entry_id(self.user_id, prefix)?,
-            None => self
-                .storage
-                .get_active_entry(self.user_id)?
-                .ok_or(TmkprError::NotTracking)?
-                .id,
+            None => {
+                self.storage
+                    .get_active_entry(self.user_id)?
+                    .ok_or(TmkprError::NotTracking)?
+                    .id
+            }
         };
         self.storage.create_comment(NewComment { entry_id, body })
     }
@@ -76,8 +77,8 @@ fn today_midnight() -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::LOCAL_USER_ID;
     use crate::models::entry::NewEntry;
+    use crate::models::LOCAL_USER_ID;
     use crate::storage::sqlite::SqliteStorage;
     use chrono::Utc;
 
@@ -116,9 +117,12 @@ mod tests {
         let s = storage();
         let entry_id = start_entry(&s);
         // finish it so it is no longer active, then add by prefix
-        s.finish_entry(LOCAL_USER_ID, Utc::now() + chrono::Duration::hours(1)).unwrap();
+        s.finish_entry(LOCAL_USER_ID, Utc::now() + chrono::Duration::hours(1))
+            .unwrap();
 
-        let comment = svc(&s).add(Some(&entry_id), "on finished entry".to_string()).unwrap();
+        let comment = svc(&s)
+            .add(Some(&entry_id), "on finished entry".to_string())
+            .unwrap();
         assert_eq!(comment.entry_id, entry_id);
     }
 
@@ -148,7 +152,8 @@ mod tests {
         // Two entries today, one comment each.
         let e1 = start_entry(&s);
         svc(&s).add(Some(&e1), "on first".to_string()).unwrap();
-        s.finish_entry(LOCAL_USER_ID, Utc::now() + chrono::Duration::hours(1)).unwrap();
+        s.finish_entry(LOCAL_USER_ID, Utc::now() + chrono::Duration::hours(1))
+            .unwrap();
 
         let e2 = start_entry(&s);
         svc(&s).add(Some(&e2), "on second".to_string()).unwrap();

@@ -34,7 +34,9 @@ pub fn run(
     };
 
     let task_id = match (args.task.as_deref(), &project_id) {
-        (Some(input), Some(pid)) => Some(TaskService::new(storage, user_id).resolve(pid, input)?.id),
+        (Some(input), Some(pid)) => {
+            Some(TaskService::new(storage, user_id).resolve(pid, input)?.id)
+        }
         _ => None,
     };
 
@@ -97,7 +99,14 @@ pub fn run(
         .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
         .collect();
 
-    output::print_entries(&entries, &projects, &TaskIndex(all_tasks), date_fmt, format, color);
+    output::print_entries(
+        &entries,
+        &projects,
+        &TaskIndex(all_tasks),
+        date_fmt,
+        format,
+        color,
+    );
     Ok(())
 }
 

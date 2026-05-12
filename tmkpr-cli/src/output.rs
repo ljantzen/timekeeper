@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
 use comfy_table::{Cell, CellAlignment, Color, Table};
+use tmkpr_lib::service::WeekReport;
 
 use tmkpr_lib::models::{comment::Comment, entry::Entry, project::Project, task::Task};
 use tmkpr_lib::service::entry_service::ReportData;
@@ -289,10 +290,7 @@ pub fn print_gaps_table(
         return;
     }
 
-    let total_secs: i64 = gaps
-        .iter()
-        .map(|(s, e)| (*e - *s).num_seconds())
-        .sum();
+    let total_secs: i64 = gaps.iter().map(|(s, e)| (*e - *s).num_seconds()).sum();
 
     let mut table = Table::new();
     table.set_header(vec!["From", "To", "Duration"]);
@@ -371,12 +369,24 @@ pub fn print_entries(
         "csv" => {
             println!("id,project,task,note,tags,started,finished,duration_secs");
             for e in entries {
-                let project = e.project_id.as_deref().map(|id| projects.name(id)).unwrap_or_else(|| "-".to_string());
-                let task = e.task_id.as_deref().map(|id| tasks.name(id)).unwrap_or_else(|| "-".to_string());
+                let project = e
+                    .project_id
+                    .as_deref()
+                    .map(|id| projects.name(id))
+                    .unwrap_or_else(|| "-".to_string());
+                let task = e
+                    .task_id
+                    .as_deref()
+                    .map(|id| tasks.name(id))
+                    .unwrap_or_else(|| "-".to_string());
                 let note = e.note.as_deref().unwrap_or("");
                 let tags = e.tags.join(" ");
                 let started = format_datetime(&e.started_at, date_fmt);
-                let finished = e.finished_at.as_ref().map(|f| format_datetime(f, date_fmt)).unwrap_or_else(|| "active".to_string());
+                let finished = e
+                    .finished_at
+                    .as_ref()
+                    .map(|f| format_datetime(f, date_fmt))
+                    .unwrap_or_else(|| "active".to_string());
                 let secs = e.elapsed().num_seconds();
                 println!(
                     "{},{},{},{},{},{},{},{}",
@@ -391,7 +401,60 @@ pub fn print_entries(
                 );
             }
         }
+        "markdown" => print_entries_markdown(entries, projects, tasks, date_fmt),
         _ => print_entries_table(entries, projects, tasks, date_fmt, color),
+    }
+}
+
+fn print_entries_markdown(
+    entries: &[Entry],
+    projects: &ProjectIndex,
+    tasks: &TaskIndex,
+    date_fmt: &str,
+) {
+    if entries.is_empty() {
+        println!("No entries found.");
+        return;
+    }
+
+    println!("| ID | Project | Task | Note | Tags | Started | Finished | Duration |");
+    println!("|----|---------|----- |------|------|---------|----------|--------:|");
+
+    for e in entries {
+        let project = e
+            .project_id
+            .as_deref()
+            .map(|id| projects.name(id))
+            .unwrap_or_else(|| "-".to_string());
+        let task = e
+            .task_id
+            .as_deref()
+            .map(|id| tasks.name(id))
+            .unwrap_or_else(|| "-".to_string());
+        let note = e.note.as_deref().unwrap_or("-");
+        let tags = if e.tags.is_empty() {
+            "-".to_string()
+        } else {
+            e.tags.join(", ")
+        };
+        let started = format_datetime(&e.started_at, date_fmt);
+        let finished = e
+            .finished_at
+            .as_ref()
+            .map(|f| format_datetime(f, date_fmt))
+            .unwrap_or_else(|| "active".to_string());
+        let duration = format_duration(e.elapsed().num_seconds());
+        println!(
+            "| {} | {} | {} | {} | {} | {} | {} | {} |",
+            short_id(&e.id),
+            project,
+            task,
+            note,
+            tags,
+            started,
+            finished,
+            duration,
+        );
     }
 }
 
@@ -428,7 +491,11 @@ fn print_report_markdown(report: &ReportData) {
 
     for proj in &report.by_project {
         for (i, task) in proj.by_task.iter().enumerate() {
-            let proj_cell = if i == 0 { proj.project_name.as_str() } else { "" };
+            let proj_cell = if i == 0 {
+                proj.project_name.as_str()
+            } else {
+                ""
+            };
             println!(
                 "| {} | {} | {} | {} |",
                 proj_cell,
@@ -489,6 +556,142 @@ pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {
             println!("{table}");
         }
     }
+}
+
+pub fn print_week_report(report: &WeekReport, format: &str) {
+    if report.days.is_empty() || report.total_secs == 0 {
+        println!("No entries for week {}-W{:02}.", report.year, report.week);
+        return;
+    }
+
+    match format {
+        "json" => {
+            print_json(report);
+            return;
+        }
+        "csv" => {
+            let day_headers: Vec<String> = report
+                .days
+                .iter()
+                .map(|d| d.date.format("%a %Y-%m-%d").to_string())
+                .collect();
+            println!("project,{},total", day_headers.join(","));
+            for (proj, total) in &report.totals_by_project {
+                let cols: Vec<String> = report
+                    .days
+                    .iter()
+                    .map(|d| {
+                        d.by_project
+                            .iter()
+                            .find(|(n, _)| n == proj)
+                            .map(|(_, s)| s.to_string())
+                            .unwrap_or_else(|| "0".to_string())
+                    })
+                    .collect();
+                println!("{},{},{}", csv_escape(proj), cols.join(","), total);
+            }
+            let totals: Vec<String> = report
+                .days
+                .iter()
+                .map(|d| d.total_secs.to_string())
+                .collect();
+            println!("TOTAL,{},{}", totals.join(","), report.total_secs);
+            return;
+        }
+        "markdown" => {
+            let day_headers: Vec<String> = report
+                .days
+                .iter()
+                .map(|d| d.date.format("%a %m/%d").to_string())
+                .collect();
+            let sep: Vec<&str> = std::iter::repeat_n("---:", report.days.len() + 2).collect();
+            println!("| Project | {} | Total |", day_headers.join(" | "));
+            println!("| {} |", sep.join(" | "));
+            for (proj, total) in &report.totals_by_project {
+                let cols: Vec<String> = report
+                    .days
+                    .iter()
+                    .map(|d| {
+                        d.by_project
+                            .iter()
+                            .find(|(n, _)| n == proj)
+                            .map(|(_, s)| format_duration(*s))
+                            .unwrap_or_else(|| "-".to_string())
+                    })
+                    .collect();
+                println!(
+                    "| {} | {} | **{}** |",
+                    proj,
+                    cols.join(" | "),
+                    format_duration(*total)
+                );
+            }
+            let totals: Vec<String> = report
+                .days
+                .iter()
+                .map(|d| format_duration(d.total_secs))
+                .collect();
+            println!(
+                "| **TOTAL** | {} | **{}** |",
+                totals.join(" | "),
+                format_duration(report.total_secs)
+            );
+            return;
+        }
+        _ => {}
+    }
+
+    // table format
+    let day_headers: Vec<String> = report
+        .days
+        .iter()
+        .map(|d| d.date.format("%a\n%m/%d").to_string())
+        .collect();
+
+    let mut header = vec!["Project".to_string()];
+    header.extend(day_headers);
+    header.push("Total".to_string());
+    let mut table = Table::new();
+    table.set_header(header);
+
+    for (proj, total) in &report.totals_by_project {
+        let mut row: Vec<Cell> = vec![Cell::new(proj)];
+        for day in &report.days {
+            let secs = day
+                .by_project
+                .iter()
+                .find(|(n, _)| n == proj)
+                .map(|(_, s)| *s)
+                .unwrap_or(0);
+            let cell = if secs > 0 {
+                Cell::new(format_duration(secs)).set_alignment(CellAlignment::Right)
+            } else {
+                Cell::new("-").set_alignment(CellAlignment::Right)
+            };
+            row.push(cell);
+        }
+        row.push(Cell::new(format_duration(*total)).set_alignment(CellAlignment::Right));
+        table.add_row(row);
+    }
+
+    // totals row
+    let mut total_row: Vec<Cell> = vec![Cell::new("TOTAL")];
+    for day in &report.days {
+        total_row.push(
+            Cell::new(if day.total_secs > 0 {
+                format_duration(day.total_secs)
+            } else {
+                "-".to_string()
+            })
+            .set_alignment(CellAlignment::Right),
+        );
+    }
+    total_row
+        .push(Cell::new(format_duration(report.total_secs)).set_alignment(CellAlignment::Right));
+    table.add_row(total_row);
+
+    println!("Week {}-W{:02}", report.year, report.week);
+    println!("{table}");
 }
 
 fn csv_escape(s: &str) -> String {

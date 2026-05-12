@@ -4,7 +4,13 @@ use tmkpr_lib::storage::Storage;
 
 use crate::output::{self, ProjectIndex, TaskIndex};
 
-pub fn run(storage: &dyn Storage, user_id: &str, date_fmt: &str, format: &str, color: bool) -> Result<()> {
+pub fn run(
+    storage: &dyn Storage,
+    user_id: &str,
+    date_fmt: &str,
+    format: &str,
+    color: bool,
+) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
     match svc.status()? {
         None => {

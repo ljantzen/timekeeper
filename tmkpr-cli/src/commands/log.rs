@@ -36,9 +36,9 @@ pub fn run(
         .transpose()?;
 
     let task = match (args.task.as_deref(), &project) {
-        (Some(input), Some(proj)) => {
-            Some(prompt::resolve_or_create_task(storage, user_id, proj, input)?)
-        }
+        (Some(input), Some(proj)) => Some(prompt::resolve_or_create_task(
+            storage, user_id, proj, input,
+        )?),
         (Some(name), None) => {
             return Err(tmkpr_lib::error::TmkprError::Config(format!(
                 "task `{}` requires a project (use -p)",

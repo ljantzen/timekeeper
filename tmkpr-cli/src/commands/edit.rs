@@ -44,7 +44,11 @@ pub fn run(
         Some(input) => {
             let pid = match &project_id {
                 Some(Some(id)) => Some(id.clone()),
-                _ => EntryService::new(storage, user_id).get(&args.id)?.project_id,
+                _ => {
+                    EntryService::new(storage, user_id)
+                        .get(&args.id)?
+                        .project_id
+                }
             };
             match pid {
                 Some(pid) => {

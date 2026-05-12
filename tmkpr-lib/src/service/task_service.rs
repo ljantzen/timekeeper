@@ -50,7 +50,12 @@ impl<'a> TaskService<'a> {
         self.storage.list_tasks(&project.id, include_archived)
     }
 
-    pub fn edit(&self, project_id: &str, input: &str, update: crate::models::task::UpdateTask) -> TmkprResult<crate::models::task::Task> {
+    pub fn edit(
+        &self,
+        project_id: &str,
+        input: &str,
+        update: crate::models::task::UpdateTask,
+    ) -> TmkprResult<crate::models::task::Task> {
         let task = self.resolve(project_id, input)?;
         self.storage.update_task(&task.id, update)
     }
@@ -162,9 +167,16 @@ mod tests {
         let s = storage();
         let proj = setup_project(&s);
         let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj).unwrap().unwrap().id;
-        TaskService::new(&s, LOCAL_USER_ID).add(&proj, "mytask", None).unwrap();
-        let t = TaskService::new(&s, LOCAL_USER_ID).resolve(&proj_id, "mytask").unwrap();
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        TaskService::new(&s, LOCAL_USER_ID)
+            .add(&proj, "mytask", None)
+            .unwrap();
+        let t = TaskService::new(&s, LOCAL_USER_ID)
+            .resolve(&proj_id, "mytask")
+            .unwrap();
         assert_eq!(t.name, "mytask");
     }
 
@@ -173,7 +185,10 @@ mod tests {
         let s = storage();
         let proj = setup_project(&s);
         let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj).unwrap().unwrap().id;
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
         let svc = TaskService::new(&s, LOCAL_USER_ID);
         svc.add(&proj, "first", None).unwrap();
         svc.add(&proj, "second", None).unwrap();
@@ -186,8 +201,13 @@ mod tests {
         let s = storage();
         let proj = setup_project(&s);
         let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj).unwrap().unwrap().id;
-        let err = TaskService::new(&s, LOCAL_USER_ID).resolve(&proj_id, "ghost").unwrap_err();
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        let err = TaskService::new(&s, LOCAL_USER_ID)
+            .resolve(&proj_id, "ghost")
+            .unwrap_err();
         assert!(matches!(err, TmkprError::TaskNotFound(_)));
     }
 
@@ -196,13 +216,24 @@ mod tests {
         let s = storage();
         let proj = setup_project(&s);
         let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj).unwrap().unwrap().id;
-        TaskService::new(&s, LOCAL_USER_ID).add(&proj, "old", Some("desc".into())).unwrap();
-        let updated = TaskService::new(&s, LOCAL_USER_ID).edit(&proj_id, "old", crate::models::task::UpdateTask {
-            name: Some("new".into()),
-            description: Some(None),
-            ..Default::default()
-        }).unwrap();
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        TaskService::new(&s, LOCAL_USER_ID)
+            .add(&proj, "old", Some("desc".into()))
+            .unwrap();
+        let updated = TaskService::new(&s, LOCAL_USER_ID)
+            .edit(
+                &proj_id,
+                "old",
+                crate::models::task::UpdateTask {
+                    name: Some("new".into()),
+                    description: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert_eq!(updated.name, "new");
         assert!(updated.description.is_none());
     }
@@ -212,23 +243,48 @@ mod tests {
         let s = storage();
         let proj_a = setup_project(&s);
         let proj_b = ProjectService::new(&s, LOCAL_USER_ID)
-            .add("proj_b", None, None).unwrap().name;
+            .add("proj_b", None, None)
+            .unwrap()
+            .name;
         let proj_a_id = ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj_a).unwrap().unwrap().id;
+            .get_by_name(&proj_a)
+            .unwrap()
+            .unwrap()
+            .id;
         let proj_b_id = ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj_b).unwrap().unwrap().id;
+            .get_by_name(&proj_b)
+            .unwrap()
+            .unwrap()
+            .id;
 
-        TaskService::new(&s, LOCAL_USER_ID).add(&proj_a, "mytask", None).unwrap();
+        TaskService::new(&s, LOCAL_USER_ID)
+            .add(&proj_a, "mytask", None)
+            .unwrap();
 
-        let moved = TaskService::new(&s, LOCAL_USER_ID).edit(&proj_a_id, "mytask", crate::models::task::UpdateTask {
-            project_id: Some(proj_b_id.clone()),
-            ..Default::default()
-        }).unwrap();
+        let moved = TaskService::new(&s, LOCAL_USER_ID)
+            .edit(
+                &proj_a_id,
+                "mytask",
+                crate::models::task::UpdateTask {
+                    project_id: Some(proj_b_id.clone()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(moved.project_id, proj_b_id);
         assert_eq!(moved.num_id, 1);
-        assert!(TaskService::new(&s, LOCAL_USER_ID).list(&proj_a, false).unwrap().is_empty());
-        assert_eq!(TaskService::new(&s, LOCAL_USER_ID).list(&proj_b, false).unwrap().len(), 1);
+        assert!(TaskService::new(&s, LOCAL_USER_ID)
+            .list(&proj_a, false)
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            TaskService::new(&s, LOCAL_USER_ID)
+                .list(&proj_b, false)
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]

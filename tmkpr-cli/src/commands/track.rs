@@ -31,9 +31,9 @@ pub fn run(
         .transpose()?;
 
     let task = match (args.task.as_deref(), &project) {
-        (Some(input), Some(proj)) => {
-            Some(prompt::resolve_or_create_task(storage, user_id, proj, input)?)
-        }
+        (Some(input), Some(proj)) => Some(prompt::resolve_or_create_task(
+            storage, user_id, proj, input,
+        )?),
         (Some(name), None) => {
             return Err(tmkpr_lib::error::TmkprError::Config(format!(
                 "task `{}` requires a project (use -p)",
@@ -56,8 +56,7 @@ pub fn run(
         }
 
         if !args.force {
-            let projects =
-                ProjectIndex(storage.list_projects(user_id, false).unwrap_or_default());
+            let projects = ProjectIndex(storage.list_projects(user_id, false).unwrap_or_default());
             let tasks = active
                 .project_id
                 .as_ref()
@@ -118,7 +117,10 @@ pub fn run(
     Ok(())
 }
 
-pub(crate) fn last_entry_end(storage: &dyn Storage, user_id: &str) -> Result<chrono::DateTime<chrono::Utc>> {
+pub(crate) fn last_entry_end(
+    storage: &dyn Storage,
+    user_id: &str,
+) -> Result<chrono::DateTime<chrono::Utc>> {
     let entries = EntryService::new(storage, user_id).list(EntryFilter {
         user_id: user_id.to_string(),
         include_active: false,
@@ -131,9 +133,7 @@ pub(crate) fn last_entry_end(storage: &dyn Storage, user_id: &str) -> Result<chr
         .next()
         .and_then(|e| e.finished_at)
         .ok_or_else(|| {
-            anyhow::anyhow!(
-                "No previous entry found. Please provide an explicit start time."
-            )
+            anyhow::anyhow!("No previous entry found. Please provide an explicit start time.")
         })
 }
 
@@ -179,8 +179,19 @@ mod tests {
     #[test]
     fn no_active_entry_starts_normally() {
         let s = mem();
-        run(args(None, false), &s, LOCAL_USER_ID, "%Y-%m-%d %H:%M", TimeFormat::H24, false).unwrap();
-        assert!(EntryService::new(&s, LOCAL_USER_ID).status().unwrap().is_some());
+        run(
+            args(None, false),
+            &s,
+            LOCAL_USER_ID,
+            "%Y-%m-%d %H:%M",
+            TimeFormat::H24,
+            false,
+        )
+        .unwrap();
+        assert!(EntryService::new(&s, LOCAL_USER_ID)
+            .status()
+            .unwrap()
+            .is_some());
     }
 
     #[test]
@@ -188,7 +199,15 @@ mod tests {
         let s = mem();
         let active_id = seed_active(&s, Utc::now() - Duration::hours(2));
 
-        run(args(Some("1 hour ago"), true), &s, LOCAL_USER_ID, "%Y-%m-%d %H:%M", TimeFormat::H24, false).unwrap();
+        run(
+            args(Some("1 hour ago"), true),
+            &s,
+            LOCAL_USER_ID,
+            "%Y-%m-%d %H:%M",
+            TimeFormat::H24,
+            false,
+        )
+        .unwrap();
 
         let stopped = s.get_entry(&active_id).unwrap();
         assert!(!stopped.is_active(), "active entry was not stopped");
@@ -202,7 +221,10 @@ mod tests {
         );
 
         // a new entry is now active
-        assert!(EntryService::new(&s, LOCAL_USER_ID).status().unwrap().is_some());
+        assert!(EntryService::new(&s, LOCAL_USER_ID)
+            .status()
+            .unwrap()
+            .is_some());
     }
 
     #[test]
@@ -231,11 +253,21 @@ mod tests {
         // Zero-duration handoff: new task starts exactly when old one started.
         // Strip sub-seconds so the ISO string round-trips to the same instant.
         let s = mem();
-        let t = (Utc::now() - Duration::hours(1)).with_nanosecond(0).unwrap();
+        let t = (Utc::now() - Duration::hours(1))
+            .with_nanosecond(0)
+            .unwrap();
         let active_id = seed_active(&s, t);
         let t_str = t.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-        run(args(Some(&t_str), true), &s, LOCAL_USER_ID, "%Y-%m-%d %H:%M", TimeFormat::H24, false).unwrap();
+        run(
+            args(Some(&t_str), true),
+            &s,
+            LOCAL_USER_ID,
+            "%Y-%m-%d %H:%M",
+            TimeFormat::H24,
+            false,
+        )
+        .unwrap();
 
         let stopped = s.get_entry(&active_id).unwrap();
         assert!(!stopped.is_active());

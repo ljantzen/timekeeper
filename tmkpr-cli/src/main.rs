@@ -8,7 +8,7 @@ use clap::Parser;
 use tmkpr_lib::config::Config;
 use tmkpr_lib::storage::open_sqlite;
 
-use cli::{Cli, CommentCommands, Commands, ProjectCommands, TaskCommands};
+use cli::{Cli, Commands, CommentCommands, ProjectCommands, TaskCommands};
 
 fn main() {
     if let Err(e) = run() {
@@ -40,10 +40,18 @@ fn run() -> anyhow::Result<()> {
         Commands::Log(args) => {
             commands::log::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
         }
-        Commands::Status => commands::status::run(storage.as_ref(), &user_id, &date_fmt, format, color)?,
-        Commands::List(args) => {
-            commands::list::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, format, color)?
+        Commands::Status => {
+            commands::status::run(storage.as_ref(), &user_id, &date_fmt, format, color)?
         }
+        Commands::List(args) => commands::list::run(
+            args,
+            storage.as_ref(),
+            &user_id,
+            &date_fmt,
+            time_fmt,
+            format,
+            color,
+        )?,
         Commands::Report(args) => {
             commands::report::run(args, storage.as_ref(), &user_id, time_fmt, format, color)?
         }
@@ -61,11 +69,11 @@ fn run() -> anyhow::Result<()> {
         },
         Commands::Task(sub) => match sub {
             TaskCommands::Add(args) => commands::task::add(args, storage.as_ref(), &user_id)?,
-            TaskCommands::List(args) => commands::task::list(args, storage.as_ref(), &user_id, format)?,
-            TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id)?,
-            TaskCommands::Delete(args) => {
-                commands::task::delete(args, storage.as_ref(), &user_id)?
+            TaskCommands::List(args) => {
+                commands::task::list(args, storage.as_ref(), &user_id, format)?
             }
+            TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id)?,
+            TaskCommands::Delete(args) => commands::task::delete(args, storage.as_ref(), &user_id)?,
         },
         Commands::Edit(args) => {
             commands::edit::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?

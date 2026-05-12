@@ -199,6 +199,10 @@ pub struct ReportArgs {
     /// Limit report to a single project
     #[arg(short, long)]
     pub project: Option<String>,
+
+    /// Per-day project summary for an ISO week number (default: current week)
+    #[arg(long, value_name = "WEEK", num_args = 0..=1, default_missing_value = "current")]
+    pub week: Option<String>,
 }
 
 // ── Project subcommands ───────────────────────────────────────────────────────

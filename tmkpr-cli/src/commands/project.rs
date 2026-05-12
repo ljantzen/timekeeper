@@ -13,7 +13,12 @@ pub fn add(args: ProjectAddArgs, storage: &dyn Storage, user_id: &str) -> Result
     Ok(())
 }
 
-pub fn list(args: ProjectListArgs, storage: &dyn Storage, user_id: &str, format: &str) -> Result<()> {
+pub fn list(
+    args: ProjectListArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    format: &str,
+) -> Result<()> {
     let svc = ProjectService::new(storage, user_id);
     let projects = svc.list(args.archived)?;
 
@@ -27,7 +32,10 @@ pub fn list(args: ProjectListArgs, storage: &dyn Storage, user_id: &str, format:
                 v
             })
             .collect();
-        println!("{}", serde_json::to_string_pretty(&values).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&values).unwrap_or_default()
+        );
     } else {
         output::print_projects(&projects, format);
     }

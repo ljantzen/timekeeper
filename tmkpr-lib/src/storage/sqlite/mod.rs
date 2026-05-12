@@ -820,30 +820,41 @@ mod tests {
     #[test]
     fn move_task_between_projects() {
         let s = storage();
-        let proj_a = s.create_project(NewProject {
-            user_id: LOCAL_USER_ID.to_string(),
-            name: "a".to_string(),
-            description: None,
-            color: None,
-        }).unwrap();
-        let proj_b = s.create_project(NewProject {
-            user_id: LOCAL_USER_ID.to_string(),
-            name: "b".to_string(),
-            description: None,
-            color: None,
-        }).unwrap();
+        let proj_a = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "a".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let proj_b = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "b".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
 
-        let task = s.create_task(NewTask {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: proj_a.id.clone(),
-            name: "work".to_string(),
-            description: None,
-        }).unwrap();
+        let task = s
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: proj_a.id.clone(),
+                name: "work".to_string(),
+                description: None,
+            })
+            .unwrap();
 
-        let moved = s.update_task(&task.id, UpdateTask {
-            project_id: Some(proj_b.id.clone()),
-            ..Default::default()
-        }).unwrap();
+        let moved = s
+            .update_task(
+                &task.id,
+                UpdateTask {
+                    project_id: Some(proj_b.id.clone()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(moved.project_id, proj_b.id);
         assert_eq!(moved.num_id, 1);
@@ -854,12 +865,14 @@ mod tests {
     #[test]
     fn duplicate_task_is_conflict() {
         let s = storage();
-        let p = s.create_project(NewProject {
-            user_id: LOCAL_USER_ID.to_string(),
-            name: "proj".to_string(),
-            description: None,
-            color: None,
-        }).unwrap();
+        let p = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
         let new_task = || NewTask {
             user_id: LOCAL_USER_ID.to_string(),
             project_id: p.id.clone(),
@@ -874,18 +887,22 @@ mod tests {
     #[test]
     fn list_entries_filter_by_task() {
         let s = storage();
-        let p = s.create_project(NewProject {
-            user_id: LOCAL_USER_ID.to_string(),
-            name: "proj".to_string(),
-            description: None,
-            color: None,
-        }).unwrap();
-        let t = s.create_task(NewTask {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: p.id.clone(),
-            name: "task".to_string(),
-            description: None,
-        }).unwrap();
+        let p = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let t = s
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: p.id.clone(),
+                name: "task".to_string(),
+                description: None,
+            })
+            .unwrap();
 
         let now = Utc::now();
         s.create_entry(NewEntry {
@@ -896,7 +913,8 @@ mod tests {
             started_at: now,
             finished_at: Some(now + chrono::Duration::hours(1)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
         s.create_entry(NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
             project_id: Some(p.id.clone()),
@@ -905,14 +923,17 @@ mod tests {
             started_at: now,
             finished_at: Some(now + chrono::Duration::hours(1)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
 
-        let entries = s.list_entries(&EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            task_id: Some(t.id.clone()),
-            include_active: true,
-            ..Default::default()
-        }).unwrap();
+        let entries = s
+            .list_entries(&EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                task_id: Some(t.id.clone()),
+                include_active: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].task_id.as_deref(), Some(t.id.as_str()));
     }
@@ -931,17 +952,20 @@ mod tests {
                 started_at: now - chrono::Duration::hours(offset_hours),
                 finished_at: Some(now - chrono::Duration::hours(offset_hours - 1)),
                 tags: vec![],
-            }).unwrap();
+            })
+            .unwrap();
         }
 
         // from 6h ago until 2h ago: should match only the 5h-ago entry
-        let entries = s.list_entries(&EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            from: Some(now - chrono::Duration::hours(6)),
-            until: Some(now - chrono::Duration::hours(2)),
-            include_active: true,
-            ..Default::default()
-        }).unwrap();
+        let entries = s
+            .list_entries(&EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                from: Some(now - chrono::Duration::hours(6)),
+                until: Some(now - chrono::Duration::hours(2)),
+                include_active: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(entries.len(), 1);
     }
 
@@ -958,7 +982,8 @@ mod tests {
             started_at: now - chrono::Duration::hours(2),
             finished_at: Some(now - chrono::Duration::hours(1)),
             tags: vec!["work".to_string(), "deep".to_string()],
-        }).unwrap();
+        })
+        .unwrap();
         s.create_entry(NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
             project_id: None,
@@ -967,62 +992,78 @@ mod tests {
             started_at: now - chrono::Duration::hours(4),
             finished_at: Some(now - chrono::Duration::hours(3)),
             tags: vec!["work".to_string()],
-        }).unwrap();
+        })
+        .unwrap();
 
-        let work_entries = s.list_entries(&EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            tags: vec!["work".to_string()],
-            include_active: true,
-            ..Default::default()
-        }).unwrap();
+        let work_entries = s
+            .list_entries(&EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                tags: vec!["work".to_string()],
+                include_active: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(work_entries.len(), 2);
 
-        let deep_entries = s.list_entries(&EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            tags: vec!["work".to_string(), "deep".to_string()],
-            include_active: true,
-            ..Default::default()
-        }).unwrap();
+        let deep_entries = s
+            .list_entries(&EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                tags: vec!["work".to_string(), "deep".to_string()],
+                include_active: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deep_entries.len(), 1);
     }
 
     #[test]
     fn update_entry_fields() {
         let s = storage();
-        let p = s.create_project(NewProject {
-            user_id: LOCAL_USER_ID.to_string(),
-            name: "proj".to_string(),
-            description: None,
-            color: None,
-        }).unwrap();
-        let t = s.create_task(NewTask {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: p.id.clone(),
-            name: "task".to_string(),
-            description: None,
-        }).unwrap();
+        let p = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let t = s
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: p.id.clone(),
+                name: "task".to_string(),
+                description: None,
+            })
+            .unwrap();
 
         let now = Utc::now();
-        let entry = s.create_entry(NewEntry {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: None,
-            task_id: None,
-            note: None,
-            started_at: now - chrono::Duration::hours(2),
-            finished_at: Some(now - chrono::Duration::hours(1)),
-            tags: vec![],
-        }).unwrap();
+        let entry = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: now - chrono::Duration::hours(2),
+                finished_at: Some(now - chrono::Duration::hours(1)),
+                tags: vec![],
+            })
+            .unwrap();
 
         let new_start = now - chrono::Duration::hours(3);
         let new_end = now - chrono::Duration::minutes(30);
-        let updated = s.update_entry(&entry.id, UpdateEntry {
-            project_id: Some(Some(p.id.clone())),
-            task_id: Some(Some(t.id.clone())),
-            started_at: Some(new_start),
-            finished_at: Some(Some(new_end)),
-            tags: Some(vec!["billable".to_string()]),
-            ..Default::default()
-        }).unwrap();
+        let updated = s
+            .update_entry(
+                &entry.id,
+                UpdateEntry {
+                    project_id: Some(Some(p.id.clone())),
+                    task_id: Some(Some(t.id.clone())),
+                    started_at: Some(new_start),
+                    finished_at: Some(Some(new_end)),
+                    tags: Some(vec!["billable".to_string()]),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.project_id.as_deref(), Some(p.id.as_str()));
         assert_eq!(updated.task_id.as_deref(), Some(t.id.as_str()));
@@ -1043,8 +1084,11 @@ mod tests {
             started_at: now,
             finished_at: None,
             tags: vec![],
-        }).unwrap();
-        let err = s.finish_entry(LOCAL_USER_ID, now - chrono::Duration::hours(1)).unwrap_err();
+        })
+        .unwrap();
+        let err = s
+            .finish_entry(LOCAL_USER_ID, now - chrono::Duration::hours(1))
+            .unwrap_err();
         assert!(matches!(err, TmkprError::InvalidTimeRange));
     }
 
@@ -1060,15 +1104,17 @@ mod tests {
         let s = storage();
         // Create two entries whose IDs share a common prefix by using the same prefix in lookup
         let now = Utc::now();
-        let e1 = s.create_entry(NewEntry {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: None,
-            task_id: None,
-            note: None,
-            started_at: now,
-            finished_at: Some(now + chrono::Duration::hours(1)),
-            tags: vec![],
-        }).unwrap();
+        let e1 = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: now,
+                finished_at: Some(now + chrono::Duration::hours(1)),
+                tags: vec![],
+            })
+            .unwrap();
         s.create_entry(NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
             project_id: None,
@@ -1077,7 +1123,8 @@ mod tests {
             started_at: now + chrono::Duration::hours(2),
             finished_at: Some(now + chrono::Duration::hours(3)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
         // An empty prefix matches everything
         let err = s.resolve_entry_id(LOCAL_USER_ID, "").unwrap_err();
         assert!(matches!(err, TmkprError::Conflict(_)));
@@ -1106,8 +1153,17 @@ mod tests {
         let s = storage();
         let entry = make_entry(&s);
 
-        let c1 = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "first".to_string() }).unwrap();
-        s.create_comment(NewComment { entry_id: entry.id.clone(), body: "second".to_string() }).unwrap();
+        let c1 = s
+            .create_comment(NewComment {
+                entry_id: entry.id.clone(),
+                body: "first".to_string(),
+            })
+            .unwrap();
+        s.create_comment(NewComment {
+            entry_id: entry.id.clone(),
+            body: "second".to_string(),
+        })
+        .unwrap();
 
         assert_eq!(c1.entry_id, entry.id);
         assert_eq!(c1.body, "first");
@@ -1122,7 +1178,12 @@ mod tests {
     fn update_comment_body() {
         let s = storage();
         let entry = make_entry(&s);
-        let c = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "old".to_string() }).unwrap();
+        let c = s
+            .create_comment(NewComment {
+                entry_id: entry.id.clone(),
+                body: "old".to_string(),
+            })
+            .unwrap();
 
         let updated = s.update_comment(&c.id, "new".to_string()).unwrap();
         assert_eq!(updated.id, c.id);
@@ -1133,7 +1194,11 @@ mod tests {
     fn delete_entry_cascades_to_comments() {
         let s = storage();
         let entry = make_entry(&s);
-        s.create_comment(NewComment { entry_id: entry.id.clone(), body: "bye".to_string() }).unwrap();
+        s.create_comment(NewComment {
+            entry_id: entry.id.clone(),
+            body: "bye".to_string(),
+        })
+        .unwrap();
 
         s.delete_entry(&entry.id).unwrap();
         assert!(s.list_comments(&entry.id).unwrap().is_empty());
@@ -1143,7 +1208,12 @@ mod tests {
     fn resolve_comment_id_prefix() {
         let s = storage();
         let entry = make_entry(&s);
-        let c = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "test".to_string() }).unwrap();
+        let c = s
+            .create_comment(NewComment {
+                entry_id: entry.id.clone(),
+                body: "test".to_string(),
+            })
+            .unwrap();
 
         let full = s.resolve_comment_id(LOCAL_USER_ID, &c.id).unwrap();
         assert_eq!(full, c.id);
@@ -1156,9 +1226,16 @@ mod tests {
     fn resolve_comment_id_wrong_user_not_found() {
         let s = storage();
         let entry = make_entry(&s);
-        let c = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "test".to_string() }).unwrap();
+        let c = s
+            .create_comment(NewComment {
+                entry_id: entry.id.clone(),
+                body: "test".to_string(),
+            })
+            .unwrap();
 
-        let err = s.resolve_comment_id("00000000-0000-0000-0000-000000000099", &c.id[..8]).unwrap_err();
+        let err = s
+            .resolve_comment_id("00000000-0000-0000-0000-000000000099", &c.id[..8])
+            .unwrap_err();
         assert!(matches!(err, TmkprError::NotFound { .. }));
     }
 
@@ -1166,6 +1243,12 @@ mod tests {
     fn get_comment_not_found() {
         let s = storage();
         let err = s.get_comment("nonexistent-id").unwrap_err();
-        assert!(matches!(err, TmkprError::NotFound { entity: "comment", .. }));
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "comment",
+                ..
+            }
+        ));
     }
 }

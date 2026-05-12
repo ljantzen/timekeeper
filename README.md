@@ -141,11 +141,13 @@ In `24h` mode, bare timestamps like `07:51` and `14:50` are accepted wherever a 
 
 ## Output format
 
-All list-producing commands accept `--format table` (default), `--format json`, or `--format csv`.
+All list-producing commands accept `--format table` (default), `--format json`, `--format csv`, or `--format markdown`.
 
 ```
 tmkpr list --format json
+tmkpr list --format markdown
 tmkpr report --format csv
+tmkpr report --format markdown
 tmkpr project list --format json
 tmkpr task list -p myproject --format csv
 ```

@@ -1,4 +1,6 @@
-use chrono::{DateTime, Duration, Utc};
+use std::collections::HashMap;
+
+use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc, Weekday};
 use serde::Serialize;
 
 use crate::error::{TmkprError, TmkprResult};
@@ -28,6 +30,38 @@ pub struct TaskReport {
     pub entry_count: usize,
 }
 
+fn local_midnight_utc(date: NaiveDate) -> DateTime<Utc> {
+    Local
+        .from_local_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
+        .single()
+        .unwrap()
+        .with_timezone(&Utc)
+}
+
+// ── Week report types ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct WeekReportDay {
+    pub date: NaiveDate,
+    /// (project_name, secs) for every project that has time on this day.
+    pub by_project: Vec<(String, i64)>,
+    pub total_secs: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WeekReport {
+    pub year: i32,
+    pub week: u32,
+    /// All project names that appear during the week, ordered by total secs desc.
+    pub projects: Vec<String>,
+    /// Monday through Friday.
+    pub days: Vec<WeekReportDay>,
+    pub totals_by_project: Vec<(String, i64)>,
+    pub total_secs: i64,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 pub struct EntryService<'a> {
     storage: &'a dyn Storage,
     user_id: &'a str,
@@ -52,14 +86,20 @@ impl<'a> EntryService<'a> {
         }
 
         let project_id = match project_name {
-            Some(input) => Some(ProjectService::new(self.storage, self.user_id).resolve(input)?.id),
+            Some(input) => Some(
+                ProjectService::new(self.storage, self.user_id)
+                    .resolve(input)?
+                    .id,
+            ),
             None => None,
         };
 
         let task_id = match (task_name, &project_id) {
-            (Some(input), Some(pid)) => {
-                Some(TaskService::new(self.storage, self.user_id).resolve(pid, input)?.id)
-            }
+            (Some(input), Some(pid)) => Some(
+                TaskService::new(self.storage, self.user_id)
+                    .resolve(pid, input)?
+                    .id,
+            ),
             (Some(name), None) => {
                 return Err(TmkprError::Config(format!(
                     "task `{}` requires a project (use -p)",
@@ -95,14 +135,20 @@ impl<'a> EntryService<'a> {
         }
 
         let project_id = match project_name {
-            Some(input) => Some(ProjectService::new(self.storage, self.user_id).resolve(input)?.id),
+            Some(input) => Some(
+                ProjectService::new(self.storage, self.user_id)
+                    .resolve(input)?
+                    .id,
+            ),
             None => None,
         };
 
         let task_id = match (task_name, &project_id) {
-            (Some(input), Some(pid)) => {
-                Some(TaskService::new(self.storage, self.user_id).resolve(pid, input)?.id)
-            }
+            (Some(input), Some(pid)) => Some(
+                TaskService::new(self.storage, self.user_id)
+                    .resolve(pid, input)?
+                    .id,
+            ),
             (Some(name), None) => {
                 return Err(TmkprError::Config(format!(
                     "task `{}` requires a project (use -p)",
@@ -156,6 +202,88 @@ impl<'a> EntryService<'a> {
         self.storage.delete_entry(&id)
     }
 
+    pub fn week_report(&self, year: i32, week: u32) -> TmkprResult<WeekReport> {
+        let monday = NaiveDate::from_isoywd_opt(year, week, Weekday::Mon).ok_or_else(|| {
+            TmkprError::Config(format!("invalid ISO week {week} for year {year}"))
+        })?;
+        let saturday = monday + Duration::days(5);
+
+        let from = local_midnight_utc(monday);
+        let until = local_midnight_utc(saturday);
+
+        let entries = self.storage.list_entries(&EntryFilter {
+            user_id: self.user_id.to_string(),
+            from: Some(from),
+            until: Some(until),
+            include_active: true,
+            ..Default::default()
+        })?;
+
+        let projects = self
+            .storage
+            .list_projects(self.user_id, true)
+            .unwrap_or_default();
+        let project_name_of = |id: &str| -> String {
+            projects
+                .iter()
+                .find(|p| p.id == id)
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| id.to_string())
+        };
+
+        let mut week_by_project: HashMap<String, i64> = HashMap::new();
+        let mut total_secs = 0i64;
+
+        let days: Vec<WeekReportDay> = (0..5)
+            .map(|offset| {
+                let date = monday + Duration::days(offset);
+                let day_start = local_midnight_utc(date);
+                let day_end = local_midnight_utc(date + Duration::days(1));
+
+                let mut by_project: HashMap<String, i64> = HashMap::new();
+                let mut day_total = 0i64;
+
+                for entry in entries
+                    .iter()
+                    .filter(|e| e.started_at >= day_start && e.started_at < day_end)
+                {
+                    let secs = entry.elapsed().num_seconds();
+                    day_total += secs;
+                    let name = entry
+                        .project_id
+                        .as_deref()
+                        .map(project_name_of)
+                        .unwrap_or_else(|| "(no project)".to_string());
+                    *by_project.entry(name.clone()).or_insert(0) += secs;
+                    *week_by_project.entry(name).or_insert(0) += secs;
+                }
+                total_secs += day_total;
+
+                let mut by_project: Vec<(String, i64)> = by_project.into_iter().collect();
+                by_project.sort_by(|a, b| a.0.cmp(&b.0));
+
+                WeekReportDay {
+                    date,
+                    by_project,
+                    total_secs: day_total,
+                }
+            })
+            .collect();
+
+        let mut totals_by_project: Vec<(String, i64)> = week_by_project.into_iter().collect();
+        totals_by_project.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let project_names = totals_by_project.iter().map(|(n, _)| n.clone()).collect();
+
+        Ok(WeekReport {
+            year,
+            week,
+            projects: project_names,
+            days,
+            totals_by_project,
+            total_secs,
+        })
+    }
+
     pub fn report(
         &self,
         from: Option<DateTime<Utc>>,
@@ -163,7 +291,11 @@ impl<'a> EntryService<'a> {
         project_name: Option<&str>,
     ) -> TmkprResult<ReportData> {
         let project_id = match project_name {
-            Some(input) => Some(ProjectService::new(self.storage, self.user_id).resolve(input)?.id),
+            Some(input) => Some(
+                ProjectService::new(self.storage, self.user_id)
+                    .resolve(input)?
+                    .id,
+            ),
             None => None,
         };
 
@@ -267,8 +399,8 @@ impl<'a> EntryService<'a> {
 mod tests {
     use super::*;
     use crate::error::TmkprError;
-    use crate::models::LOCAL_USER_ID;
     use crate::models::entry::UpdateEntry;
+    use crate::models::LOCAL_USER_ID;
     use crate::service::{ProjectService, TaskService};
     use crate::storage::sqlite::SqliteStorage;
 
@@ -309,7 +441,13 @@ mod tests {
         let s = storage();
         let (proj, task) = setup(&s);
         let entry = svc(&s)
-            .start(Some(&proj), Some(&task), Some("note".into()), vec!["tag1".into()], None)
+            .start(
+                Some(&proj),
+                Some(&task),
+                Some("note".into()),
+                vec!["tag1".into()],
+                None,
+            )
             .unwrap();
         assert!(entry.project_id.is_some());
         assert!(entry.task_id.is_some());
@@ -320,14 +458,18 @@ mod tests {
     #[test]
     fn start_with_unknown_project_errors() {
         let s = storage();
-        let err = svc(&s).start(Some("ghost"), None, None, vec![], None).unwrap_err();
+        let err = svc(&s)
+            .start(Some("ghost"), None, None, vec![], None)
+            .unwrap_err();
         assert!(matches!(err, TmkprError::ProjectNotFound(_)));
     }
 
     #[test]
     fn start_with_task_requires_project() {
         let s = storage();
-        let err = svc(&s).start(None, Some("sometask"), None, vec![], None).unwrap_err();
+        let err = svc(&s)
+            .start(None, Some("sometask"), None, vec![], None)
+            .unwrap_err();
         assert!(matches!(err, TmkprError::Config(_)));
     }
 
@@ -360,7 +502,9 @@ mod tests {
         let s = storage();
         let start = Utc::now() - Duration::hours(1);
         let end = Utc::now();
-        svc(&s).start(None, None, None, vec![], Some(start)).unwrap();
+        svc(&s)
+            .start(None, None, None, vec![], Some(start))
+            .unwrap();
         let stopped = svc(&s).stop(Some(end)).unwrap();
         let dur = stopped.duration().unwrap().num_seconds();
         assert!(dur >= 3599 && dur <= 3601);
@@ -386,7 +530,8 @@ mod tests {
             started_at: now - Duration::hours(2),
             finished_at: Some(now - Duration::hours(1)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
         // Entry without project
         s.create_entry(crate::models::entry::NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
@@ -396,21 +541,26 @@ mod tests {
             started_at: now - Duration::hours(3),
             finished_at: Some(now - Duration::hours(2)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
 
-        let all = svc(&s).list(EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            include_active: false,
-            ..Default::default()
-        }).unwrap();
+        let all = svc(&s)
+            .list(EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(all.len(), 2);
 
-        let filtered = svc(&s).list(EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: Some(proj_id),
-            include_active: false,
-            ..Default::default()
-        }).unwrap();
+        let filtered = svc(&s)
+            .list(EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(filtered.len(), 1);
     }
 
@@ -427,12 +577,19 @@ mod tests {
     #[test]
     fn update_note() {
         let s = storage();
-        svc(&s).start(None, None, Some("old".into()), vec![], None).unwrap();
+        svc(&s)
+            .start(None, None, Some("old".into()), vec![], None)
+            .unwrap();
         let entry = svc(&s).stop(None).unwrap();
-        let updated = svc(&s).update(&entry.id, UpdateEntry {
-            note: Some(Some("new note".into())),
-            ..Default::default()
-        }).unwrap();
+        let updated = svc(&s)
+            .update(
+                &entry.id,
+                UpdateEntry {
+                    note: Some(Some("new note".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert_eq!(updated.note.as_deref(), Some("new note"));
     }
 
@@ -442,10 +599,12 @@ mod tests {
         svc(&s).start(None, None, None, vec![], None).unwrap();
         let entry = svc(&s).stop(None).unwrap();
         svc(&s).delete(&entry.id).unwrap();
-        let all = svc(&s).list(EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            ..Default::default()
-        }).unwrap();
+        let all = svc(&s)
+            .list(EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                ..Default::default()
+            })
+            .unwrap();
         assert!(all.is_empty());
     }
 
@@ -456,7 +615,10 @@ mod tests {
         let now = Utc::now();
 
         let proj_id = crate::service::ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj).unwrap().unwrap().id;
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
         let task_id = s.get_task_by_name(&proj_id, &task).unwrap().unwrap().id;
 
         for _ in 0..3 {
@@ -468,7 +630,8 @@ mod tests {
                 started_at: now - Duration::hours(2),
                 finished_at: Some(now - Duration::hours(1)),
                 tags: vec![],
-            }).unwrap();
+            })
+            .unwrap();
         }
 
         let report = svc(&s).report(None, None, None).unwrap();
@@ -485,7 +648,10 @@ mod tests {
         let now = Utc::now();
         let (proj, _) = setup(&s);
         let proj_id = crate::service::ProjectService::new(&s, LOCAL_USER_ID)
-            .get_by_name(&proj).unwrap().unwrap().id;
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
 
         s.create_entry(crate::models::entry::NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
@@ -495,7 +661,8 @@ mod tests {
             started_at: now - Duration::hours(1),
             finished_at: Some(now),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
         // Entry with no project — should be excluded when filtering
         s.create_entry(crate::models::entry::NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
@@ -505,7 +672,8 @@ mod tests {
             started_at: now - Duration::hours(2),
             finished_at: Some(now - Duration::hours(1)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
 
         let report = svc(&s).report(None, None, Some(&proj)).unwrap();
         assert_eq!(report.by_project.len(), 1);
@@ -518,7 +686,16 @@ mod tests {
         let (proj, task) = setup(&s);
         let start = Utc::now() - Duration::hours(2);
         let end = Utc::now() - Duration::hours(1);
-        let entry = svc(&s).log(Some(&proj), Some(&task), Some("note".into()), vec!["t".into()], start, end).unwrap();
+        let entry = svc(&s)
+            .log(
+                Some(&proj),
+                Some(&task),
+                Some("note".into()),
+                vec!["t".into()],
+                start,
+                end,
+            )
+            .unwrap();
         assert!(!entry.is_active());
         assert!(entry.project_id.is_some());
         assert!(entry.task_id.is_some());
@@ -539,7 +716,9 @@ mod tests {
     fn log_invalid_time_range_errors() {
         let s = storage();
         let now = Utc::now();
-        let err = svc(&s).log(None, None, None, vec![], now, now - Duration::seconds(1)).unwrap_err();
+        let err = svc(&s)
+            .log(None, None, None, vec![], now, now - Duration::seconds(1))
+            .unwrap_err();
         assert!(matches!(err, TmkprError::InvalidTimeRange));
     }
 
@@ -556,7 +735,9 @@ mod tests {
         let s = storage();
         let start = Utc::now() - Duration::hours(1);
         let end = Utc::now();
-        let err = svc(&s).log(None, Some("sometask"), None, vec![], start, end).unwrap_err();
+        let err = svc(&s)
+            .log(None, Some("sometask"), None, vec![], start, end)
+            .unwrap_err();
         assert!(matches!(err, TmkprError::Config(_)));
     }
 
@@ -583,7 +764,8 @@ mod tests {
             started_at: today_midnight - Duration::hours(2),
             finished_at: Some(today_midnight - Duration::hours(1)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
 
         // Entry from today — should be included
         s.create_entry(crate::models::entry::NewEntry {
@@ -594,14 +776,17 @@ mod tests {
             started_at: now - Duration::hours(1),
             finished_at: Some(now),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
 
-        let results = svc(&s).list(EntryFilter {
-            user_id: LOCAL_USER_ID.to_string(),
-            from: Some(today_midnight),
-            include_active: false,
-            ..Default::default()
-        }).unwrap();
+        let results = svc(&s)
+            .list(EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                from: Some(today_midnight),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].note.as_deref(), Some("today"));
@@ -612,7 +797,9 @@ mod tests {
         let s = storage();
         let start = Utc::now() - Duration::hours(1);
         let end = Utc::now();
-        let err = svc(&s).log(Some("ghost"), None, None, vec![], start, end).unwrap_err();
+        let err = svc(&s)
+            .log(Some("ghost"), None, None, vec![], start, end)
+            .unwrap_err();
         assert!(matches!(err, TmkprError::ProjectNotFound(_)));
     }
 
@@ -637,7 +824,8 @@ mod tests {
             started_at: now - Duration::hours(2),
             finished_at: Some(now - Duration::hours(1)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
         // Second entry in same "(no project)" bucket so the existing-bucket branch is hit
         s.create_entry(crate::models::entry::NewEntry {
             user_id: LOCAL_USER_ID.to_string(),
@@ -647,7 +835,8 @@ mod tests {
             started_at: now - Duration::hours(4),
             finished_at: Some(now - Duration::hours(3)),
             tags: vec![],
-        }).unwrap();
+        })
+        .unwrap();
 
         let report = svc(&s).report(None, None, None).unwrap();
         assert_eq!(report.by_project.len(), 1);
@@ -661,24 +850,31 @@ mod tests {
     fn update_entry_time_and_tags() {
         let s = storage();
         let now = Utc::now();
-        let entry = s.create_entry(crate::models::entry::NewEntry {
-            user_id: LOCAL_USER_ID.to_string(),
-            project_id: None,
-            task_id: None,
-            note: None,
-            started_at: now - Duration::hours(2),
-            finished_at: Some(now - Duration::hours(1)),
-            tags: vec![],
-        }).unwrap();
+        let entry = s
+            .create_entry(crate::models::entry::NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: now - Duration::hours(2),
+                finished_at: Some(now - Duration::hours(1)),
+                tags: vec![],
+            })
+            .unwrap();
 
         let new_start = now - Duration::hours(3);
         let new_end = now - Duration::minutes(30);
-        let updated = svc(&s).update(&entry.id, UpdateEntry {
-            started_at: Some(new_start),
-            finished_at: Some(Some(new_end)),
-            tags: Some(vec!["billable".to_string()]),
-            ..Default::default()
-        }).unwrap();
+        let updated = svc(&s)
+            .update(
+                &entry.id,
+                UpdateEntry {
+                    started_at: Some(new_start),
+                    finished_at: Some(Some(new_end)),
+                    tags: Some(vec!["billable".to_string()]),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.started_at, new_start);
         assert_eq!(updated.finished_at, Some(new_end));

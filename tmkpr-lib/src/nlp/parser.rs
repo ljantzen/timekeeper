@@ -74,16 +74,26 @@ fn parse_bare_time_24h(input: &str, now: &DateTime<Local>) -> Option<DateTime<Lo
     let m_str = parts.next()?;
     let s_str = parts.next().unwrap_or("0");
 
-    if !h_str.chars().all(|c| c.is_ascii_digit()) { return None; }
-    if !m_str.chars().all(|c| c.is_ascii_digit()) { return None; }
-    if !s_str.chars().all(|c| c.is_ascii_digit()) { return None; }
-    if h_str.is_empty() || m_str.is_empty() || s_str.is_empty() { return None; }
+    if !h_str.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    if !m_str.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    if !s_str.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    if h_str.is_empty() || m_str.is_empty() || s_str.is_empty() {
+        return None;
+    }
 
     let h: u32 = h_str.parse().ok()?;
     let m: u32 = m_str.parse().ok()?;
     let s: u32 = s_str.parse().ok()?;
 
-    if h > 23 || m > 59 || s > 59 { return None; }
+    if h > 23 || m > 59 || s > 59 {
+        return None;
+    }
 
     now.date_naive()
         .and_hms_opt(h, m, s)

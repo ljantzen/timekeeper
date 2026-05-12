@@ -44,7 +44,11 @@ impl<'a> ProjectService<'a> {
         found.ok_or_else(|| crate::error::TmkprError::ProjectNotFound(input.to_string()))
     }
 
-    pub fn edit(&self, input: &str, update: crate::models::project::UpdateProject) -> TmkprResult<Project> {
+    pub fn edit(
+        &self,
+        input: &str,
+        update: crate::models::project::UpdateProject,
+    ) -> TmkprResult<Project> {
         let project = self.resolve(input)?;
         self.storage.update_project(&project.id, update)
     }
@@ -90,7 +94,9 @@ mod tests {
     fn add_and_list() {
         let s = storage();
         svc(&s).add("alpha", None, None).unwrap();
-        svc(&s).add("beta", Some("desc".into()), Some("#ff0000".into())).unwrap();
+        svc(&s)
+            .add("beta", Some("desc".into()), Some("#ff0000".into()))
+            .unwrap();
         let projects = svc(&s).list(false).unwrap();
         assert_eq!(projects.len(), 2);
         assert_eq!(projects[0].name, "alpha");
@@ -166,11 +172,16 @@ mod tests {
     fn edit_name_and_description() {
         let s = storage();
         svc(&s).add("old", Some("desc".into()), None).unwrap();
-        let updated = svc(&s).edit("old", crate::models::project::UpdateProject {
-            name: Some("new".into()),
-            description: Some(None),
-            ..Default::default()
-        }).unwrap();
+        let updated = svc(&s)
+            .edit(
+                "old",
+                crate::models::project::UpdateProject {
+                    name: Some("new".into()),
+                    description: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert_eq!(updated.name, "new");
         assert!(updated.description.is_none());
     }
@@ -179,15 +190,25 @@ mod tests {
     fn edit_color() {
         let s = storage();
         svc(&s).add("proj", None, None).unwrap();
-        let updated = svc(&s).edit("proj", crate::models::project::UpdateProject {
-            color: Some(Some("#abcdef".into())),
-            ..Default::default()
-        }).unwrap();
+        let updated = svc(&s)
+            .edit(
+                "proj",
+                crate::models::project::UpdateProject {
+                    color: Some(Some("#abcdef".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert_eq!(updated.color.as_deref(), Some("#abcdef"));
-        let cleared = svc(&s).edit("proj", crate::models::project::UpdateProject {
-            color: Some(None),
-            ..Default::default()
-        }).unwrap();
+        let cleared = svc(&s)
+            .edit(
+                "proj",
+                crate::models::project::UpdateProject {
+                    color: Some(None),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert!(cleared.color.is_none());
     }
 }
