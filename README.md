@@ -48,10 +48,17 @@ tmkpr log -s "yesterday 9am" -e "yesterday 5pm" -p myproject -n "deep work"
 ### Entries
 
 ```
-tmkpr list [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG]
+tmkpr list [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG] [--gaps]
 tmkpr report [--from TIME] [--until TIME] [-p PROJECT]
 tmkpr edit <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
 tmkpr delete <ID> [-y]
+```
+
+`list` with no `--from`/`--until` shows today's entries only. Pass `--from` to widen the range:
+
+```
+tmkpr list --from "last monday"
+tmkpr list --from "2025-01-01"
 ```
 
 Entry IDs can be abbreviated to any unambiguous prefix (8+ chars).

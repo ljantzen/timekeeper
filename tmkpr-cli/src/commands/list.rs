@@ -74,6 +74,8 @@ pub fn run(
         return Ok(());
     }
 
+    let from = apply_today_default(from, until);
+
     let filter = EntryFilter {
         user_id: user_id.to_string(),
         project_id,
@@ -97,6 +99,24 @@ pub fn run(
 
     output::print_entries(&entries, &projects, &TaskIndex(all_tasks), date_fmt, format, color);
     Ok(())
+}
+
+/// Defaults `from` to today's local midnight (UTC) when neither bound is set.
+fn apply_today_default(
+    from: Option<DateTime<Utc>>,
+    until: Option<DateTime<Utc>>,
+) -> Option<DateTime<Utc>> {
+    from.or_else(|| {
+        if until.is_none() {
+            let today = Local::now().date_naive();
+            Local
+                .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap())
+                .single()
+                .map(|dt| dt.with_timezone(&Utc))
+        } else {
+            None
+        }
+    })
 }
 
 /// Returns the untracked gaps within [window_start, window_end].
@@ -142,4 +162,37 @@ fn compute_gaps(
     }
 
     gaps
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, TimeZone};
+
+    #[test]
+    fn no_args_defaults_to_today_midnight() {
+        let from = apply_today_default(None, None);
+        assert!(from.is_some());
+        let today = Local::now().date_naive();
+        let expected = Local
+            .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap())
+            .single()
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(from.unwrap(), expected);
+    }
+
+    #[test]
+    fn explicit_from_is_preserved() {
+        let explicit = Utc::now() - Duration::days(7);
+        let from = apply_today_default(Some(explicit), None);
+        assert_eq!(from.unwrap(), explicit);
+    }
+
+    #[test]
+    fn until_without_from_applies_no_default() {
+        let until = Utc::now();
+        let from = apply_today_default(None, Some(until));
+        assert!(from.is_none());
+    }
 }

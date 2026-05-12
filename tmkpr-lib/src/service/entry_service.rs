@@ -561,6 +561,53 @@ mod tests {
     }
 
     #[test]
+    fn list_filters_by_time_range() {
+        let s = storage();
+        let now = Utc::now();
+        let today_midnight = {
+            use chrono::{Local, TimeZone};
+            let today = chrono::Local::now().date_naive();
+            Local
+                .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap())
+                .single()
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+
+        // Entry from yesterday — should be excluded by a today filter
+        s.create_entry(crate::models::entry::NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: Some("yesterday".into()),
+            started_at: today_midnight - Duration::hours(2),
+            finished_at: Some(today_midnight - Duration::hours(1)),
+            tags: vec![],
+        }).unwrap();
+
+        // Entry from today — should be included
+        s.create_entry(crate::models::entry::NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: Some("today".into()),
+            started_at: now - Duration::hours(1),
+            finished_at: Some(now),
+            tags: vec![],
+        }).unwrap();
+
+        let results = svc(&s).list(EntryFilter {
+            user_id: LOCAL_USER_ID.to_string(),
+            from: Some(today_midnight),
+            include_active: false,
+            ..Default::default()
+        }).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].note.as_deref(), Some("today"));
+    }
+
+    #[test]
     fn log_unknown_project_errors() {
         let s = storage();
         let start = Utc::now() - Duration::hours(1);

@@ -151,7 +151,7 @@ pub struct ListArgs {
     #[arg(short, long)]
     pub task: Option<String>,
 
-    /// Start of date range (natural language or ISO 8601)
+    /// Start of date range (natural language or ISO 8601) [default: today]
     #[arg(long)]
     pub from: Option<String>,
 
