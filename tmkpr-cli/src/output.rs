@@ -418,11 +418,12 @@ pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {
     match format {
         "json" => print_json(comments),
         "csv" => {
-            println!("id,body,created_at");
+            println!("id,entry_id,body,created_at");
             for c in comments {
                 println!(
-                    "{},{},{}",
+                    "{},{},{},{}",
                     c.id,
+                    c.entry_id,
                     csv_escape(&c.body),
                     csv_escape(&format_datetime(&c.created_at, date_fmt)),
                 );
@@ -434,10 +435,11 @@ pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {
                 return;
             }
             let mut table = Table::new();
-            table.set_header(vec!["ID", "Body", "Created"]);
+            table.set_header(vec!["ID", "Entry", "Body", "Created"]);
             for c in comments {
                 table.add_row(vec![
                     Cell::new(&c.id[..c.id.len().min(8)]),
+                    Cell::new(&c.entry_id[..c.entry_id.len().min(8)]),
                     Cell::new(&c.body),
                     Cell::new(format_datetime(&c.created_at, date_fmt)),
                 ]);

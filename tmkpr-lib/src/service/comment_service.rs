@@ -1,5 +1,8 @@
+use chrono::{DateTime, Local, TimeZone, Utc};
+
 use crate::error::{TmkprError, TmkprResult};
 use crate::models::comment::{Comment, NewComment};
+use crate::models::entry::EntryFilter;
 use crate::storage::Storage;
 
 pub struct CommentService<'a> {
@@ -25,15 +28,25 @@ impl<'a> CommentService<'a> {
     }
 
     pub fn list(&self, entry_id_or_prefix: Option<&str>) -> TmkprResult<Vec<Comment>> {
-        let entry_id = match entry_id_or_prefix {
-            Some(prefix) => self.storage.resolve_entry_id(self.user_id, prefix)?,
-            None => self
-                .storage
-                .get_active_entry(self.user_id)?
-                .ok_or(TmkprError::NotTracking)?
-                .id,
-        };
-        self.storage.list_comments(&entry_id)
+        match entry_id_or_prefix {
+            Some(prefix) => {
+                let id = self.storage.resolve_entry_id(self.user_id, prefix)?;
+                self.storage.list_comments(&id)
+            }
+            None => {
+                let entries = self.storage.list_entries(&EntryFilter {
+                    user_id: self.user_id.to_string(),
+                    from: Some(today_midnight()),
+                    include_active: true,
+                    ..Default::default()
+                })?;
+                let mut comments = Vec::new();
+                for entry in entries {
+                    comments.extend(self.storage.list_comments(&entry.id)?);
+                }
+                Ok(comments)
+            }
+        }
     }
 
     pub fn edit(&self, comment_id_prefix: &str, body: String) -> TmkprResult<Comment> {
@@ -49,6 +62,15 @@ impl<'a> CommentService<'a> {
             .resolve_comment_id(self.user_id, comment_id_prefix)?;
         self.storage.delete_comment(&id)
     }
+}
+
+fn today_midnight() -> DateTime<Utc> {
+    let today = Local::now().date_naive();
+    Local
+        .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap())
+        .single()
+        .unwrap()
+        .with_timezone(&Utc)
 }
 
 #[cfg(test)]
@@ -121,13 +143,27 @@ mod tests {
     }
 
     #[test]
-    fn list_defaults_to_active_entry() {
+    fn list_no_arg_returns_todays_comments() {
         let s = storage();
-        start_entry(&s);
-        svc(&s).add(None, "note".to_string()).unwrap();
+        // Two entries today, one comment each.
+        let e1 = start_entry(&s);
+        svc(&s).add(Some(&e1), "on first".to_string()).unwrap();
+        s.finish_entry(LOCAL_USER_ID, Utc::now() + chrono::Duration::hours(1)).unwrap();
+
+        let e2 = start_entry(&s);
+        svc(&s).add(Some(&e2), "on second".to_string()).unwrap();
 
         let comments = svc(&s).list(None).unwrap();
-        assert_eq!(comments.len(), 1);
+        assert_eq!(comments.len(), 2);
+        assert!(comments.iter().any(|c| c.body == "on first"));
+        assert!(comments.iter().any(|c| c.body == "on second"));
+    }
+
+    #[test]
+    fn list_no_arg_empty_when_no_entries_today() {
+        let s = storage();
+        let comments = svc(&s).list(None).unwrap();
+        assert!(comments.is_empty());
     }
 
     #[test]
