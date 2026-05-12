@@ -1,6 +1,8 @@
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::terminal;
 use tmkpr_lib::error::TmkprError;
 use tmkpr_lib::models::{project::Project, task::Task};
 use tmkpr_lib::service::{ProjectService, TaskService};
@@ -9,9 +11,37 @@ use tmkpr_lib::storage::Storage;
 pub fn confirm(question: &str) -> bool {
     print!("{} [y/N] ", question);
     io::stdout().flush().ok();
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).ok();
-    matches!(input.trim().to_lowercase().as_str(), "y" | "yes")
+
+    // If stdin isn't a TTY (e.g. piped input), fall back to line-buffered read.
+    if !io::stdin().is_terminal() {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).ok();
+        return matches!(input.trim().to_lowercase().as_str(), "y" | "yes");
+    }
+
+    terminal::enable_raw_mode().ok();
+    let accepted = 'outer: loop {
+        if let Ok(Event::Key(key)) = event::read() {
+            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                if key.code == KeyCode::Char('c') {
+                    terminal::disable_raw_mode().ok();
+                    println!();
+                    std::process::exit(130);
+                }
+                continue;
+            }
+            match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => break 'outer true,
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Enter | KeyCode::Esc => {
+                    break 'outer false
+                }
+                _ => continue,
+            }
+        }
+    };
+    terminal::disable_raw_mode().ok();
+    println!("{}", if accepted { "y" } else { "N" });
+    accepted
 }
 
 /// Resolves a project by name or numeric ID.
