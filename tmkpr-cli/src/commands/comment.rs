@@ -41,14 +41,14 @@ pub fn edit(args: CommentEditArgs, storage: &dyn Storage, user_id: &str) -> Resu
 pub fn delete(args: CommentDeleteArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let svc = CommentService::new(storage, user_id);
 
-    if !args.yes {
-        if !prompt::confirm(&format!(
+    if !args.yes
+        && !prompt::confirm(&format!(
             "Delete comment {}?",
             &args.id[..args.id.len().min(8)]
-        )) {
-            println!("Cancelled.");
-            return Ok(());
-        }
+        ))
+    {
+        println!("Cancelled.");
+        return Ok(());
     }
 
     svc.delete(&args.id)?;
