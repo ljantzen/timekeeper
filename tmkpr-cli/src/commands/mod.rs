@@ -1,3 +1,4 @@
+pub mod comment;
 pub mod completion;
 pub mod delete;
 pub mod edit;

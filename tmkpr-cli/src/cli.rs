@@ -72,6 +72,10 @@ pub enum Commands {
     #[command(aliases = ["d", "rm"])]
     Delete(DeleteArgs),
 
+    /// Manage comments on time entries
+    #[command(subcommand, alias = "c")]
+    Comment(CommentCommands),
+
     /// Generate shell completion scripts
     Completion(CompletionArgs),
 }
@@ -99,6 +103,10 @@ pub struct StartArgs {
     /// Tags (comma-separated)
     #[arg(long, value_delimiter = ',')]
     pub tags: Vec<String>,
+
+    /// Stop active entry without prompting (handoff at --start time or now)
+    #[arg(short = 'f', long)]
+    pub force: bool,
 }
 
 // ── Stop ──────────────────────────────────────────────────────────────────────
@@ -351,6 +359,55 @@ pub struct DeleteArgs {
     /// Entry ID or UUID prefix
     pub id: String,
 
+    /// Skip confirmation prompt
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+// ── Comment subcommands ───────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+pub enum CommentCommands {
+    /// Add a comment to the active entry
+    #[command(alias = "a")]
+    Add(CommentAddArgs),
+    /// List comments for an entry (defaults to active entry)
+    #[command(alias = "ls")]
+    List(CommentListArgs),
+    /// Edit a comment
+    #[command(alias = "e")]
+    Edit(CommentEditArgs),
+    /// Delete a comment
+    #[command(aliases = ["d", "rm"])]
+    Delete(CommentDeleteArgs),
+}
+
+#[derive(Args)]
+pub struct CommentAddArgs {
+    /// Comment text (multiple words without quotes)
+    #[arg(num_args = 1..)]
+    pub body: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct CommentListArgs {
+    /// Entry ID or UUID prefix (defaults to active entry)
+    pub entry: Option<String>,
+}
+
+#[derive(Args)]
+pub struct CommentEditArgs {
+    /// Comment ID or UUID prefix
+    pub id: String,
+    /// New comment text
+    #[arg(num_args = 1..)]
+    pub body: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct CommentDeleteArgs {
+    /// Comment ID or UUID prefix
+    pub id: String,
     /// Skip confirmation prompt
     #[arg(long, short = 'y')]
     pub yes: bool,

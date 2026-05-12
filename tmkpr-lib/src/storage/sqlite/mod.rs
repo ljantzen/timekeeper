@@ -6,6 +6,7 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::error::{TmkprError, TmkprResult};
 use crate::models::{
+    comment::{Comment, NewComment},
     entry::{Entry, EntryFilter, NewEntry, UpdateEntry},
     project::{NewProject, Project, UpdateProject},
     task::{NewTask, Task, UpdateTask},
@@ -104,6 +105,16 @@ fn row_to_entry(row: &Row<'_>) -> rusqlite::Result<Entry> {
         tags,
         created_at: row.get(8)?,
         updated_at: row.get(9)?,
+    })
+}
+
+fn row_to_comment(row: &Row<'_>) -> rusqlite::Result<Comment> {
+    Ok(Comment {
+        id: row.get(0)?,
+        entry_id: row.get(1)?,
+        body: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
     })
 }
 
@@ -590,12 +601,95 @@ impl Storage for SqliteStorage {
             ))),
         }
     }
+
+    // ── Comments ──────────────────────────────────────────────────────────────
+
+    fn create_comment(&self, c: NewComment) -> TmkprResult<Comment> {
+        let conn = self.conn.lock().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO entry_comments (id, entry_id, body) VALUES (?1, ?2, ?3)",
+            params![id, c.entry_id, c.body],
+        )?;
+        drop(conn);
+        self.get_comment(&id)
+    }
+
+    fn get_comment(&self, id: &str) -> TmkprResult<Comment> {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT id, entry_id, body, created_at, updated_at
+             FROM entry_comments WHERE id = ?1",
+            params![id],
+            row_to_comment,
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => TmkprError::NotFound {
+                entity: "comment",
+                id: id.to_string(),
+            },
+            other => TmkprError::Database(other),
+        })
+    }
+
+    fn list_comments(&self, entry_id: &str) -> TmkprResult<Vec<Comment>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, entry_id, body, created_at, updated_at
+             FROM entry_comments WHERE entry_id = ?1 ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map(params![entry_id], row_to_comment)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(TmkprError::Database)
+    }
+
+    fn update_comment(&self, id: &str, body: String) -> TmkprResult<Comment> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE entry_comments SET body = ?1, updated_at = datetime('now') WHERE id = ?2",
+            params![body, id],
+        )?;
+        drop(conn);
+        self.get_comment(id)
+    }
+
+    fn delete_comment(&self, id: &str) -> TmkprResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM entry_comments WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    fn resolve_comment_id(&self, user_id: &str, prefix: &str) -> TmkprResult<String> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT c.id FROM entry_comments c
+             JOIN entries e ON c.entry_id = e.id
+             WHERE e.user_id = ?1 AND c.id LIKE ?2 || '%'",
+        )?;
+        let matches: Vec<String> = stmt
+            .query_map(params![user_id, prefix], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        match matches.len() {
+            0 => Err(TmkprError::NotFound {
+                entity: "comment",
+                id: prefix.to_string(),
+            }),
+            1 => Ok(matches.into_iter().next().unwrap()),
+            _ => Err(TmkprError::Conflict(format!(
+                "prefix `{}` matches {} comments; use more characters",
+                prefix,
+                matches.len()
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{entry::EntryFilter, LOCAL_USER_ID};
+    use crate::models::{comment::NewComment, entry::EntryFilter, LOCAL_USER_ID};
+    use chrono::Utc;
 
     fn storage() -> SqliteStorage {
         SqliteStorage::open_in_memory().unwrap()
@@ -990,5 +1084,88 @@ mod tests {
         // A full ID should resolve unambiguously
         let found = s.resolve_entry_id(LOCAL_USER_ID, &e1.id).unwrap();
         assert_eq!(found, e1.id);
+    }
+
+    // ── Comment tests ─────────────────────────────────────────────────────────
+
+    fn make_entry(s: &SqliteStorage) -> crate::models::entry::Entry {
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: Utc::now(),
+            finished_at: None,
+            tags: vec![],
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn create_and_list_comments() {
+        let s = storage();
+        let entry = make_entry(&s);
+
+        let c1 = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "first".to_string() }).unwrap();
+        s.create_comment(NewComment { entry_id: entry.id.clone(), body: "second".to_string() }).unwrap();
+
+        assert_eq!(c1.entry_id, entry.id);
+        assert_eq!(c1.body, "first");
+
+        let comments = s.list_comments(&entry.id).unwrap();
+        assert_eq!(comments.len(), 2);
+        assert_eq!(comments[0].body, "first");
+        assert_eq!(comments[1].body, "second");
+    }
+
+    #[test]
+    fn update_comment_body() {
+        let s = storage();
+        let entry = make_entry(&s);
+        let c = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "old".to_string() }).unwrap();
+
+        let updated = s.update_comment(&c.id, "new".to_string()).unwrap();
+        assert_eq!(updated.id, c.id);
+        assert_eq!(updated.body, "new");
+    }
+
+    #[test]
+    fn delete_entry_cascades_to_comments() {
+        let s = storage();
+        let entry = make_entry(&s);
+        s.create_comment(NewComment { entry_id: entry.id.clone(), body: "bye".to_string() }).unwrap();
+
+        s.delete_entry(&entry.id).unwrap();
+        assert!(s.list_comments(&entry.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn resolve_comment_id_prefix() {
+        let s = storage();
+        let entry = make_entry(&s);
+        let c = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "test".to_string() }).unwrap();
+
+        let full = s.resolve_comment_id(LOCAL_USER_ID, &c.id).unwrap();
+        assert_eq!(full, c.id);
+
+        let from_prefix = s.resolve_comment_id(LOCAL_USER_ID, &c.id[..8]).unwrap();
+        assert_eq!(from_prefix, c.id);
+    }
+
+    #[test]
+    fn resolve_comment_id_wrong_user_not_found() {
+        let s = storage();
+        let entry = make_entry(&s);
+        let c = s.create_comment(NewComment { entry_id: entry.id.clone(), body: "test".to_string() }).unwrap();
+
+        let err = s.resolve_comment_id("00000000-0000-0000-0000-000000000099", &c.id[..8]).unwrap_err();
+        assert!(matches!(err, TmkprError::NotFound { .. }));
+    }
+
+    #[test]
+    fn get_comment_not_found() {
+        let s = storage();
+        let err = s.get_comment("nonexistent-id").unwrap_err();
+        assert!(matches!(err, TmkprError::NotFound { entity: "comment", .. }));
     }
 }

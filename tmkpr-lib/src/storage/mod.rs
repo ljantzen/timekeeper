@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 
 use crate::error::TmkprResult;
 use crate::models::{
+    comment::{Comment, NewComment},
     entry::{Entry, EntryFilter, NewEntry, UpdateEntry},
     project::{NewProject, Project, UpdateProject},
     task::{NewTask, Task, UpdateTask},
@@ -44,6 +45,15 @@ pub trait Storage: Send + Sync {
     fn finish_entry(&self, user_id: &str, finished_at: DateTime<Utc>) -> TmkprResult<Entry>;
     /// Resolve a UUID prefix to a full entry ID. Errors if 0 or >1 match.
     fn resolve_entry_id(&self, user_id: &str, prefix: &str) -> TmkprResult<String>;
+
+    // ── Comments ─────────────────────────────────────────────────────────────
+    fn create_comment(&self, comment: NewComment) -> TmkprResult<Comment>;
+    fn get_comment(&self, id: &str) -> TmkprResult<Comment>;
+    fn list_comments(&self, entry_id: &str) -> TmkprResult<Vec<Comment>>;
+    fn update_comment(&self, id: &str, body: String) -> TmkprResult<Comment>;
+    fn delete_comment(&self, id: &str) -> TmkprResult<()>;
+    /// Resolve a UUID prefix to a full comment ID scoped to the user's entries.
+    fn resolve_comment_id(&self, user_id: &str, prefix: &str) -> TmkprResult<String>;
 }
 
 pub fn open_sqlite(db_path: &Path) -> TmkprResult<Box<dyn Storage>> {

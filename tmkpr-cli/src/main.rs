@@ -8,7 +8,7 @@ use clap::Parser;
 use tmkpr_lib::config::Config;
 use tmkpr_lib::storage::open_sqlite;
 
-use cli::{Cli, Commands, ProjectCommands, TaskCommands};
+use cli::{Cli, CommentCommands, Commands, ProjectCommands, TaskCommands};
 
 fn main() {
     if let Err(e) = run() {
@@ -71,6 +71,18 @@ fn run() -> anyhow::Result<()> {
             commands::edit::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
         }
         Commands::Delete(args) => commands::delete::run(args, storage.as_ref(), &user_id)?,
+        Commands::Comment(sub) => match sub {
+            CommentCommands::Add(args) => commands::comment::add(args, storage.as_ref(), &user_id)?,
+            CommentCommands::List(args) => {
+                commands::comment::list(args, storage.as_ref(), &user_id, &date_fmt, format)?
+            }
+            CommentCommands::Edit(args) => {
+                commands::comment::edit(args, storage.as_ref(), &user_id)?
+            }
+            CommentCommands::Delete(args) => {
+                commands::comment::delete(args, storage.as_ref(), &user_id)?
+            }
+        },
         Commands::Completion(args) => commands::completion::run(args)?,
     }
 

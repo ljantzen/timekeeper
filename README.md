@@ -27,7 +27,7 @@ tmkpr report
 ### Tracking
 
 ```
-tmkpr start [-p PROJECT] [-t TASK] [-n NOTE] [-s TIME] [--tags t1,t2]
+tmkpr start [-p PROJECT] [-t TASK] [-n NOTE] [-s TIME] [-f] [--tags t1,t2]
 tmkpr stop  [-e TIME]
 tmkpr status
 tmkpr log   [-s START] [-e END] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
@@ -35,7 +35,14 @@ tmkpr log   [-s START] [-e END] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
 
 `log` (alias: `record`) adds a completed entry directly without a start/stop cycle. `--end` defaults to now if omitted. If `--start` is omitted, tmkpr will suggest the end time of the last entry logged today.
 
-If a session is already running when you run `start`, you will be prompted to stop it first. Answering `n` aborts without making any changes.
+**Handing off between tasks:** if a session is already running when you run `start`, you will be prompted to stop it first. When `--start` is provided, the active entry is stopped at that time and the new entry starts at the same time — so there is no gap and no overlap:
+
+```
+tmkpr start -p projectB -n "context switch" --start "30 minutes ago"
+# active entry stopped 30 min ago; new entry started 30 min ago
+```
+
+Use `-f` / `--force` to skip the confirmation prompt. It is an error to pass a `--start` time that is earlier than the active entry's start time.
 
 All time flags accept natural language or ISO 8601:
 
@@ -86,6 +93,20 @@ tmkpr task delete <NAME|ID> -p PROJECT [--hard]
 ```
 
 `-p` identifies the project the task currently belongs to. Use `--move-to` to reassign it to a different project.
+
+### Comments
+
+Add free-form notes to any entry.
+
+```
+tmkpr comment add just deployed the fix
+tmkpr comment list              # comments on active entry
+tmkpr comment list <ENTRY-ID>   # comments on a specific entry
+tmkpr comment edit <ID> corrected: deployed to staging only
+tmkpr comment delete <ID> [-y]
+```
+
+Aliases: `c` for the subcommand, `a` / `ls` / `e` / `d` for the actions. Comment IDs can be abbreviated to any unambiguous prefix (8+ chars).
 
 ### Shell completion
 

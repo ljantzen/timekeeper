@@ -2,7 +2,7 @@ use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
 use comfy_table::{Cell, CellAlignment, Color, Table};
 
-use tmkpr_lib::models::{entry::Entry, project::Project, task::Task};
+use tmkpr_lib::models::{comment::Comment, entry::Entry, project::Project, task::Task};
 use tmkpr_lib::service::entry_service::ReportData;
 
 pub fn format_duration(secs: i64) -> String {
@@ -410,6 +410,41 @@ pub fn print_report(report: &ReportData, format: &str, color: bool) {
 
 pub fn print_json_entry(entry: &Entry) {
     print_json(entry);
+}
+
+// ── Comments table ────────────────────────────────────────────────────────────
+
+pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {
+    match format {
+        "json" => print_json(comments),
+        "csv" => {
+            println!("id,body,created_at");
+            for c in comments {
+                println!(
+                    "{},{},{}",
+                    c.id,
+                    csv_escape(&c.body),
+                    csv_escape(&format_datetime(&c.created_at, date_fmt)),
+                );
+            }
+        }
+        _ => {
+            if comments.is_empty() {
+                println!("No comments found.");
+                return;
+            }
+            let mut table = Table::new();
+            table.set_header(vec!["ID", "Body", "Created"]);
+            for c in comments {
+                table.add_row(vec![
+                    Cell::new(&c.id[..c.id.len().min(8)]),
+                    Cell::new(&c.body),
+                    Cell::new(format_datetime(&c.created_at, date_fmt)),
+                ]);
+            }
+            println!("{table}");
+        }
+    }
 }
 
 fn csv_escape(s: &str) -> String {
