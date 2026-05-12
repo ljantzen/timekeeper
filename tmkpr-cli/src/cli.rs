@@ -1,5 +1,8 @@
 use clap::{Args, Parser, Subcommand};
+use clap_complete::ArgValueCompleter;
 use clap_complete::Shell;
+
+use crate::completers::{complete_projects, complete_tasks};
 
 #[derive(Parser)]
 #[command(
@@ -85,11 +88,11 @@ pub enum Commands {
 #[derive(Args)]
 pub struct StartArgs {
     /// Project name
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: Option<String>,
 
     /// Task name (requires --project)
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
     pub task: Option<String>,
 
     /// Note / description
@@ -131,11 +134,11 @@ pub struct LogArgs {
     pub end: Option<String>,
 
     /// Project name or numeric ID
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: Option<String>,
 
     /// Task name or numeric ID (requires --project)
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
     pub task: Option<String>,
 
     /// Note / description
@@ -152,11 +155,11 @@ pub struct LogArgs {
 #[derive(Args)]
 pub struct ListArgs {
     /// Filter by project name
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: Option<String>,
 
     /// Filter by task name
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
     pub task: Option<String>,
 
     /// Start of date range (natural language or ISO 8601) [default: today]
@@ -197,7 +200,7 @@ pub struct ReportArgs {
     pub until: Option<String>,
 
     /// Limit report to a single project
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: Option<String>,
 
     /// Per-day project summary for an ISO week number (default: current week)
@@ -243,6 +246,7 @@ pub struct ProjectListArgs {
 #[derive(Args)]
 pub struct ProjectEditArgs {
     /// Project name or numeric ID
+    #[arg(add = ArgValueCompleter::new(complete_projects))]
     pub project: String,
     /// New name
     #[arg(long)]
@@ -257,6 +261,7 @@ pub struct ProjectEditArgs {
 
 #[derive(Args)]
 pub struct ProjectDeleteArgs {
+    #[arg(add = ArgValueCompleter::new(complete_projects))]
     pub name: String,
     /// Permanently delete instead of archiving
     #[arg(long)]
@@ -284,7 +289,7 @@ pub enum TaskCommands {
 #[derive(Args)]
 pub struct TaskAddArgs {
     pub name: String,
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: String,
     #[arg(short, long)]
     pub description: Option<String>,
@@ -292,7 +297,7 @@ pub struct TaskAddArgs {
 
 #[derive(Args)]
 pub struct TaskListArgs {
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: String,
     /// Include archived tasks
     #[arg(long)]
@@ -302,9 +307,10 @@ pub struct TaskListArgs {
 #[derive(Args)]
 pub struct TaskEditArgs {
     /// Task name or numeric ID
+    #[arg(add = ArgValueCompleter::new(complete_tasks))]
     pub task: String,
     /// Project name or numeric ID (current project, used to locate the task)
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: String,
     /// Move task to a different project (name or numeric ID)
     #[arg(long)]
@@ -319,8 +325,9 @@ pub struct TaskEditArgs {
 
 #[derive(Args)]
 pub struct TaskDeleteArgs {
+    #[arg(add = ArgValueCompleter::new(complete_tasks))]
     pub name: String,
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: String,
     /// Permanently delete instead of archiving
     #[arg(long)]
@@ -334,10 +341,10 @@ pub struct EditArgs {
     /// Entry ID or UUID prefix (at least 8 chars)
     pub id: String,
 
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
     pub project: Option<String>,
 
-    #[arg(short, long)]
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
     pub task: Option<String>,
 
     #[arg(short, long)]

@@ -1,16 +1,19 @@
 mod cli;
 mod commands;
+mod completers;
 mod error;
 mod output;
 mod prompt;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::CompleteEnv;
 use tmkpr_lib::config::Config;
 use tmkpr_lib::storage::open_sqlite;
 
 use cli::{Cli, Commands, CommentCommands, ProjectCommands, TaskCommands};
 
 fn main() {
+    CompleteEnv::with_factory(Cli::command).complete();
     if let Err(e) = run() {
         error::print_error(&e);
         std::process::exit(1);

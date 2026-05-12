@@ -110,7 +110,22 @@ Aliases: `c` for the subcommand, `a` / `ls` / `e` / `d` for the actions. Comment
 
 ### Shell completion
 
+Dynamic completion (recommended) — includes project and task name suggestions:
+
+```bash
+# bash — add to ~/.bashrc
+source <(COMPLETE=bash tmkpr)
+
+# zsh — add to ~/.zshrc
+source <(COMPLETE=zsh tmkpr)
+
+# fish — add to ~/.config/fish/completions/tmkpr.fish
+COMPLETE=fish tmkpr | source
 ```
+
+Static completion (flags and subcommands only):
+
+```bash
 tmkpr completion bash   >> ~/.bashrc
 tmkpr completion zsh    >> ~/.zshrc
 tmkpr completion fish   > ~/.config/fish/completions/tmkpr.fish
