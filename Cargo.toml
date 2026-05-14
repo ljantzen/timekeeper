@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["tmkpr-lib", "tmkpr-cli"]
+members = ["tmkpr-lib", "tmkpr-cli", "tmkpr-ui"]
 
 [workspace.package]
 version = "0.1.0"
@@ -23,4 +23,5 @@ comfy-table  = "7"
 crossterm    = "0.28"
 colored      = "3"
 interim      = { version = "0.2", features = ["chrono_0_4"] }
+ratatui      = "0.29"
 tmkpr-lib    = { path = "tmkpr-lib" }

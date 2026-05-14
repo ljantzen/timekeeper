@@ -1,0 +1,18 @@
+[package]
+name        = "tmkpr-ui"
+description = "Terminal UI for tmkpr time tracking"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+
+[[bin]]
+name = "tmkpr-ui"
+path = "src/main.rs"
+
+[dependencies]
+tmkpr-lib = { workspace = true }
+ratatui   = { workspace = true }
+crossterm = { workspace = true }
+chrono    = { workspace = true }
+anyhow    = { workspace = true }
+clap      = { workspace = true }
