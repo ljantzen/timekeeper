@@ -13,7 +13,7 @@ REPO_NAME="tmkpr"
 WORKFLOW_NAME="Release"
 MAX_WAIT_TIME=900  # 15 minutes in seconds
 POLL_INTERVAL=10   # Poll every 10 seconds
-RUN_CREATION_TIMEOUT=180  # 3 minutes to wait for run to be created
+RUN_CREATION_TIMEOUT=600  # 10 minutes to wait for run to be created
 
 # Helper functions
 print_error() {
@@ -206,7 +206,7 @@ wait_for_workflow() {
     # Wait for the run to appear in the API
     local run_id=""
     local attempts=0
-    local max_attempts=24  # 2 minutes with 5-second intervals
+    local max_attempts=$(( RUN_CREATION_TIMEOUT / 5 ))
 
     print_info "Waiting for workflow run to appear in GitHub API (looking for commit $commit_sha)..."
 
