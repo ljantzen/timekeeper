@@ -63,8 +63,9 @@ pub fn run(
             limit: None,
         })?;
 
+        let min_gap_secs = i64::from(args.min_gap) * 60;
         let mut gaps = compute_gaps(&entries, window_start, window_end);
-        gaps.retain(|(s, e)| (*e - *s).num_seconds() > 0);
+        gaps.retain(|(s, e)| (*e - *s).num_seconds() > min_gap_secs);
         if !explicit_from {
             if let Some(first) = gaps.first() {
                 if first.0 == window_start {

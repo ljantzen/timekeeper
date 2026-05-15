@@ -185,6 +185,10 @@ pub struct ListArgs {
     /// Show untracked gaps instead of entries
     #[arg(long)]
     pub gaps: bool,
+
+    /// Hide gaps shorter than this many minutes (only used with --gaps)
+    #[arg(long, value_name = "MINUTES", default_value_t = 0)]
+    pub min_gap: u32,
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────
