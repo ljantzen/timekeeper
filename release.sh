@@ -351,7 +351,7 @@ main() {
 
         print_info "Committing version change..."
         git add Cargo.toml
-        git commit -m "Bump version to $new_version [skip ci]"
+        git commit -m "Bump version to $new_version"
         print_success "Version commit created"
         echo ""
 
