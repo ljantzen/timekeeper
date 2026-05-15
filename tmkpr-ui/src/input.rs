@@ -16,6 +16,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::ConfirmDelete => handle_confirm_delete(app, key),
         ModeKind::AddProject => handle_add_project(app, key),
         ModeKind::AddTask => handle_add_task(app, key),
+        ModeKind::Comments => handle_comments(app, key),
+        ModeKind::AddComment => handle_add_comment(app, key),
         ModeKind::Help => {
             app.mode = AppMode::Normal;
             Ok(())
@@ -60,6 +62,13 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             Ok(()) => app.status = Some(("Refreshed.".into(), false)),
             Err(e) => app.status = Some((e.to_string(), true)),
         },
+        KeyCode::Char('c') => {
+            if !app.entries.is_empty() {
+                if let Err(e) = app.open_comments() {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
         KeyCode::Char('p') => app.open_add_project_modal(),
         KeyCode::Char('t') => app.open_add_task_modal(),
         KeyCode::Char('?') => {
@@ -190,6 +199,63 @@ fn handle_confirm_delete(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         _ => {
             app.mode = AppMode::Normal;
+        }
+    }
+    Ok(())
+}
+
+fn handle_comments(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if let AppMode::Comments { comments, selected, .. } = &mut app.mode {
+                if !comments.is_empty() {
+                    *selected = (*selected + 1).min(comments.len() - 1);
+                }
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if let AppMode::Comments { selected, .. } = &mut app.mode {
+                *selected = selected.saturating_sub(1);
+            }
+        }
+        KeyCode::Char('a') => {
+            app.open_add_comment();
+        }
+        KeyCode::Char('d') => {
+            if let Err(e) = app.delete_selected_comment() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::AddComment { form, .. } => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            if let Err(e) = app.cancel_add_comment() {
+                app.mode = AppMode::Normal;
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::AddComment { entry_id, form } = old {
+                let body = form.fields[0].value.clone();
+                if let Err(e) = app.submit_add_comment(entry_id, body) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
         }
     }
     Ok(())

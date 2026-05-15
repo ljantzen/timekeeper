@@ -2,12 +2,13 @@ use chrono::{Datelike, Local, Utc};
 use ratatui::widgets::ListState;
 use tmkpr_lib::{
     models::{
+        comment::Comment,
         entry::{Entry, EntryFilter, UpdateEntry},
         project::Project,
         task::Task,
     },
     nlp::parser::{parse_datetime, TimeFormat},
-    service::{EntryService, ProjectService, TaskService, WeekReport},
+    service::{CommentService, EntryService, ProjectService, TaskService, WeekReport},
     storage::Storage,
 };
 
@@ -20,6 +21,8 @@ pub enum AppMode {
     ConfirmDelete { id: String, display: String },
     AddProject(Form),
     AddTask(Form),
+    Comments { entry_id: String, comments: Vec<Comment>, selected: usize },
+    AddComment { entry_id: String, form: Form },
     Help,
 }
 
@@ -31,6 +34,8 @@ pub enum ModeKind {
     ConfirmDelete,
     AddProject,
     AddTask,
+    Comments,
+    AddComment,
     Help,
 }
 
@@ -77,6 +82,8 @@ impl App {
             AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
             AppMode::AddProject(_) => ModeKind::AddProject,
             AppMode::AddTask(_) => ModeKind::AddTask,
+            AppMode::Comments { .. } => ModeKind::Comments,
+            AppMode::AddComment { .. } => ModeKind::AddComment,
             AppMode::Help => ModeKind::Help,
         }
     }
@@ -347,6 +354,74 @@ impl App {
         }
         self.refresh()?;
         self.status = Some(("Updated.".into(), false));
+        Ok(())
+    }
+
+    pub fn open_comments(&mut self) -> anyhow::Result<()> {
+        if self.entries.is_empty() {
+            return Ok(());
+        }
+        let entry_id = self.entries[self.selected].id.clone();
+        self.refresh_comments_mode(entry_id, 0)
+    }
+
+    pub fn open_add_comment(&mut self) {
+        if let AppMode::Comments { entry_id, .. } = &self.mode {
+            let entry_id = entry_id.clone();
+            self.mode = AppMode::AddComment {
+                entry_id,
+                form: Form {
+                    fields: vec![Field::new("Comment", "")],
+                    focused: 0,
+                },
+            };
+        }
+    }
+
+    pub fn submit_add_comment(&mut self, entry_id: String, body: String) -> anyhow::Result<()> {
+        if body.is_empty() {
+            return Err(anyhow::anyhow!("Comment cannot be empty"));
+        }
+        {
+            let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
+            svc.add(Some(&entry_id), body)?;
+        }
+        self.refresh_comments_mode(entry_id, 0)?;
+        self.status = Some(("Comment added.".into(), false));
+        Ok(())
+    }
+
+    pub fn cancel_add_comment(&mut self) -> anyhow::Result<()> {
+        if let AppMode::AddComment { entry_id, .. } = &self.mode {
+            let entry_id = entry_id.clone();
+            self.refresh_comments_mode(entry_id, 0)?;
+        }
+        Ok(())
+    }
+
+    pub fn delete_selected_comment(&mut self) -> anyhow::Result<()> {
+        let (comment_id, entry_id) = if let AppMode::Comments { comments, selected, entry_id } = &self.mode {
+            if comments.is_empty() {
+                return Ok(());
+            }
+            (comments[*selected].id.clone(), entry_id.clone())
+        } else {
+            return Ok(());
+        };
+        {
+            let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
+            svc.delete(&comment_id)?;
+        }
+        self.refresh_comments_mode(entry_id, 0)?;
+        self.status = Some(("Comment deleted.".into(), false));
+        Ok(())
+    }
+
+    fn refresh_comments_mode(&mut self, entry_id: String, selected: usize) -> anyhow::Result<()> {
+        let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
+        let comments = svc.list(Some(&entry_id))?;
+        let selected = selected.min(comments.len().saturating_sub(1));
+        self.mode = AppMode::Comments { entry_id, comments, selected };
         Ok(())
     }
 

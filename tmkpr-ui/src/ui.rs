@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame,
 };
 
@@ -32,6 +32,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::ConfirmDelete => render_confirm_delete(frame, app, area),
         ModeKind::AddProject => render_add_project(frame, app, area),
         ModeKind::AddTask => render_add_task(frame, app, area),
+        ModeKind::Comments => render_comments(frame, app, area),
+        ModeKind::AddComment => render_add_comment(frame, app, area),
         ModeKind::Help => render_help(frame, area),
         ModeKind::Normal => {}
     }
@@ -208,7 +210,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [x]stop  [e]dit  [d]el  [p]roject  [t]ask  [r]efresh  [?]help  [q]quit",
+            " [s]tart  [x]stop  [e]dit  [d]el  [c]omments  [p]roject  [t]ask  [r]efresh  [?]help  [q]quit",
             Style::default().fg(Color::DarkGray),
         )),
     };
@@ -398,6 +400,7 @@ fn render_help(frame: &mut Frame, area: Rect) {
                 Span::styled("  d      ", bold),
                 Span::raw("Delete selected entry"),
             ]),
+            Line::from(vec![Span::styled("  c      ", bold), Span::raw("View/add comments on selected entry")]),
             Line::from(vec![Span::styled("  r      ", bold), Span::raw("Refresh data")]),
             Line::from(vec![Span::styled("  p      ", bold), Span::raw("Add new project")]),
             Line::from(vec![Span::styled("  t      ", bold), Span::raw("Add new task")]),
@@ -413,4 +416,65 @@ fn render_help(frame: &mut Frame, area: Rect) {
         ]),
         inner,
     );
+}
+
+fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
+    let AppMode::Comments { entry_id, comments, selected } = &app.mode else { return };
+
+    let short_id = &entry_id[..entry_id.len().min(8)];
+    let title = format!(" Comments: {short_id} ({}) ", comments.len());
+    let popup_area = centered_rect(72, 65, area);
+    frame.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded);
+    let inner = block.inner(popup_area);
+    frame.render_widget(block, popup_area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(inner);
+
+    if comments.is_empty() {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "No comments. Press [a] to add one.",
+                Style::default().fg(Color::DarkGray),
+            )),
+            chunks[0],
+        );
+    } else {
+        let items: Vec<ListItem> = comments
+            .iter()
+            .map(|c| {
+                let ts = c.created_at.with_timezone(&Local).format("%m-%d %H:%M").to_string();
+                ListItem::new(format!("{ts}  {}", c.body))
+            })
+            .collect();
+
+        let list = List::new(items)
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .highlight_symbol("> ");
+
+        let mut state = ListState::default();
+        state.select(Some(*selected));
+        frame.render_stateful_widget(list, chunks[0], &mut state);
+    }
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            "[a] add  [d] delete  [j/k] navigate  [Esc] close",
+            Style::default().fg(Color::DarkGray),
+        )),
+        chunks[1],
+    );
+}
+
+fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::AddComment { form, .. } = &app.mode {
+        render_form_modal(frame, area, " Add Comment ", 35, form);
+    }
 }
