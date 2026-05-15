@@ -349,14 +349,10 @@ main() {
             exit 1
         fi
 
-        print_info "Updating Cargo.lock..."
-        cargo update --workspace
-        print_success "Cargo.lock updated"
-
-        print_info "Committing version and lock file changes..."
-        git add Cargo.toml Cargo.lock
+        print_info "Committing version change..."
+        git add Cargo.toml
         git commit -m "Bump version to $new_version"
-        print_success "Version and lock file commit created"
+        print_success "Version commit created"
         echo ""
 
         print_info "Pushing commits to remote..."
