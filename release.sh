@@ -83,23 +83,27 @@ update_version() {
 # Show usage
 show_usage() {
     cat << EOF
-Usage: ./release.sh [version]
+Usage: ./release.sh [--publish] [version]
 
 Arguments:
   <version>    New version to release (semantic versioning: X.Y.Z)
                If omitted, automatically increments the patch version
 
+Flags:
+  --publish    Publish to crates.io after GitHub Actions completes
+
 Examples:
-  ./release.sh              # Auto-increments patch version
+  ./release.sh                     # Auto-increments patch version, no crates.io publish
+  ./release.sh --publish           # Auto-increments patch version, publishes to crates.io
   ./release.sh 1.0.0
-  ./release.sh 1.1.0
+  ./release.sh --publish 1.1.0
 
 The script will:
 1. Update Cargo.toml with the new version
 2. Commit the version change
 3. Create and push a version tag (v<version>)
 4. Wait for GitHub Actions to complete
-5. Publish to crates.io
+5. Publish to crates.io (only if --publish is specified)
 EOF
 }
 
@@ -290,17 +294,22 @@ increment_patch_version() {
 # Main function
 main() {
     # Parse arguments
-    if [ $# -eq 0 ]; then
-        # No arguments: automatically increment patch version
+    local publish=false
+    local args=()
+
+    for arg in "$@"; do
+        case "$arg" in
+            --publish) publish=true ;;
+            -h|--help) show_usage; exit 0 ;;
+            *) args+=("$arg") ;;
+        esac
+    done
+
+    if [ ${#args[@]} -eq 0 ]; then
         local current_version=$(get_version)
         local new_version=$(increment_patch_version "$current_version")
     else
-        local new_version=$1
-
-        if [ "$new_version" = "-h" ] || [ "$new_version" = "--help" ]; then
-            show_usage
-            exit 0
-        fi
+        local new_version=${args[0]}
     fi
 
     echo "=========================================="
@@ -326,7 +335,8 @@ main() {
 
     if ! tag_exists_on_origin "$tag"; then
         # Tag doesn't exist, proceed with full release
-        read -p "Proceed with release v$new_version to GitHub and crates.io? (y/N) " -n 1 -r
+        local publish_label; $publish && publish_label="GitHub and crates.io" || publish_label="GitHub only"
+        read -p "Proceed with release v$new_version to $publish_label? (y/N) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             print_info "Release cancelled"
@@ -370,17 +380,22 @@ main() {
     fi
     echo ""
 
-    # Step 3: Publish to crates.io
-    if publish_to_crates "$new_version"; then
-        echo ""
-        echo "=========================================="
-        print_success "Release v$new_version completed successfully!"
-        echo "=========================================="
-        echo "GitHub Release: https://github.com/$REPO_OWNER/$REPO_NAME/releases/tag/v$new_version"
-        echo "crates.io: https://crates.io/crates/$REPO_NAME/v$new_version"
+    # Step 3: Publish to crates.io (only if --publish was specified)
+    echo ""
+    echo "=========================================="
+    print_success "Release v$new_version completed successfully!"
+    echo "=========================================="
+    echo "GitHub Release: https://github.com/$REPO_OWNER/$REPO_NAME/releases/tag/v$new_version"
+
+    if $publish; then
+        if publish_to_crates "$new_version"; then
+            echo "crates.io: https://crates.io/crates/$REPO_NAME/v$new_version"
+        else
+            print_error "Release partially complete - tag pushed but crates.io publication failed"
+            exit 1
+        fi
     else
-        print_error "Release partially complete - tag pushed but crates.io publication failed"
-        exit 1
+        print_info "Skipping crates.io publish (pass --publish to enable)"
     fi
 }
 
