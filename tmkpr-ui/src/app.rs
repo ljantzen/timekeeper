@@ -108,7 +108,7 @@ impl App {
             let now = Local::now();
             let iso = now.iso_week();
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            self.week_report = svc.week_report(iso.year(), iso.week()).ok();
+            self.week_report = svc.week_report(iso.year(), iso.week(), false).ok();
         }
         if !self.entries.is_empty() && self.selected >= self.entries.len() {
             self.selected = self.entries.len() - 1;

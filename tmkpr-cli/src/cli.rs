@@ -206,6 +206,14 @@ pub struct ReportArgs {
     /// Per-day project summary for an ISO week number (default: current week)
     #[arg(long, value_name = "WEEK", num_args = 0..=1, default_missing_value = "current")]
     pub week: Option<String>,
+
+    /// Year to use with --week / --wweek (defaults to current year)
+    #[arg(long, value_name = "YEAR")]
+    pub year: Option<i32>,
+
+    /// Working-week report (Mon–Fri only); use alone for the current week or combine with --week
+    #[arg(long)]
+    pub wweek: bool,
 }
 
 // ── Project subcommands ───────────────────────────────────────────────────────

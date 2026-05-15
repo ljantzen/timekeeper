@@ -49,10 +49,21 @@ tmkpr log -s "yesterday 9am" -e "yesterday 5pm" -p myproject -n "deep work"
 ### Entries
 
 ```
-tmkpr list [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG] [--gaps]
+tmkpr list   [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG] [--gaps] [--min-gap MINUTES]
 tmkpr report [--from TIME] [--until TIME] [-p PROJECT]
-tmkpr edit <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
+tmkpr report --week [N] [--year YEAR]
+tmkpr report --wweek [N] [--year YEAR]
+tmkpr edit   <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
 tmkpr delete <ID> [-y]
+```
+
+`--week` shows a full 7-day ISO week (Mon–Sun). `--wweek` shows only Mon–Fri. Both accept an optional week number and a `--year` flag:
+
+```
+tmkpr report --week           # current full week
+tmkpr report --wweek          # current working week (Mon–Fri)
+tmkpr report --wweek 12       # working week 12 of the current year
+tmkpr report --week 12 --year 2025
 ```
 
 `list` with no `--from`/`--until` shows today's entries only. Pass `--from` to widen the range:

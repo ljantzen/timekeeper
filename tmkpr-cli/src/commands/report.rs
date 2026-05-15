@@ -17,18 +17,20 @@ pub fn run(
 ) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
 
-    if let Some(week_str) = &args.week {
+    if args.week.is_some() || args.wweek {
+        let week_str = args.week.as_deref().unwrap_or("current");
         let now = chrono::Local::now();
         let iso = now.iso_week();
+        let year = args.year.unwrap_or_else(|| iso.year());
         let (year, week) = if week_str == "current" {
-            (iso.year(), iso.week())
+            (year, iso.week())
         } else {
             let w: u32 = week_str
                 .parse()
                 .map_err(|_| anyhow::anyhow!("invalid week number: {}", week_str))?;
-            (iso.year(), w)
+            (year, w)
         };
-        let week_report = svc.week_report(year, week)?;
+        let week_report = svc.week_report(year, week, args.wweek)?;
         output::print_week_report(&week_report, format);
         return Ok(());
     }

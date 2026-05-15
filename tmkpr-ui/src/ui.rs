@@ -156,13 +156,11 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(Color::DarkGray),
         ))],
         Some(report) => {
-            let day_names = ["Mon", "Tue", "Wed", "Thu", "Fri"];
             let mut lines: Vec<Line> = report
                 .days
                 .iter()
-                .enumerate()
-                .map(|(i, day)| {
-                    let name = day_names[i];
+                .map(|day| {
+                    let name = day.date.format("%a");
                     let date = day.date.format("%d");
                     let h = day.total_secs / 3600;
                     let m = (day.total_secs % 3600) / 60;

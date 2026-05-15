@@ -54,7 +54,7 @@ pub struct WeekReport {
     pub week: u32,
     /// All project names that appear during the week, ordered by total secs desc.
     pub projects: Vec<String>,
-    /// Monday through Friday.
+    /// Monday through Sunday.
     pub days: Vec<WeekReportDay>,
     pub totals_by_project: Vec<(String, i64)>,
     pub total_secs: i64,
@@ -202,14 +202,14 @@ impl<'a> EntryService<'a> {
         self.storage.delete_entry(&id)
     }
 
-    pub fn week_report(&self, year: i32, week: u32) -> TmkprResult<WeekReport> {
+    pub fn week_report(&self, year: i32, week: u32, work_week: bool) -> TmkprResult<WeekReport> {
         let monday = NaiveDate::from_isoywd_opt(year, week, Weekday::Mon).ok_or_else(|| {
             TmkprError::Config(format!("invalid ISO week {week} for year {year}"))
         })?;
-        let saturday = monday + Duration::days(5);
+        let next_monday = monday + Duration::days(7);
 
         let from = local_midnight_utc(monday);
-        let until = local_midnight_utc(saturday);
+        let until = local_midnight_utc(next_monday);
 
         let entries = self.storage.list_entries(&EntryFilter {
             user_id: self.user_id.to_string(),
@@ -234,7 +234,7 @@ impl<'a> EntryService<'a> {
         let mut week_by_project: HashMap<String, i64> = HashMap::new();
         let mut total_secs = 0i64;
 
-        let days: Vec<WeekReportDay> = (0..5)
+        let days: Vec<WeekReportDay> = (0..7)
             .map(|offset| {
                 let date = monday + Duration::days(offset);
                 let day_start = local_midnight_utc(date);
@@ -270,8 +270,26 @@ impl<'a> EntryService<'a> {
             })
             .collect();
 
-        let mut totals_by_project: Vec<(String, i64)> = week_by_project.into_iter().collect();
-        totals_by_project.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        // When work_week is requested, discard Sat/Sun and recompute totals from Mon–Fri only.
+        let (days, totals_by_project, total_secs) = if work_week {
+            let wd: Vec<WeekReportDay> = days.into_iter().take(5).collect();
+            let mut wd_by_project: HashMap<String, i64> = HashMap::new();
+            let mut wd_total = 0i64;
+            for day in &wd {
+                for (name, secs) in &day.by_project {
+                    *wd_by_project.entry(name.clone()).or_insert(0) += secs;
+                    wd_total += secs;
+                }
+            }
+            let mut totals: Vec<(String, i64)> = wd_by_project.into_iter().collect();
+            totals.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            (wd, totals, wd_total)
+        } else {
+            let mut totals: Vec<(String, i64)> = week_by_project.into_iter().collect();
+            totals.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            (days, totals, total_secs)
+        };
+
         let project_names = totals_by_project.iter().map(|(n, _)| n.clone()).collect();
 
         Ok(WeekReport {
