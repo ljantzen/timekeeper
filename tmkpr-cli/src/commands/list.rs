@@ -92,6 +92,15 @@ pub fn run(
 
     let entries = EntryService::new(storage, user_id).list(filter)?;
 
+    if entries.is_empty() {
+        match format {
+            "json" => println!("[]"),
+            "csv" => println!("id,project,task,note,tags,started,finished,duration_secs"),
+            _ => println!("{}", empty_entries_msg(from, until, date_fmt)),
+        }
+        return Ok(());
+    }
+
     let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
     let all_tasks: Vec<_> = storage
         .list_projects(user_id, true)
@@ -109,6 +118,25 @@ pub fn run(
         color,
     );
     Ok(())
+}
+
+fn empty_entries_msg(from: Option<DateTime<Utc>>, until: Option<DateTime<Utc>>, date_fmt: &str) -> String {
+    match (from, until) {
+        (Some(f), Some(u)) => format!(
+            "No entries from {} to {}.",
+            f.with_timezone(&Local).format(date_fmt),
+            u.with_timezone(&Local).format(date_fmt),
+        ),
+        (Some(f), None) => format!(
+            "No entries from {}.",
+            f.with_timezone(&Local).format(date_fmt),
+        ),
+        (None, Some(u)) => format!(
+            "No entries until {}.",
+            u.with_timezone(&Local).format(date_fmt),
+        ),
+        (None, None) => "No entries found.".to_string(),
+    }
 }
 
 /// Defaults `from` to today's local midnight (UTC) when neither bound is set.
