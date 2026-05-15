@@ -130,7 +130,13 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 .map(|n| format!("  {n}"))
                 .unwrap_or_default();
 
-            ListItem::new(format!("{start}-{end}  {dur:<8}{proj_task}{note}"))
+            let tags = if entry.tags.is_empty() {
+                String::new()
+            } else {
+                format!("  [{}]", entry.tags.join(", "))
+            };
+
+            ListItem::new(format!("{start}-{end}  {dur:<8}{proj_task}{note}{tags}"))
         })
         .collect();
 
@@ -312,13 +318,13 @@ fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16,
 
 fn render_start_modal(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::StartModal(form) = &app.mode {
-        render_form_modal(frame, area, " Start Entry ", 55, form);
+        render_form_modal(frame, area, " Start Entry ", 65, form);
     }
 }
 
 fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditModal { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Entry ", 75, form);
+        render_form_modal(frame, area, " Edit Entry ", 85, form);
     }
 }
 

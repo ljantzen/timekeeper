@@ -163,6 +163,7 @@ impl App {
                 Field::new("Project", "").with_completions(projects),
                 Field::new("Task", "").with_completions(tasks),
                 Field::new("Note", ""),
+                Field::new("Tags (comma-separated)", ""),
             ],
             focused: 0,
         });
@@ -199,6 +200,7 @@ impl App {
             })
             .unwrap_or_default();
 
+        let tags_val = entry.tags.join(", ");
         let projects = self.project_names();
         let tasks = self.task_names();
         self.mode = AppMode::EditModal {
@@ -210,6 +212,7 @@ impl App {
                     Field::new("Note", note_val),
                     Field::new("Start", start_val),
                     Field::new("End (blank = active)", end_val),
+                    Field::new("Tags (comma-separated)", tags_val),
                 ],
                 focused: 0,
             },
@@ -249,7 +252,7 @@ impl App {
         Ok(())
     }
 
-    pub fn start_entry(&mut self, project: &str, task: &str, note: &str) -> anyhow::Result<()> {
+    pub fn start_entry(&mut self, project: &str, task: &str, note: &str, tags_str: &str) -> anyhow::Result<()> {
         let project_opt = if project.is_empty() { None } else { Some(project) };
         let task_opt = if task.is_empty() { None } else { Some(task) };
         let note_opt = if note.is_empty() {
@@ -257,9 +260,10 @@ impl App {
         } else {
             Some(note.to_string())
         };
+        let tags = parse_tags(tags_str);
         {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.start(project_opt, task_opt, note_opt, vec![], None)?;
+            svc.start(project_opt, task_opt, note_opt, tags, None)?;
         }
         self.refresh()?;
         self.status = Some(("Started.".into(), false));
@@ -274,6 +278,7 @@ impl App {
         note: &str,
         start_str: &str,
         end_str: &str,
+        tags_str: &str,
     ) -> anyhow::Result<()> {
         let now = Utc::now();
 
@@ -337,7 +342,7 @@ impl App {
                     note: note_update,
                     started_at,
                     finished_at,
-                    ..Default::default()
+                    tags: Some(parse_tags(tags_str)),
                 },
             )?;
         }
@@ -400,4 +405,11 @@ impl App {
         self.status = Some((format!("Task '{name}' created in '{project}'."), false));
         Ok(())
     }
+}
+
+fn parse_tags(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect()
 }

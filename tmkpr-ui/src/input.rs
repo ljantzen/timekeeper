@@ -139,7 +139,8 @@ fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let project = form.fields[0].value.clone();
                 let task = form.fields[1].value.clone();
                 let note = form.fields[2].value.clone();
-                if let Err(e) = app.start_entry(&project, &task, &note) {
+                let tags = form.fields[3].value.clone();
+                if let Err(e) = app.start_entry(&project, &task, &note, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
             }
@@ -167,7 +168,8 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let note = form.fields[2].value.clone();
                 let start = form.fields[3].value.clone();
                 let end = form.fields[4].value.clone();
-                if let Err(e) = app.edit_entry(&id, &project, &task, &note, &start, &end) {
+                let tags = form.fields[5].value.clone();
+                if let Err(e) = app.edit_entry(&id, &project, &task, &note, &start, &end, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
             }
