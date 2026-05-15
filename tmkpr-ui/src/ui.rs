@@ -92,7 +92,8 @@ fn render_main(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
-    let block = Block::default().title(" Entries ").borders(Borders::ALL);
+    let title = format!(" Entries ({}) ", app.entries.len());
+    let block = Block::default().title(title).borders(Borders::ALL);
 
     let items: Vec<ListItem> = app
         .entries

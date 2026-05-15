@@ -99,7 +99,6 @@ impl App {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
             self.entries = svc.list(EntryFilter {
                 user_id: self.user_id.clone(),
-                limit: Some(50),
                 include_active: false,
                 ..Default::default()
             })?;
