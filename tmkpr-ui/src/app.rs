@@ -22,7 +22,7 @@ pub enum AppMode {
     AddProject(Form),
     AddTask(Form),
     Comments { entry_id: String, comments: Vec<Comment>, selected: usize },
-    AddComment { entry_id: String, form: Form },
+    AddComment { entry_id: String, form: Form, for_active: bool },
     Help,
 }
 
@@ -365,6 +365,27 @@ impl App {
         self.refresh_comments_mode(entry_id, 0)
     }
 
+    pub fn entry_display(&self, entry_id: &str) -> String {
+        let entry = self
+            .entries
+            .iter()
+            .find(|e| e.id == entry_id)
+            .or_else(|| self.active_entry.as_ref().filter(|e| e.id == entry_id));
+        match entry {
+            Some(e) => match (&e.project_id, &e.task_id) {
+                (Some(pid), Some(tid)) => {
+                    format!("{} / {}", self.project_name(pid), self.task_name(tid))
+                }
+                (Some(pid), None) => self.project_name(pid).to_string(),
+                _ => e
+                    .note
+                    .clone()
+                    .unwrap_or_else(|| entry_id[..8.min(entry_id.len())].to_string()),
+            },
+            None => entry_id[..8.min(entry_id.len())].to_string(),
+        }
+    }
+
     pub fn open_add_comment(&mut self) {
         if let AppMode::Comments { entry_id, .. } = &self.mode {
             let entry_id = entry_id.clone();
@@ -374,11 +395,31 @@ impl App {
                     fields: vec![Field::new("Comment", "")],
                     focused: 0,
                 },
+                for_active: false,
             };
         }
     }
 
-    pub fn submit_add_comment(&mut self, entry_id: String, body: String) -> anyhow::Result<()> {
+    pub fn open_add_comment_for_active(&mut self) {
+        if let Some(entry) = &self.active_entry {
+            let entry_id = entry.id.clone();
+            self.mode = AppMode::AddComment {
+                entry_id,
+                form: Form {
+                    fields: vec![Field::new("Comment", "")],
+                    focused: 0,
+                },
+                for_active: true,
+            };
+        }
+    }
+
+    pub fn submit_add_comment(
+        &mut self,
+        entry_id: String,
+        body: String,
+        for_active: bool,
+    ) -> anyhow::Result<()> {
         if body.is_empty() {
             return Err(anyhow::anyhow!("Comment cannot be empty"));
         }
@@ -386,15 +427,24 @@ impl App {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
             svc.add(Some(&entry_id), body)?;
         }
-        self.refresh_comments_mode(entry_id, 0)?;
+        if for_active {
+            self.mode = AppMode::Normal;
+        } else {
+            self.refresh_comments_mode(entry_id, 0)?;
+        }
         self.status = Some(("Comment added.".into(), false));
         Ok(())
     }
 
     pub fn cancel_add_comment(&mut self) -> anyhow::Result<()> {
-        if let AppMode::AddComment { entry_id, .. } = &self.mode {
+        if let AppMode::AddComment { entry_id, for_active, .. } = &self.mode {
             let entry_id = entry_id.clone();
-            self.refresh_comments_mode(entry_id, 0)?;
+            let for_active = *for_active;
+            if for_active {
+                self.mode = AppMode::Normal;
+            } else {
+                self.refresh_comments_mode(entry_id, 0)?;
+            }
         }
         Ok(())
     }

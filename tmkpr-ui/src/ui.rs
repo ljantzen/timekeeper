@@ -210,7 +210,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [x]stop  [e]dit  [d]el  [c]omments  [p]roject  [t]ask  [r]efresh  [?]help  [q]quit",
+            " [s]tart  [x]stop  [e]dit  [d]el  [c]omments  [C]comment  [p]roject  [t]ask  [r]efresh  [?]help  [q]quit",
             Style::default().fg(Color::DarkGray),
         )),
     };
@@ -401,6 +401,7 @@ fn render_help(frame: &mut Frame, area: Rect) {
                 Span::raw("Delete selected entry"),
             ]),
             Line::from(vec![Span::styled("  c      ", bold), Span::raw("View/add comments on selected entry")]),
+            Line::from(vec![Span::styled("  C      ", bold), Span::raw("Add comment to active entry (fails if none running)")]),
             Line::from(vec![Span::styled("  r      ", bold), Span::raw("Refresh data")]),
             Line::from(vec![Span::styled("  p      ", bold), Span::raw("Add new project")]),
             Line::from(vec![Span::styled("  t      ", bold), Span::raw("Add new task")]),
@@ -421,8 +422,8 @@ fn render_help(frame: &mut Frame, area: Rect) {
 fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
     let AppMode::Comments { entry_id, comments, selected } = &app.mode else { return };
 
-    let short_id = &entry_id[..entry_id.len().min(8)];
-    let title = format!(" Comments: {short_id} ({}) ", comments.len());
+    let display = app.entry_display(entry_id);
+    let title = format!(" Comments: {display} ({}) ", comments.len());
     let popup_area = centered_rect(72, 65, area);
     frame.render_widget(Clear, popup_area);
 
@@ -474,7 +475,13 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
-    if let AppMode::AddComment { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Add Comment ", 35, form);
+    if let AppMode::AddComment { entry_id, form, for_active } = &app.mode {
+        let display = app.entry_display(entry_id);
+        let title = if *for_active {
+            format!(" Add Comment: {display} (active) ")
+        } else {
+            format!(" Add Comment: {display} ")
+        };
+        render_form_modal(frame, area, &title, 35, form);
     }
 }
