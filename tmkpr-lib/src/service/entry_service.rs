@@ -465,7 +465,13 @@ mod tests {
         let err = svc(&s)
             .start(Some("ghost"), None, None, vec![], None)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -804,14 +810,26 @@ mod tests {
         let err = svc(&s)
             .log(Some("ghost"), None, None, vec![], start, end)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
     }
 
     #[test]
     fn report_unknown_project_errors() {
         let s = storage();
         let err = svc(&s).report(None, None, Some("ghost")).unwrap_err();
-        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
     }
 
     #[test]

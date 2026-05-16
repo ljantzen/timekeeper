@@ -356,7 +356,11 @@ impl Storage for SqliteStorage {
 
     fn list_all_tasks(&self, user_id: &str, include_archived: bool) -> TmkprResult<Vec<Task>> {
         let conn = self.conn.lock().unwrap();
-        let archived_filter = if include_archived { "1=1" } else { "archived = 0" };
+        let archived_filter = if include_archived {
+            "1=1"
+        } else {
+            "archived = 0"
+        };
         let sql = format!(
             "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
              FROM tasks WHERE user_id = ?1 AND {} ORDER BY project_id, num_id",

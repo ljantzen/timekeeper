@@ -120,7 +120,11 @@ pub fn run(
     Ok(())
 }
 
-fn empty_entries_msg(from: Option<DateTime<Utc>>, until: Option<DateTime<Utc>>, date_fmt: &str) -> String {
+fn empty_entries_msg(
+    from: Option<DateTime<Utc>>,
+    until: Option<DateTime<Utc>>,
+    date_fmt: &str,
+) -> String {
     match (from, until) {
         (Some(f), Some(u)) => format!(
             "No entries from {} to {}.",
@@ -206,6 +210,26 @@ fn compute_gaps(
 mod tests {
     use super::*;
     use chrono::{Duration, TimeZone};
+    use tmkpr_lib::models::entry::Entry;
+
+    fn make_entry(started_at: DateTime<Utc>, finished_at: Option<DateTime<Utc>>) -> Entry {
+        Entry {
+            id: "id".to_string(),
+            user_id: "u1".to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at,
+            finished_at,
+            tags: vec![],
+            created_at: started_at,
+            updated_at: started_at,
+        }
+    }
+
+    fn t(h: u32, m: u32) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2024, 1, 1, h, m, 0).unwrap()
+    }
 
     #[test]
     fn no_args_defaults_to_today_midnight() {
@@ -232,5 +256,81 @@ mod tests {
         let until = Utc::now();
         let from = apply_today_default(None, Some(until));
         assert!(from.is_none());
+    }
+
+    // ── compute_gaps ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn gaps_no_entries_returns_full_window() {
+        let gaps = compute_gaps(&[], t(9, 0), t(17, 0));
+        assert_eq!(gaps, vec![(t(9, 0), t(17, 0))]);
+    }
+
+    #[test]
+    fn gaps_entry_fills_window_exactly() {
+        let e = make_entry(t(9, 0), Some(t(17, 0)));
+        let gaps = compute_gaps(&[e], t(9, 0), t(17, 0));
+        assert!(gaps.is_empty());
+    }
+
+    #[test]
+    fn gaps_entry_in_middle() {
+        let e = make_entry(t(10, 0), Some(t(11, 0)));
+        let gaps = compute_gaps(&[e], t(9, 0), t(17, 0));
+        assert_eq!(gaps, vec![(t(9, 0), t(10, 0)), (t(11, 0), t(17, 0))]);
+    }
+
+    #[test]
+    fn gaps_overlapping_entries_merged() {
+        let e1 = make_entry(t(9, 0), Some(t(11, 0)));
+        let e2 = make_entry(t(10, 0), Some(t(12, 0)));
+        let gaps = compute_gaps(&[e1, e2], t(9, 0), t(17, 0));
+        assert_eq!(gaps, vec![(t(12, 0), t(17, 0))]);
+    }
+
+    #[test]
+    fn gaps_adjacent_entries_no_gap_between_them() {
+        let e1 = make_entry(t(9, 0), Some(t(10, 0)));
+        let e2 = make_entry(t(10, 0), Some(t(11, 0)));
+        let gaps = compute_gaps(&[e1, e2], t(9, 0), t(17, 0));
+        assert_eq!(gaps, vec![(t(11, 0), t(17, 0))]);
+    }
+
+    #[test]
+    fn gaps_entry_starts_before_window() {
+        let e = make_entry(t(8, 0), Some(t(10, 0)));
+        let gaps = compute_gaps(&[e], t(9, 0), t(17, 0));
+        assert_eq!(gaps, vec![(t(10, 0), t(17, 0))]);
+    }
+
+    #[test]
+    fn gaps_entry_ends_after_window() {
+        let e = make_entry(t(9, 0), Some(t(20, 0)));
+        let gaps = compute_gaps(&[e], t(9, 0), t(17, 0));
+        assert!(gaps.is_empty());
+    }
+
+    #[test]
+    fn gaps_multiple_non_overlapping_entries() {
+        let e1 = make_entry(t(9, 0), Some(t(10, 0)));
+        let e2 = make_entry(t(11, 0), Some(t(12, 0)));
+        let e3 = make_entry(t(14, 0), Some(t(15, 0)));
+        let gaps = compute_gaps(&[e1, e2, e3], t(9, 0), t(17, 0));
+        assert_eq!(
+            gaps,
+            vec![
+                (t(10, 0), t(11, 0)),
+                (t(12, 0), t(14, 0)),
+                (t(15, 0), t(17, 0)),
+            ]
+        );
+    }
+
+    #[test]
+    fn gaps_unsorted_entries_handled() {
+        let e1 = make_entry(t(11, 0), Some(t(12, 0)));
+        let e2 = make_entry(t(9, 0), Some(t(10, 0)));
+        let gaps = compute_gaps(&[e1, e2], t(9, 0), t(17, 0));
+        assert_eq!(gaps, vec![(t(10, 0), t(11, 0)), (t(12, 0), t(17, 0))]);
     }
 }

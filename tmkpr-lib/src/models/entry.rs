@@ -64,6 +64,80 @@ pub struct UpdateEntry {
     pub tags: Option<Vec<String>>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn make_entry(started_at: DateTime<Utc>, finished_at: Option<DateTime<Utc>>) -> Entry {
+        Entry {
+            id: "test-id".to_string(),
+            user_id: "u1".to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at,
+            finished_at,
+            tags: vec![],
+            created_at: started_at,
+            updated_at: started_at,
+        }
+    }
+
+    #[test]
+    fn parse_tags_splits_and_trims() {
+        assert_eq!(parse_tags("foo, bar, baz"), vec!["foo", "bar", "baz"]);
+    }
+
+    #[test]
+    fn parse_tags_filters_empty() {
+        assert_eq!(parse_tags("foo,,bar"), vec!["foo", "bar"]);
+        assert_eq!(parse_tags(""), Vec::<String>::new());
+        assert_eq!(parse_tags("  ,  "), Vec::<String>::new());
+    }
+
+    #[test]
+    fn parse_tags_single() {
+        assert_eq!(parse_tags("only"), vec!["only"]);
+    }
+
+    #[test]
+    fn is_active_true_when_no_finished_at() {
+        let e = make_entry(Utc::now(), None);
+        assert!(e.is_active());
+    }
+
+    #[test]
+    fn is_active_false_when_finished() {
+        let start = Utc.with_ymd_and_hms(2024, 1, 1, 9, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2024, 1, 1, 10, 0, 0).unwrap();
+        let e = make_entry(start, Some(end));
+        assert!(!e.is_active());
+    }
+
+    #[test]
+    fn duration_none_for_active() {
+        let e = make_entry(Utc::now(), None);
+        assert!(e.duration().is_none());
+    }
+
+    #[test]
+    fn duration_some_for_finished() {
+        let start = Utc.with_ymd_and_hms(2024, 1, 1, 9, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2024, 1, 1, 10, 30, 0).unwrap();
+        let e = make_entry(start, Some(end));
+        assert_eq!(e.duration().unwrap(), Duration::minutes(90));
+    }
+
+    #[test]
+    fn elapsed_equals_duration_for_finished() {
+        let start = Utc.with_ymd_and_hms(2024, 1, 1, 8, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2024, 1, 1, 9, 0, 0).unwrap();
+        let e = make_entry(start, Some(end));
+        assert_eq!(e.elapsed(), Duration::hours(1));
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct EntryFilter {
     pub user_id: String,

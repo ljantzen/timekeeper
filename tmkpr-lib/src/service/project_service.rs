@@ -147,7 +147,13 @@ mod tests {
     fn delete_unknown_project_errors() {
         let s = storage();
         let err = svc(&s).delete("ghost", false).unwrap_err();
-        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -171,7 +177,13 @@ mod tests {
     fn resolve_unknown_errors() {
         let s = storage();
         let err = svc(&s).resolve("ghost").unwrap_err();
-        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
     }
 
     #[test]

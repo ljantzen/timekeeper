@@ -17,12 +17,26 @@ use crate::form::{Field, Form};
 pub enum AppMode {
     Normal,
     StartModal(Form),
-    EditModal { id: String, form: Form },
-    ConfirmDelete { id: String, display: String },
+    EditModal {
+        id: String,
+        form: Form,
+    },
+    ConfirmDelete {
+        id: String,
+        display: String,
+    },
     AddProject(Form),
     AddTask(Form),
-    Comments { entry_id: String, comments: Vec<Comment>, selected: usize },
-    AddComment { entry_id: String, form: Form, for_active: bool },
+    Comments {
+        entry_id: String,
+        comments: Vec<Comment>,
+        selected: usize,
+    },
+    AddComment {
+        entry_id: String,
+        form: Form,
+        for_active: bool,
+    },
     Help,
 }
 
@@ -95,7 +109,10 @@ impl App {
             let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
             self.projects = svc.list(false)?;
         }
-        self.tasks = self.storage.list_all_tasks(&self.user_id, false).unwrap_or_default();
+        self.tasks = self
+            .storage
+            .list_all_tasks(&self.user_id, false)
+            .unwrap_or_default();
         self.active_entry = self.storage.get_active_entry(&self.user_id)?;
         {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
@@ -191,11 +208,7 @@ impl App {
             .to_string();
         let end_val = entry
             .finished_at
-            .map(|t| {
-                t.with_timezone(&Local)
-                    .format("%Y-%m-%d %H:%M")
-                    .to_string()
-            })
+            .map(|t| t.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string())
             .unwrap_or_default();
 
         let tags_val = entry.tags.join(", ");
@@ -247,8 +260,18 @@ impl App {
         Ok(())
     }
 
-    pub fn start_entry(&mut self, project: &str, task: &str, note: &str, tags_str: &str) -> anyhow::Result<()> {
-        let project_opt = if project.is_empty() { None } else { Some(project) };
+    pub fn start_entry(
+        &mut self,
+        project: &str,
+        task: &str,
+        note: &str,
+        tags_str: &str,
+    ) -> anyhow::Result<()> {
+        let project_opt = if project.is_empty() {
+            None
+        } else {
+            Some(project)
+        };
         let task_opt = if task.is_empty() { None } else { Some(task) };
         let note_opt = if note.is_empty() {
             None
@@ -423,7 +446,12 @@ impl App {
     }
 
     pub fn cancel_add_comment(&mut self) -> anyhow::Result<()> {
-        if let AppMode::AddComment { entry_id, for_active, .. } = &self.mode {
+        if let AppMode::AddComment {
+            entry_id,
+            for_active,
+            ..
+        } = &self.mode
+        {
             let entry_id = entry_id.clone();
             let for_active = *for_active;
             if for_active {
@@ -436,7 +464,12 @@ impl App {
     }
 
     pub fn delete_selected_comment(&mut self) -> anyhow::Result<()> {
-        let (comment_id, entry_id) = if let AppMode::Comments { comments, selected, entry_id } = &self.mode {
+        let (comment_id, entry_id) = if let AppMode::Comments {
+            comments,
+            selected,
+            entry_id,
+        } = &self.mode
+        {
             if comments.is_empty() {
                 return Ok(());
             }
@@ -457,7 +490,11 @@ impl App {
         let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
         let comments = svc.list(Some(&entry_id))?;
         let selected = selected.min(comments.len().saturating_sub(1));
-        self.mode = AppMode::Comments { entry_id, comments, selected };
+        self.mode = AppMode::Comments {
+            entry_id,
+            comments,
+            selected,
+        };
         Ok(())
     }
 
@@ -484,12 +521,25 @@ impl App {
         });
     }
 
-    pub fn add_project(&mut self, name: &str, description: &str, color: &str) -> anyhow::Result<()> {
+    pub fn add_project(
+        &mut self,
+        name: &str,
+        description: &str,
+        color: &str,
+    ) -> anyhow::Result<()> {
         if name.is_empty() {
             return Err(anyhow::anyhow!("Project name is required"));
         }
-        let desc = if description.is_empty() { None } else { Some(description.to_string()) };
-        let col = if color.is_empty() { None } else { Some(color.to_string()) };
+        let desc = if description.is_empty() {
+            None
+        } else {
+            Some(description.to_string())
+        };
+        let col = if color.is_empty() {
+            None
+        } else {
+            Some(color.to_string())
+        };
         {
             let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
             svc.add(name, desc, col)?;
@@ -506,7 +556,11 @@ impl App {
         if name.is_empty() {
             return Err(anyhow::anyhow!("Task name is required"));
         }
-        let desc = if description.is_empty() { None } else { Some(description.to_string()) };
+        let desc = if description.is_empty() {
+            None
+        } else {
+            Some(description.to_string())
+        };
         {
             let svc = TaskService::new(self.storage.as_ref(), &self.user_id);
             svc.add(project, name, desc)?;
@@ -516,4 +570,3 @@ impl App {
         Ok(())
     }
 }
-

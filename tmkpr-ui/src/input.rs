@@ -217,7 +217,10 @@ fn handle_comments(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             app.mode = AppMode::Normal;
         }
         KeyCode::Char('j') | KeyCode::Down => {
-            if let AppMode::Comments { comments, selected, .. } = &mut app.mode {
+            if let AppMode::Comments {
+                comments, selected, ..
+            } = &mut app.mode
+            {
                 if !comments.is_empty() {
                     *selected = (*selected + 1).min(comments.len() - 1);
                 }
@@ -257,7 +260,12 @@ fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
-            if let AppMode::AddComment { entry_id, form, for_active } = old {
+            if let AppMode::AddComment {
+                entry_id,
+                form,
+                for_active,
+            } = old
+            {
                 let body = form.fields[0].value.clone();
                 if let Err(e) = app.submit_add_comment(entry_id, body, for_active) {
                     app.status = Some((e.to_string(), true));

@@ -550,7 +550,7 @@ pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {
                 return;
             }
             let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+            table.load_preset(UTF8_FULL);
             table.set_header(vec!["ID", "Entry", "Body", "Created"]);
             for c in comments {
                 table.add_row(vec![
@@ -715,4 +715,130 @@ fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
         "{}",
         serde_json::to_string_pretty(value).unwrap_or_default()
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tmkpr_lib::models::project::Project;
+    use tmkpr_lib::models::task::Task;
+
+    // ── format_duration ──────────────────────────────────────────────────────
+
+    #[test]
+    fn format_duration_seconds_only() {
+        assert_eq!(format_duration(0), "0s");
+        assert_eq!(format_duration(1), "1s");
+        assert_eq!(format_duration(59), "59s");
+    }
+
+    #[test]
+    fn format_duration_minutes() {
+        assert_eq!(format_duration(60), "1m 00s");
+        assert_eq!(format_duration(90), "1m 30s");
+        assert_eq!(format_duration(3599), "59m 59s");
+    }
+
+    #[test]
+    fn format_duration_hours() {
+        assert_eq!(format_duration(3600), "1h 00m");
+        assert_eq!(format_duration(3660), "1h 01m");
+        assert_eq!(format_duration(7384), "2h 03m");
+    }
+
+    #[test]
+    fn format_duration_negative_clamps_to_zero() {
+        assert_eq!(format_duration(-1), "0s");
+        assert_eq!(format_duration(-3600), "0s");
+    }
+
+    // ── csv_escape ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn csv_escape_plain_string_unchanged() {
+        assert_eq!(csv_escape("hello"), "hello");
+        assert_eq!(csv_escape(""), "");
+    }
+
+    #[test]
+    fn csv_escape_wraps_comma() {
+        assert_eq!(csv_escape("a,b"), "\"a,b\"");
+    }
+
+    #[test]
+    fn csv_escape_wraps_newline() {
+        assert_eq!(csv_escape("a\nb"), "\"a\nb\"");
+    }
+
+    #[test]
+    fn csv_escape_doubles_inner_quotes() {
+        assert_eq!(csv_escape("say \"hi\""), "\"say \"\"hi\"\"\"");
+    }
+
+    // ── ProjectIndex / TaskIndex ─────────────────────────────────────────────
+
+    fn make_project(id: &str, name: &str) -> Project {
+        Project {
+            id: id.to_string(),
+            user_id: "u1".to_string(),
+            num_id: 1,
+            name: name.to_string(),
+            description: None,
+            color: None,
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    fn make_task(id: &str, name: &str) -> Task {
+        Task {
+            id: id.to_string(),
+            user_id: "u1".to_string(),
+            project_id: "p1".to_string(),
+            num_id: 1,
+            name: name.to_string(),
+            description: None,
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn project_index_found() {
+        let idx = ProjectIndex(vec![make_project("p1", "Alpha")]);
+        assert_eq!(idx.name("p1"), "Alpha");
+    }
+
+    #[test]
+    fn project_index_missing_falls_back_to_id() {
+        let idx = ProjectIndex(vec![]);
+        assert_eq!(idx.name("unknown-id"), "unknown-id");
+    }
+
+    #[test]
+    fn task_index_found() {
+        let idx = TaskIndex(vec![make_task("t1", "Backend")]);
+        assert_eq!(idx.name("t1"), "Backend");
+    }
+
+    #[test]
+    fn task_index_missing_falls_back_to_id() {
+        let idx = TaskIndex(vec![]);
+        assert_eq!(idx.name("missing"), "missing");
+    }
+
+    // ── short_id ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn short_id_truncates_long_ids() {
+        assert_eq!(short_id("abcdefgh1234"), "abcdefgh");
+    }
+
+    #[test]
+    fn short_id_leaves_short_ids_alone() {
+        assert_eq!(short_id("abc"), "abc");
+        assert_eq!(short_id("abcdefgh"), "abcdefgh");
+    }
 }

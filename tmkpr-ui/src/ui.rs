@@ -47,7 +47,12 @@ fn render_active(frame: &mut Frame, app: &App, area: Rect) {
     let line = match &app.active_entry {
         Some(entry) => {
             let secs = entry.elapsed().num_seconds();
-            let elapsed = format!("{:02}:{:02}:{:02}", secs / 3600, (secs % 3600) / 60, secs % 60);
+            let elapsed = format!(
+                "{:02}:{:02}:{:02}",
+                secs / 3600,
+                (secs % 3600) / 60,
+                secs % 60
+            );
             let what = match (&entry.project_id, &entry.task_id) {
                 (Some(pid), Some(tid)) => {
                     format!("{} / {}", app.project_name(pid), app.task_name(tid))
@@ -390,8 +395,14 @@ fn render_help(frame: &mut Frame, area: Rect) {
             ]),
             Line::from(""),
             Line::from(Span::styled("Actions", bold)),
-            Line::from(vec![Span::styled("  s      ", bold), Span::raw("Start new entry")]),
-            Line::from(vec![Span::styled("  x      ", bold), Span::raw("Stop active entry")]),
+            Line::from(vec![
+                Span::styled("  s      ", bold),
+                Span::raw("Start new entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  x      ", bold),
+                Span::raw("Stop active entry"),
+            ]),
             Line::from(vec![
                 Span::styled("  e      ", bold),
                 Span::raw("Edit selected entry"),
@@ -400,18 +411,33 @@ fn render_help(frame: &mut Frame, area: Rect) {
                 Span::styled("  d      ", bold),
                 Span::raw("Delete selected entry"),
             ]),
-            Line::from(vec![Span::styled("  c      ", bold), Span::raw("View/add comments on selected entry")]),
-            Line::from(vec![Span::styled("  C      ", bold), Span::raw("Add comment to active entry (fails if none running)")]),
-            Line::from(vec![Span::styled("  r      ", bold), Span::raw("Refresh data")]),
-            Line::from(vec![Span::styled("  p      ", bold), Span::raw("Add new project")]),
-            Line::from(vec![Span::styled("  t      ", bold), Span::raw("Add new task")]),
+            Line::from(vec![
+                Span::styled("  c      ", bold),
+                Span::raw("View/add comments on selected entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  C      ", bold),
+                Span::raw("Add comment to active entry (fails if none running)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  r      ", bold),
+                Span::raw("Refresh data"),
+            ]),
+            Line::from(vec![
+                Span::styled("  p      ", bold),
+                Span::raw("Add new project"),
+            ]),
+            Line::from(vec![
+                Span::styled("  t      ", bold),
+                Span::raw("Add new task"),
+            ]),
             Line::from(""),
             Line::from(Span::styled("General", bold)),
-            Line::from(vec![Span::styled("  ?      ", bold), Span::raw("This help screen")]),
             Line::from(vec![
-                Span::styled("  q/Esc  ", bold),
-                Span::raw("Quit"),
+                Span::styled("  ?      ", bold),
+                Span::raw("This help screen"),
             ]),
+            Line::from(vec![Span::styled("  q/Esc  ", bold), Span::raw("Quit")]),
             Line::from(""),
             Line::from(Span::styled("Any key to close", dim)),
         ]),
@@ -420,7 +446,14 @@ fn render_help(frame: &mut Frame, area: Rect) {
 }
 
 fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
-    let AppMode::Comments { entry_id, comments, selected } = &app.mode else { return };
+    let AppMode::Comments {
+        entry_id,
+        comments,
+        selected,
+    } = &app.mode
+    else {
+        return;
+    };
 
     let display = app.entry_display(entry_id);
     let title = format!(" Comments: {display} ({}) ", comments.len());
@@ -451,7 +484,11 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
         let items: Vec<ListItem> = comments
             .iter()
             .map(|c| {
-                let ts = c.created_at.with_timezone(&Local).format("%m-%d %H:%M").to_string();
+                let ts = c
+                    .created_at
+                    .with_timezone(&Local)
+                    .format("%m-%d %H:%M")
+                    .to_string();
                 ListItem::new(format!("{ts}  {}", c.body))
             })
             .collect();
@@ -475,7 +512,12 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
-    if let AppMode::AddComment { entry_id, form, for_active } = &app.mode {
+    if let AppMode::AddComment {
+        entry_id,
+        form,
+        for_active,
+    } = &app.mode
+    {
         let display = app.entry_display(entry_id);
         let title = if *for_active {
             format!(" Add Comment: {display} (active) ")
