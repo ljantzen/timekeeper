@@ -70,10 +70,8 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             }
         }
         KeyCode::Char('C') => {
-            if app.active_entry.is_some() {
-                app.open_add_comment_for_active();
-            } else {
-                app.status = Some(("No active entry.".into(), true));
+            if let Err(e) = app.open_comments_for_active() {
+                app.status = Some((e.to_string(), true));
             }
         }
         KeyCode::Char('p') => app.open_add_project_modal(),
@@ -260,14 +258,9 @@ fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
-            if let AppMode::AddComment {
-                entry_id,
-                form,
-                for_active,
-            } = old
-            {
+            if let AppMode::AddComment { entry_id, form } = old {
                 let body = form.fields[0].value.clone();
-                if let Err(e) = app.submit_add_comment(entry_id, body, for_active) {
+                if let Err(e) = app.submit_add_comment(entry_id, body) {
                     app.status = Some((e.to_string(), true));
                 }
             }

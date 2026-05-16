@@ -512,18 +512,9 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
-    if let AppMode::AddComment {
-        entry_id,
-        form,
-        for_active,
-    } = &app.mode
-    {
+    if let AppMode::AddComment { entry_id, form } = &app.mode {
         let display = app.entry_display(entry_id);
-        let title = if *for_active {
-            format!(" Add Comment: {display} (active) ")
-        } else {
-            format!(" Add Comment: {display} ")
-        };
+        let title = format!(" Add Comment: {display} ");
         render_form_modal(frame, area, &title, 35, form);
     }
 }

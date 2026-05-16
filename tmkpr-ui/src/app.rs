@@ -35,7 +35,6 @@ pub enum AppMode {
     AddComment {
         entry_id: String,
         form: Form,
-        for_active: bool,
     },
     Help,
 }
@@ -395,6 +394,16 @@ impl App {
         }
     }
 
+    pub fn open_comments_for_active(&mut self) -> anyhow::Result<()> {
+        if let Some(entry) = &self.active_entry {
+            let entry_id = entry.id.clone();
+            self.refresh_comments_mode(entry_id, 0)?;
+        } else {
+            self.status = Some(("No active entry.".into(), true));
+        }
+        Ok(())
+    }
+
     pub fn open_add_comment(&mut self) {
         if let AppMode::Comments { entry_id, .. } = &self.mode {
             let entry_id = entry_id.clone();
@@ -404,31 +413,11 @@ impl App {
                     fields: vec![Field::new("Comment", "")],
                     focused: 0,
                 },
-                for_active: false,
             };
         }
     }
 
-    pub fn open_add_comment_for_active(&mut self) {
-        if let Some(entry) = &self.active_entry {
-            let entry_id = entry.id.clone();
-            self.mode = AppMode::AddComment {
-                entry_id,
-                form: Form {
-                    fields: vec![Field::new("Comment", "")],
-                    focused: 0,
-                },
-                for_active: true,
-            };
-        }
-    }
-
-    pub fn submit_add_comment(
-        &mut self,
-        entry_id: String,
-        body: String,
-        for_active: bool,
-    ) -> anyhow::Result<()> {
+    pub fn submit_add_comment(&mut self, entry_id: String, body: String) -> anyhow::Result<()> {
         if body.is_empty() {
             return Err(anyhow::anyhow!("Comment cannot be empty"));
         }
@@ -436,29 +425,15 @@ impl App {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
             svc.add(Some(&entry_id), body)?;
         }
-        if for_active {
-            self.mode = AppMode::Normal;
-        } else {
-            self.refresh_comments_mode(entry_id, 0)?;
-        }
+        self.refresh_comments_mode(entry_id, 0)?;
         self.status = Some(("Comment added.".into(), false));
         Ok(())
     }
 
     pub fn cancel_add_comment(&mut self) -> anyhow::Result<()> {
-        if let AppMode::AddComment {
-            entry_id,
-            for_active,
-            ..
-        } = &self.mode
-        {
+        if let AppMode::AddComment { entry_id, .. } = &self.mode {
             let entry_id = entry_id.clone();
-            let for_active = *for_active;
-            if for_active {
-                self.mode = AppMode::Normal;
-            } else {
-                self.refresh_comments_mode(entry_id, 0)?;
-            }
+            self.refresh_comments_mode(entry_id, 0)?;
         }
         Ok(())
     }
