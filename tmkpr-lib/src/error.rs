@@ -22,12 +22,6 @@ pub enum TmkprError {
     #[error("entry start time must be before finish time")]
     InvalidTimeRange,
 
-    #[error("project `{0}` not found")]
-    ProjectNotFound(String),
-
-    #[error("task `{0}` not found")]
-    TaskNotFound(String),
-
     #[error("configuration error: {0}")]
     Config(String),
 

@@ -9,7 +9,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    match app.mode_kind() {
+    match app.mode.kind() {
         ModeKind::Normal => handle_normal(app, key),
         ModeKind::StartModal => handle_start_modal(app, key),
         ModeKind::EditModal => handle_edit_modal(app, key),

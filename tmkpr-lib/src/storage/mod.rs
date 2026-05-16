@@ -30,6 +30,7 @@ pub trait Storage: Send + Sync {
     fn get_task_by_name(&self, project_id: &str, name: &str) -> TmkprResult<Option<Task>>;
     fn get_task_by_num_id(&self, project_id: &str, num_id: u32) -> TmkprResult<Option<Task>>;
     fn list_tasks(&self, project_id: &str, include_archived: bool) -> TmkprResult<Vec<Task>>;
+    fn list_all_tasks(&self, user_id: &str, include_archived: bool) -> TmkprResult<Vec<Task>>;
     fn update_task(&self, id: &str, update: UpdateTask) -> TmkprResult<Task>;
     fn delete_task(&self, id: &str) -> TmkprResult<()>;
 

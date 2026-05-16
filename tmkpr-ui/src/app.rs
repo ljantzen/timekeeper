@@ -3,7 +3,7 @@ use ratatui::widgets::ListState;
 use tmkpr_lib::{
     models::{
         comment::Comment,
-        entry::{Entry, EntryFilter, UpdateEntry},
+        entry::{parse_tags, Entry, EntryFilter, UpdateEntry},
         project::Project,
         task::Task,
     },
@@ -37,6 +37,22 @@ pub enum ModeKind {
     Comments,
     AddComment,
     Help,
+}
+
+impl AppMode {
+    pub fn kind(&self) -> ModeKind {
+        match self {
+            AppMode::Normal => ModeKind::Normal,
+            AppMode::StartModal(_) => ModeKind::StartModal,
+            AppMode::EditModal { .. } => ModeKind::EditModal,
+            AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
+            AppMode::AddProject(_) => ModeKind::AddProject,
+            AppMode::AddTask(_) => ModeKind::AddTask,
+            AppMode::Comments { .. } => ModeKind::Comments,
+            AppMode::AddComment { .. } => ModeKind::AddComment,
+            AppMode::Help => ModeKind::Help,
+        }
+    }
 }
 
 pub struct App {
@@ -74,33 +90,12 @@ impl App {
         }
     }
 
-    pub fn mode_kind(&self) -> ModeKind {
-        match &self.mode {
-            AppMode::Normal => ModeKind::Normal,
-            AppMode::StartModal(_) => ModeKind::StartModal,
-            AppMode::EditModal { .. } => ModeKind::EditModal,
-            AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
-            AppMode::AddProject(_) => ModeKind::AddProject,
-            AppMode::AddTask(_) => ModeKind::AddTask,
-            AppMode::Comments { .. } => ModeKind::Comments,
-            AppMode::AddComment { .. } => ModeKind::AddComment,
-            AppMode::Help => ModeKind::Help,
-        }
-    }
-
     pub fn refresh(&mut self) -> anyhow::Result<()> {
         {
             let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
             self.projects = svc.list(false)?;
         }
-        {
-            let mut tasks = vec![];
-            for project in &self.projects {
-                let pt = self.storage.list_tasks(&project.id, false).unwrap_or_default();
-                tasks.extend(pt);
-            }
-            self.tasks = tasks;
-        }
+        self.tasks = self.storage.list_all_tasks(&self.user_id, false).unwrap_or_default();
         self.active_entry = self.storage.get_active_entry(&self.user_id)?;
         {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
@@ -176,9 +171,6 @@ impl App {
     }
 
     pub fn open_edit_modal(&mut self) {
-        if self.entries.is_empty() {
-            return;
-        }
         let entry = &self.entries[self.selected];
         let id = entry.id.clone();
         let project_val = entry
@@ -226,9 +218,6 @@ impl App {
     }
 
     pub fn open_confirm_delete(&mut self) {
-        if self.entries.is_empty() {
-            return;
-        }
         let entry = &self.entries[self.selected];
         let short_id = &entry.id[..8.min(entry.id.len())];
         let display = format!("entry {short_id}");
@@ -358,9 +347,6 @@ impl App {
     }
 
     pub fn open_comments(&mut self) -> anyhow::Result<()> {
-        if self.entries.is_empty() {
-            return Ok(());
-        }
         let entry_id = self.entries[self.selected].id.clone();
         self.refresh_comments_mode(entry_id, 0)
     }
@@ -531,9 +517,3 @@ impl App {
     }
 }
 
-fn parse_tags(s: &str) -> Vec<String> {
-    s.split(',')
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())
-        .collect()
-}

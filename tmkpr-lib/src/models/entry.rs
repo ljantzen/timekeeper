@@ -1,6 +1,16 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const NO_PROJECT: &str = "(no project)";
+pub const NO_TASK: &str = "(no task)";
+
+pub fn parse_tags(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry {
     pub id: String,

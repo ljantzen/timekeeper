@@ -354,6 +354,20 @@ impl Storage for SqliteStorage {
             .map_err(TmkprError::Database)
     }
 
+    fn list_all_tasks(&self, user_id: &str, include_archived: bool) -> TmkprResult<Vec<Task>> {
+        let conn = self.conn.lock().unwrap();
+        let archived_filter = if include_archived { "1=1" } else { "archived = 0" };
+        let sql = format!(
+            "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
+             FROM tasks WHERE user_id = ?1 AND {} ORDER BY project_id, num_id",
+            archived_filter
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![user_id], row_to_task)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(TmkprError::Database)
+    }
+
     fn update_task(&self, id: &str, u: UpdateTask) -> TmkprResult<Task> {
         let conn = self.conn.lock().unwrap();
         let mut sets: Vec<String> = vec!["updated_at = datetime('now')".to_string()];

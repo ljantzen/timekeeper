@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc, Weekday};
+use chrono::{DateTime, Duration, NaiveDate, Utc, Weekday};
 use serde::Serialize;
 
 use crate::error::{TmkprError, TmkprResult};
-use crate::models::entry::{Entry, EntryFilter, NewEntry, UpdateEntry};
+use crate::models::entry::{Entry, EntryFilter, NewEntry, UpdateEntry, NO_PROJECT, NO_TASK};
 use crate::service::{ProjectService, TaskService};
 use crate::storage::Storage;
+use crate::util::local_midnight_utc;
 
 #[derive(Debug, Serialize)]
 pub struct ReportData {
@@ -28,14 +29,6 @@ pub struct TaskReport {
     pub task_name: String,
     pub total_secs: i64,
     pub entry_count: usize,
-}
-
-fn local_midnight_utc(date: NaiveDate) -> DateTime<Utc> {
-    Local
-        .from_local_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
-        .single()
-        .unwrap()
-        .with_timezone(&Utc)
 }
 
 // ── Week report types ─────────────────────────────────────────────────────────
@@ -72,19 +65,11 @@ impl<'a> EntryService<'a> {
         Self { storage, user_id }
     }
 
-    /// Start tracking. Errors if another entry is already active.
-    pub fn start(
+    fn resolve_project_task(
         &self,
         project_name: Option<&str>,
         task_name: Option<&str>,
-        note: Option<String>,
-        tags: Vec<String>,
-        started_at: Option<DateTime<Utc>>,
-    ) -> TmkprResult<Entry> {
-        if let Some(active) = self.storage.get_active_entry(self.user_id)? {
-            return Err(TmkprError::AlreadyTracking { id: active.id });
-        }
-
+    ) -> TmkprResult<(Option<String>, Option<String>)> {
         let project_id = match project_name {
             Some(input) => Some(
                 ProjectService::new(self.storage, self.user_id)
@@ -93,7 +78,6 @@ impl<'a> EntryService<'a> {
             ),
             None => None,
         };
-
         let task_id = match (task_name, &project_id) {
             (Some(input), Some(pid)) => Some(
                 TaskService::new(self.storage, self.user_id)
@@ -108,7 +92,22 @@ impl<'a> EntryService<'a> {
             }
             (None, _) => None,
         };
+        Ok((project_id, task_id))
+    }
 
+    /// Start tracking. Errors if another entry is already active.
+    pub fn start(
+        &self,
+        project_name: Option<&str>,
+        task_name: Option<&str>,
+        note: Option<String>,
+        tags: Vec<String>,
+        started_at: Option<DateTime<Utc>>,
+    ) -> TmkprResult<Entry> {
+        if let Some(active) = self.storage.get_active_entry(self.user_id)? {
+            return Err(TmkprError::AlreadyTracking { id: active.id });
+        }
+        let (project_id, task_id) = self.resolve_project_task(project_name, task_name)?;
         self.storage.create_entry(NewEntry {
             user_id: self.user_id.to_string(),
             project_id,
@@ -133,31 +132,7 @@ impl<'a> EntryService<'a> {
         if started_at >= finished_at {
             return Err(TmkprError::InvalidTimeRange);
         }
-
-        let project_id = match project_name {
-            Some(input) => Some(
-                ProjectService::new(self.storage, self.user_id)
-                    .resolve(input)?
-                    .id,
-            ),
-            None => None,
-        };
-
-        let task_id = match (task_name, &project_id) {
-            (Some(input), Some(pid)) => Some(
-                TaskService::new(self.storage, self.user_id)
-                    .resolve(pid, input)?
-                    .id,
-            ),
-            (Some(name), None) => {
-                return Err(TmkprError::Config(format!(
-                    "task `{}` requires a project (use -p)",
-                    name
-                )));
-            }
-            (None, _) => None,
-        };
-
+        let (project_id, task_id) = self.resolve_project_task(project_name, task_name)?;
         self.storage.create_entry(NewEntry {
             user_id: self.user_id.to_string(),
             project_id,
@@ -253,7 +228,7 @@ impl<'a> EntryService<'a> {
                         .project_id
                         .as_deref()
                         .map(project_name_of)
-                        .unwrap_or_else(|| "(no project)".to_string());
+                        .unwrap_or_else(|| NO_PROJECT.to_string());
                     *by_project.entry(name.clone()).or_insert(0) += secs;
                     *week_by_project.entry(name).or_insert(0) += secs;
                 }
@@ -353,8 +328,17 @@ impl<'a> EntryService<'a> {
                 .unwrap_or_else(|| id.to_string())
         };
 
+        struct TaskAccum {
+            total_secs: i64,
+            entry_count: usize,
+        }
+        struct ProjectAccum {
+            total_secs: i64,
+            tasks: HashMap<String, TaskAccum>,
+        }
+
         let mut total_secs: i64 = 0;
-        let mut by_project: Vec<ProjectReport> = vec![];
+        let mut proj_map: HashMap<String, ProjectAccum> = HashMap::new();
 
         for entry in &entries {
             let dur = entry.duration().unwrap_or_default().num_seconds();
@@ -364,45 +348,47 @@ impl<'a> EntryService<'a> {
                 .project_id
                 .as_deref()
                 .map(&project_name_of)
-                .unwrap_or_else(|| "(no project)".to_string());
+                .unwrap_or_else(|| NO_PROJECT.to_string());
             let task_key = entry
                 .task_id
                 .as_deref()
                 .map(&task_name_of)
-                .unwrap_or_else(|| "(no task)".to_string());
+                .unwrap_or_else(|| NO_TASK.to_string());
 
-            let proj_report = match by_project.iter_mut().find(|r| r.project_name == proj_key) {
-                Some(r) => r,
-                None => {
-                    by_project.push(ProjectReport {
-                        project_name: proj_key.to_string(),
-                        total_secs: 0,
-                        by_task: vec![],
-                    });
-                    by_project.last_mut().unwrap()
-                }
-            };
-
-            proj_report.total_secs += dur;
-
-            match proj_report
-                .by_task
-                .iter_mut()
-                .find(|t| t.task_name == task_key)
-            {
-                Some(t) => {
-                    t.total_secs += dur;
-                    t.entry_count += 1;
-                }
-                None => {
-                    proj_report.by_task.push(TaskReport {
-                        task_name: task_key.to_string(),
-                        total_secs: dur,
-                        entry_count: 1,
-                    });
-                }
-            }
+            let pa = proj_map.entry(proj_key).or_insert(ProjectAccum {
+                total_secs: 0,
+                tasks: HashMap::new(),
+            });
+            pa.total_secs += dur;
+            let ta = pa.tasks.entry(task_key).or_insert(TaskAccum {
+                total_secs: 0,
+                entry_count: 0,
+            });
+            ta.total_secs += dur;
+            ta.entry_count += 1;
         }
+
+        let mut by_project: Vec<ProjectReport> = proj_map
+            .into_iter()
+            .map(|(project_name, pa)| {
+                let mut by_task: Vec<TaskReport> = pa
+                    .tasks
+                    .into_iter()
+                    .map(|(task_name, ta)| TaskReport {
+                        task_name,
+                        total_secs: ta.total_secs,
+                        entry_count: ta.entry_count,
+                    })
+                    .collect();
+                by_task.sort_by(|a, b| a.task_name.cmp(&b.task_name));
+                ProjectReport {
+                    project_name,
+                    total_secs: pa.total_secs,
+                    by_task,
+                }
+            })
+            .collect();
+        by_project.sort_by(|a, b| a.project_name.cmp(&b.project_name));
 
         Ok(ReportData {
             from,
@@ -479,7 +465,7 @@ mod tests {
         let err = svc(&s)
             .start(Some("ghost"), None, None, vec![], None)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]
@@ -818,14 +804,14 @@ mod tests {
         let err = svc(&s)
             .log(Some("ghost"), None, None, vec![], start, end)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]
     fn report_unknown_project_errors() {
         let s = storage();
         let err = svc(&s).report(None, None, Some("ghost")).unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]

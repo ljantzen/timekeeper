@@ -53,11 +53,11 @@ pub fn resolve_or_create_project(
 ) -> Result<Project> {
     match ProjectService::new(storage, user_id).resolve(input) {
         Ok(p) => Ok(p),
-        Err(TmkprError::ProjectNotFound(_)) if input.parse::<u32>().is_err() => {
+        Err(TmkprError::NotFound { entity: "project", .. }) if input.parse::<u32>().is_err() => {
             if confirm(&format!("Project '{}' not found. Create it?", input)) {
                 Ok(ProjectService::new(storage, user_id).add(input, None, None)?)
             } else {
-                Err(TmkprError::ProjectNotFound(input.to_string()).into())
+                Err(TmkprError::NotFound { entity: "project", id: input.to_string() }.into())
             }
         }
         Err(e) => Err(e.into()),
@@ -74,14 +74,14 @@ pub fn resolve_or_create_task(
 ) -> Result<Task> {
     match TaskService::new(storage, user_id).resolve(&project.id, input) {
         Ok(t) => Ok(t),
-        Err(TmkprError::TaskNotFound(_)) if input.parse::<u32>().is_err() => {
+        Err(TmkprError::NotFound { entity: "task", .. }) if input.parse::<u32>().is_err() => {
             if confirm(&format!(
                 "Task '{}' not found in project '{}'. Create it?",
                 input, project.name
             )) {
                 Ok(TaskService::new(storage, user_id).add(&project.name, input, None)?)
             } else {
-                Err(TmkprError::TaskNotFound(input.to_string()).into())
+                Err(TmkprError::NotFound { entity: "task", id: input.to_string() }.into())
             }
         }
         Err(e) => Err(e.into()),

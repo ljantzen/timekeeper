@@ -19,7 +19,7 @@ impl<'a> TaskService<'a> {
         } else {
             self.storage.get_task_by_name(project_id, input)?
         };
-        found.ok_or_else(|| TmkprError::TaskNotFound(input.to_string()))
+        found.ok_or_else(|| TmkprError::NotFound { entity: "task", id: input.to_string() })
     }
 
     pub fn add(
@@ -31,7 +31,10 @@ impl<'a> TaskService<'a> {
         let project = self
             .storage
             .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::ProjectNotFound(project_name.to_string()))?;
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "project",
+                id: project_name.to_string(),
+            })?;
 
         self.storage.create_task(NewTask {
             user_id: self.user_id.to_string(),
@@ -45,7 +48,10 @@ impl<'a> TaskService<'a> {
         let project = self
             .storage
             .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::ProjectNotFound(project_name.to_string()))?;
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "project",
+                id: project_name.to_string(),
+            })?;
 
         self.storage.list_tasks(&project.id, include_archived)
     }
@@ -65,12 +71,18 @@ impl<'a> TaskService<'a> {
         let project = self
             .storage
             .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::ProjectNotFound(project_name.to_string()))?;
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "project",
+                id: project_name.to_string(),
+            })?;
 
         let task = self
             .storage
             .get_task_by_name(&project.id, task_name)?
-            .ok_or_else(|| TmkprError::TaskNotFound(task_name.to_string()))?;
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "task",
+                id: task_name.to_string(),
+            })?;
 
         if hard {
             self.storage.delete_task(&task.id)
@@ -126,7 +138,7 @@ mod tests {
         let err = TaskService::new(&s, LOCAL_USER_ID)
             .add("ghost", "task", None)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]
@@ -159,7 +171,7 @@ mod tests {
         let err = TaskService::new(&s, LOCAL_USER_ID)
             .delete(&proj, "ghost", false)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::TaskNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "task", .. }));
     }
 
     #[test]
@@ -208,7 +220,7 @@ mod tests {
         let err = TaskService::new(&s, LOCAL_USER_ID)
             .resolve(&proj_id, "ghost")
             .unwrap_err();
-        assert!(matches!(err, TmkprError::TaskNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "task", .. }));
     }
 
     #[test]
@@ -293,7 +305,7 @@ mod tests {
         let err = TaskService::new(&s, LOCAL_USER_ID)
             .add("ghost", "task", None)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]
@@ -302,6 +314,6 @@ mod tests {
         let err = TaskService::new(&s, LOCAL_USER_ID)
             .list("ghost", false)
             .unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 }

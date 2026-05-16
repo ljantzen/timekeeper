@@ -26,7 +26,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     render_main(frame, app, chunks[1]);
     render_status_bar(frame, app, chunks[2]);
 
-    match app.mode_kind() {
+    match app.mode.kind() {
         ModeKind::StartModal => render_start_modal(frame, app, area),
         ModeKind::EditModal => render_edit_modal(frame, app, area),
         ModeKind::ConfirmDelete => render_confirm_delete(frame, app, area),

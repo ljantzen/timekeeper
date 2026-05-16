@@ -41,7 +41,10 @@ impl<'a> ProjectService<'a> {
         } else {
             self.storage.get_project_by_name(self.user_id, input)?
         };
-        found.ok_or_else(|| crate::error::TmkprError::ProjectNotFound(input.to_string()))
+        found.ok_or_else(|| crate::error::TmkprError::NotFound {
+            entity: "project",
+            id: input.to_string(),
+        })
     }
 
     pub fn edit(
@@ -58,7 +61,10 @@ impl<'a> ProjectService<'a> {
         let project = self
             .storage
             .get_project_by_name(self.user_id, name)?
-            .ok_or_else(|| crate::error::TmkprError::ProjectNotFound(name.to_string()))?;
+            .ok_or_else(|| crate::error::TmkprError::NotFound {
+                entity: "project",
+                id: name.to_string(),
+            })?;
 
         if hard {
             self.storage.delete_project(&project.id)
@@ -141,7 +147,7 @@ mod tests {
     fn delete_unknown_project_errors() {
         let s = storage();
         let err = svc(&s).delete("ghost", false).unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]
@@ -165,7 +171,7 @@ mod tests {
     fn resolve_unknown_errors() {
         let s = storage();
         let err = svc(&s).resolve("ghost").unwrap_err();
-        assert!(matches!(err, TmkprError::ProjectNotFound(_)));
+        assert!(matches!(err, TmkprError::NotFound { entity: "project", .. }));
     }
 
     #[test]

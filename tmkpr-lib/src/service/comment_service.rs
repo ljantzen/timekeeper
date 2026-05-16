@@ -1,9 +1,10 @@
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::Local;
 
 use crate::error::{TmkprError, TmkprResult};
 use crate::models::comment::{Comment, NewComment};
 use crate::models::entry::EntryFilter;
 use crate::storage::Storage;
+use crate::util::local_midnight_utc;
 
 pub struct CommentService<'a> {
     storage: &'a dyn Storage,
@@ -37,7 +38,7 @@ impl<'a> CommentService<'a> {
             None => {
                 let entries = self.storage.list_entries(&EntryFilter {
                     user_id: self.user_id.to_string(),
-                    from: Some(today_midnight()),
+                    from: Some(local_midnight_utc(Local::now().date_naive())),
                     include_active: true,
                     ..Default::default()
                 })?;
@@ -63,15 +64,6 @@ impl<'a> CommentService<'a> {
             .resolve_comment_id(self.user_id, comment_id_prefix)?;
         self.storage.delete_comment(&id)
     }
-}
-
-fn today_midnight() -> DateTime<Utc> {
-    let today = Local::now().date_naive();
-    Local
-        .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap())
-        .single()
-        .unwrap()
-        .with_timezone(&Utc)
 }
 
 #[cfg(test)]
