@@ -15,6 +15,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::EditModal => handle_edit_modal(app, key),
         ModeKind::ConfirmDelete => handle_confirm_delete(app, key),
         ModeKind::AddProject => handle_add_project(app, key),
+        ModeKind::ManageProjects => handle_manage_projects(app, key),
+        ModeKind::EditProject => handle_edit_project(app, key),
         ModeKind::AddTask => handle_add_task(app, key),
         ModeKind::Filter => handle_filter(app, key),
         ModeKind::Comments => handle_comments(app, key),
@@ -78,7 +80,7 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some((e.to_string(), true));
             }
         }
-        KeyCode::Char('p') => app.open_add_project_modal(),
+        KeyCode::Char('p') => app.open_manage_projects(),
         KeyCode::Char('t') => app.open_add_task_modal(),
         KeyCode::Char('?') => {
             app.mode = AppMode::Help;
@@ -132,6 +134,59 @@ fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let description = form.fields[1].value.clone();
                 let color = form.fields[2].value.clone();
                 if let Err(e) = app.add_project(&name, &description, &color) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_manage_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            app.select_next_project();
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.select_prev_project();
+        }
+        KeyCode::Char('a') => {
+            app.open_add_project_modal();
+        }
+        KeyCode::Char('e') => {
+            if let Err(e) = app.open_edit_selected_project() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_edit_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::EditProject { form, .. } => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.mode = AppMode::ManageProjects {
+                projects: app.projects.clone(),
+                selected: 0,
+            };
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::EditProject { project_id, form } = old {
+                let name = form.fields[0].value.clone();
+                let description = form.fields[1].value.clone();
+                let color = form.fields[2].value.clone();
+                if let Err(e) = app.submit_edit_project(project_id, &name, &description, &color) {
                     app.status = Some((e.to_string(), true));
                 }
             }

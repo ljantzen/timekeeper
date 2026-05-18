@@ -5,7 +5,7 @@ use tmkpr_lib::{
     models::{
         comment::Comment,
         entry::{parse_tags, Entry, EntryFilter, UpdateEntry},
-        project::Project,
+        project::{Project, UpdateProject},
         task::Task,
     },
     nlp::parser::{parse_datetime, TimeFormat},
@@ -89,6 +89,14 @@ pub enum AppMode {
         display: String,
     },
     AddProject(Form),
+    ManageProjects {
+        projects: Vec<Project>,
+        selected: usize,
+    },
+    EditProject {
+        project_id: String,
+        form: Form,
+    },
     AddTask(Form),
     Filter(Form),
     Comments {
@@ -110,6 +118,8 @@ pub enum ModeKind {
     EditModal,
     ConfirmDelete,
     AddProject,
+    ManageProjects,
+    EditProject,
     AddTask,
     Filter,
     Comments,
@@ -125,6 +135,8 @@ impl AppMode {
             AppMode::EditModal { .. } => ModeKind::EditModal,
             AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
             AppMode::AddProject(_) => ModeKind::AddProject,
+            AppMode::ManageProjects { .. } => ModeKind::ManageProjects,
+            AppMode::EditProject { .. } => ModeKind::EditProject,
             AppMode::AddTask(_) => ModeKind::AddTask,
             AppMode::Filter(_) => ModeKind::Filter,
             AppMode::Comments { .. } => ModeKind::Comments,
@@ -576,6 +588,48 @@ impl App {
         });
     }
 
+    pub fn open_manage_projects(&mut self) {
+        let selected = 0;
+        self.mode = AppMode::ManageProjects {
+            projects: self.projects.clone(),
+            selected,
+        };
+    }
+
+    pub fn select_next_project(&mut self) {
+        if let AppMode::ManageProjects { projects, selected } = &mut self.mode {
+            *selected = (*selected + 1).min(projects.len().saturating_sub(1));
+        }
+    }
+
+    pub fn select_prev_project(&mut self) {
+        if let AppMode::ManageProjects { selected, .. } = &mut self.mode {
+            *selected = selected.saturating_sub(1);
+        }
+    }
+
+    pub fn open_edit_selected_project(&mut self) -> anyhow::Result<()> {
+        if let AppMode::ManageProjects { projects, selected } = &self.mode {
+            if projects.is_empty() {
+                return Ok(());
+            }
+            let proj = &projects[*selected];
+            let form = Form {
+                fields: vec![
+                    Field::new("Name", proj.name.clone()),
+                    Field::new("Description (optional)", proj.description.clone().unwrap_or_default()),
+                    Field::new("Color (optional, e.g. #ff0000)", proj.color.clone().unwrap_or_default()),
+                ],
+                focused: 0,
+            };
+            self.mode = AppMode::EditProject {
+                project_id: proj.id.clone(),
+                form,
+            };
+        }
+        Ok(())
+    }
+
     pub fn open_add_task_modal(&mut self) {
         let projects = self.project_names();
         self.mode = AppMode::AddTask(Form {
@@ -613,6 +667,42 @@ impl App {
         }
         self.refresh()?;
         self.status = Some((format!("Project '{name}' created."), false));
+        Ok(())
+    }
+
+    pub fn submit_edit_project(
+        &mut self,
+        project_id: String,
+        name: &str,
+        description: &str,
+        color: &str,
+    ) -> anyhow::Result<()> {
+        if name.is_empty() {
+            return Err(anyhow::anyhow!("Project name is required"));
+        }
+
+        let update = UpdateProject {
+            name: Some(name.to_string()),
+            description: Some(if description.is_empty() {
+                None
+            } else {
+                Some(description.to_string())
+            }),
+            color: Some(if color.is_empty() {
+                None
+            } else {
+                Some(color.to_string())
+            }),
+            archived: None,
+        };
+
+        self.storage.update_project(&project_id, update)?;
+        self.refresh()?;
+        self.mode = AppMode::ManageProjects {
+            projects: self.projects.clone(),
+            selected: 0,
+        };
+        self.status = Some((format!("Project '{name}' updated."), false));
         Ok(())
     }
 
