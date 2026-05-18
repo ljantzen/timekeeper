@@ -136,9 +136,9 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
             };
 
             let comment_prefix = if app.entry_has_comments(&entry.id) {
-                "[c] "
+                "c "
             } else {
-                "    "
+                "  "
             };
 
             let proj_task = match (&entry.project_id, &entry.task_id) {
