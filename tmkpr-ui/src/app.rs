@@ -6,7 +6,7 @@ use tmkpr_lib::{
         comment::Comment,
         entry::{parse_tags, Entry, EntryFilter, UpdateEntry},
         project::{Project, UpdateProject},
-        task::Task,
+        task::{Task, UpdateTask},
     },
     nlp::parser::{parse_datetime, TimeFormat},
     service::{CommentService, EntryService, ProjectService, TaskService, WeekReport},
@@ -77,6 +77,93 @@ fn parse_date_filter(s: &str) -> anyhow::Result<(Option<chrono::DateTime<Utc>>, 
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum ProjectSort {
+    Name,
+    NameDesc,
+    Created,
+    CreatedDesc,
+}
+
+impl ProjectSort {
+    pub fn label(&self) -> &'static str {
+        match self {
+            ProjectSort::Name => "Name (A-Z)",
+            ProjectSort::NameDesc => "Name (Z-A)",
+            ProjectSort::Created => "Oldest first",
+            ProjectSort::CreatedDesc => "Newest first",
+        }
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            ProjectSort::Name => ProjectSort::NameDesc,
+            ProjectSort::NameDesc => ProjectSort::Created,
+            ProjectSort::Created => ProjectSort::CreatedDesc,
+            ProjectSort::CreatedDesc => ProjectSort::Name,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ProjectFilter {
+    pub hide_archived: bool,
+}
+
+impl Default for ProjectFilter {
+    fn default() -> Self {
+        Self {
+            hide_archived: false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum TaskSort {
+    Name,
+    NameDesc,
+    Project,
+    Created,
+    CreatedDesc,
+}
+
+impl TaskSort {
+    pub fn label(&self) -> &'static str {
+        match self {
+            TaskSort::Name => "Name (A-Z)",
+            TaskSort::NameDesc => "Name (Z-A)",
+            TaskSort::Project => "Project",
+            TaskSort::Created => "Oldest first",
+            TaskSort::CreatedDesc => "Newest first",
+        }
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            TaskSort::Name => TaskSort::NameDesc,
+            TaskSort::NameDesc => TaskSort::Project,
+            TaskSort::Project => TaskSort::Created,
+            TaskSort::Created => TaskSort::CreatedDesc,
+            TaskSort::CreatedDesc => TaskSort::Name,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct TaskFilter {
+    pub project_id: Option<String>,
+    pub hide_archived: bool,
+}
+
+impl Default for TaskFilter {
+    fn default() -> Self {
+        Self {
+            project_id: None,
+            hide_archived: false,
+        }
+    }
+}
+
 pub enum AppMode {
     Normal,
     StartModal(Form),
@@ -97,8 +184,18 @@ pub enum AppMode {
         project_id: String,
         form: Form,
     },
+    FilterProjects(Form),
     AddTask(Form),
+    ManageTasks {
+        tasks: Vec<Task>,
+        selected: usize,
+    },
+    EditTask {
+        task_id: String,
+        form: Form,
+    },
     Filter(Form),
+    FilterTasks(Form),
     Comments {
         entry_id: String,
         comments: Vec<Comment>,
@@ -120,8 +217,12 @@ pub enum ModeKind {
     AddProject,
     ManageProjects,
     EditProject,
+    FilterProjects,
     AddTask,
+    ManageTasks,
+    EditTask,
     Filter,
+    FilterTasks,
     Comments,
     AddComment,
     Help,
@@ -137,8 +238,12 @@ impl AppMode {
             AppMode::AddProject(_) => ModeKind::AddProject,
             AppMode::ManageProjects { .. } => ModeKind::ManageProjects,
             AppMode::EditProject { .. } => ModeKind::EditProject,
+            AppMode::FilterProjects(_) => ModeKind::FilterProjects,
             AppMode::AddTask(_) => ModeKind::AddTask,
+            AppMode::ManageTasks { .. } => ModeKind::ManageTasks,
+            AppMode::EditTask { .. } => ModeKind::EditTask,
             AppMode::Filter(_) => ModeKind::Filter,
+            AppMode::FilterTasks(_) => ModeKind::FilterTasks,
             AppMode::Comments { .. } => ModeKind::Comments,
             AppMode::AddComment { .. } => ModeKind::AddComment,
             AppMode::Help => ModeKind::Help,
@@ -165,6 +270,10 @@ pub struct App {
     pub filter_from: Option<chrono::DateTime<chrono::Utc>>,
     pub filter_until: Option<chrono::DateTime<chrono::Utc>>,
     pub entries_with_comments: HashSet<String>,
+    pub project_sort: ProjectSort,
+    pub project_filter: ProjectFilter,
+    pub task_sort: TaskSort,
+    pub task_filter: TaskFilter,
 }
 
 impl App {
@@ -190,6 +299,10 @@ impl App {
             filter_from: None,
             filter_until: None,
             entries_with_comments: HashSet::new(),
+            project_sort: ProjectSort::Name,
+            project_filter: ProjectFilter::default(),
+            task_sort: TaskSort::Name,
+            task_filter: TaskFilter::default(),
         }
     }
 
@@ -588,12 +701,46 @@ impl App {
         });
     }
 
+    fn apply_project_sort_filter(&self, projects: Vec<Project>) -> Vec<Project> {
+        let mut filtered = projects;
+
+        if self.project_filter.hide_archived {
+            filtered.retain(|p| !p.archived);
+        }
+
+        match self.project_sort {
+            ProjectSort::Name => {
+                filtered.sort_by(|a, b| a.name.cmp(&b.name));
+            }
+            ProjectSort::NameDesc => {
+                filtered.sort_by(|a, b| b.name.cmp(&a.name));
+            }
+            ProjectSort::Created => {
+                filtered.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+            }
+            ProjectSort::CreatedDesc => {
+                filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            }
+        }
+
+        filtered
+    }
+
     pub fn open_manage_projects(&mut self) {
-        let selected = 0;
+        let projects = self.apply_project_sort_filter(self.projects.clone());
         self.mode = AppMode::ManageProjects {
-            projects: self.projects.clone(),
-            selected,
+            projects,
+            selected: 0,
         };
+    }
+
+    pub fn open_project_filter_modal(&mut self) {
+        self.mode = AppMode::FilterProjects(Form {
+            fields: vec![
+                Field::new("Include archived projects? (y/n)", if self.project_filter.hide_archived { "n" } else { "y" }),
+            ],
+            focused: 0,
+        });
     }
 
     pub fn select_next_project(&mut self) {
@@ -724,6 +871,156 @@ impl App {
         }
         self.refresh()?;
         self.status = Some((format!("Task '{name}' created in '{project}'."), false));
+        Ok(())
+    }
+
+    fn apply_task_sort_filter(&self, tasks: Vec<Task>) -> Vec<Task> {
+        let mut filtered = tasks;
+
+        if let Some(pid) = &self.task_filter.project_id {
+            filtered.retain(|t| &t.project_id == pid);
+        }
+
+        if self.task_filter.hide_archived {
+            filtered.retain(|t| !t.archived);
+        }
+
+        match self.task_sort {
+            TaskSort::Name => {
+                filtered.sort_by(|a, b| a.name.cmp(&b.name));
+            }
+            TaskSort::NameDesc => {
+                filtered.sort_by(|a, b| b.name.cmp(&a.name));
+            }
+            TaskSort::Project => {
+                filtered.sort_by(|a, b| a.project_id.cmp(&b.project_id));
+            }
+            TaskSort::Created => {
+                filtered.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+            }
+            TaskSort::CreatedDesc => {
+                filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            }
+        }
+
+        filtered
+    }
+
+    pub fn open_manage_tasks(&mut self) {
+        let tasks = self.apply_task_sort_filter(self.tasks.clone());
+        self.mode = AppMode::ManageTasks {
+            tasks,
+            selected: 0,
+        };
+    }
+
+    pub fn open_task_filter_modal(&mut self) {
+        let projects = self.project_names();
+        let project_filter = self
+            .task_filter
+            .project_id
+            .as_ref()
+            .and_then(|pid| {
+                self.projects.iter().find(|p| &p.id == pid).map(|p| p.name.clone())
+            })
+            .unwrap_or_default();
+
+        self.mode = AppMode::FilterTasks(Form {
+            fields: vec![
+                Field::new("Filter by project (empty = all)", &project_filter).with_completions(projects),
+                Field::new("Include archived tasks? (y/n)", if self.task_filter.hide_archived { "n" } else { "y" }),
+            ],
+            focused: 0,
+        });
+    }
+
+    pub fn select_next_task(&mut self) {
+        if let AppMode::ManageTasks { tasks, selected } = &mut self.mode {
+            *selected = (*selected + 1).min(tasks.len().saturating_sub(1));
+        }
+    }
+
+    pub fn select_prev_task(&mut self) {
+        if let AppMode::ManageTasks { selected, .. } = &mut self.mode {
+            *selected = selected.saturating_sub(1);
+        }
+    }
+
+    pub fn open_edit_selected_task(&mut self) -> anyhow::Result<()> {
+        if let AppMode::ManageTasks { tasks, selected } = &self.mode {
+            if tasks.is_empty() {
+                return Ok(());
+            }
+            let task = &tasks[*selected];
+            let form = Form {
+                fields: vec![
+                    Field::new("Name", task.name.clone()),
+                    Field::new("Description (optional)", task.description.clone().unwrap_or_default()),
+                ],
+                focused: 0,
+            };
+            self.mode = AppMode::EditTask {
+                task_id: task.id.clone(),
+                form,
+            };
+        }
+        Ok(())
+    }
+
+    pub fn submit_edit_task(
+        &mut self,
+        task_id: String,
+        name: &str,
+        description: &str,
+    ) -> anyhow::Result<()> {
+        if name.is_empty() {
+            return Err(anyhow::anyhow!("Task name is required"));
+        }
+
+        let update = UpdateTask {
+            name: Some(name.to_string()),
+            description: Some(if description.is_empty() {
+                None
+            } else {
+                Some(description.to_string())
+            }),
+            archived: None,
+            project_id: None,
+        };
+
+        self.storage.update_task(&task_id, update)?;
+        self.refresh()?;
+        self.mode = AppMode::ManageTasks {
+            tasks: self.tasks.clone(),
+            selected: 0,
+        };
+        self.status = Some((format!("Task '{name}' updated."), false));
+        Ok(())
+    }
+
+    pub fn delete_selected_task(&mut self) -> anyhow::Result<()> {
+        let (project_name, task_name) = if let AppMode::ManageTasks { tasks, selected } = &self.mode {
+            if *selected < tasks.len() {
+                let task = &tasks[*selected];
+                (
+                    self.project_name(&task.project_id).to_string(),
+                    task.name.clone(),
+                )
+            } else {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        };
+
+        let svc = TaskService::new(self.storage.as_ref(), &self.user_id);
+        svc.delete(&project_name, &task_name, false)?;
+        self.refresh()?;
+        self.mode = AppMode::ManageTasks {
+            tasks: self.tasks.clone(),
+            selected: 0,
+        };
+        self.status = Some((format!("Task '{}' deleted.", task_name), false));
         Ok(())
     }
 

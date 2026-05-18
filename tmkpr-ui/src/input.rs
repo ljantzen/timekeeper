@@ -17,8 +17,12 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::AddProject => handle_add_project(app, key),
         ModeKind::ManageProjects => handle_manage_projects(app, key),
         ModeKind::EditProject => handle_edit_project(app, key),
+        ModeKind::FilterProjects => handle_filter_projects(app, key),
         ModeKind::AddTask => handle_add_task(app, key),
+        ModeKind::ManageTasks => handle_manage_tasks(app, key),
+        ModeKind::EditTask => handle_edit_task(app, key),
         ModeKind::Filter => handle_filter(app, key),
+        ModeKind::FilterTasks => handle_filter_tasks(app, key),
         ModeKind::Comments => handle_comments(app, key),
         ModeKind::AddComment => handle_add_comment(app, key),
         ModeKind::Help => {
@@ -81,7 +85,7 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             }
         }
         KeyCode::Char('p') => app.open_manage_projects(),
-        KeyCode::Char('t') => app.open_add_task_modal(),
+        KeyCode::Char('t') => app.open_manage_tasks(),
         KeyCode::Char('?') => {
             app.mode = AppMode::Help;
         }
@@ -116,6 +120,40 @@ fn handle_filter(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::FilterTasks(form) => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.open_manage_tasks();
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::FilterTasks(form) = old {
+                let project_name = form.fields[0].value.clone();
+                let include_archived = form.fields[1].value.to_lowercase();
+
+                app.task_filter.hide_archived = !matches!(include_archived.as_str(), "y" | "yes");
+                app.task_filter.project_id = if project_name.is_empty() {
+                    None
+                } else {
+                    app.projects
+                        .iter()
+                        .find(|p| p.name == project_name)
+                        .map(|p| p.id.clone())
+                };
+
+                app.open_manage_tasks();
+            }
+        }
+    }
+    Ok(())
+}
+
 fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     let result = match &mut app.mode {
         AppMode::AddProject(form) => form.handle_key(key),
@@ -125,7 +163,7 @@ fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     match result {
         FormResult::None => {}
         FormResult::Cancel => {
-            app.mode = AppMode::Normal;
+            app.open_manage_projects();
         }
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
@@ -135,6 +173,9 @@ fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let color = form.fields[2].value.clone();
                 if let Err(e) = app.add_project(&name, &description, &color) {
                     app.status = Some((e.to_string(), true));
+                    app.mode = AppMode::AddProject(form);
+                } else {
+                    app.open_manage_projects();
                 }
             }
         }
@@ -161,7 +202,37 @@ fn handle_manage_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some((e.to_string(), true));
             }
         }
+        KeyCode::Char('s') => {
+            app.project_sort = app.project_sort.next();
+            app.open_manage_projects();
+        }
+        KeyCode::Char('f') => {
+            app.open_project_filter_modal();
+        }
         _ => {}
+    }
+    Ok(())
+}
+
+fn handle_filter_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::FilterProjects(form) => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.open_manage_projects();
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::FilterProjects(form) = old {
+                let include_archived = form.fields[0].value.to_lowercase();
+                app.project_filter.hide_archived = !matches!(include_archived.as_str(), "y" | "yes");
+                app.open_manage_projects();
+            }
+        }
     }
     Ok(())
 }
@@ -204,7 +275,7 @@ fn handle_add_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     match result {
         FormResult::None => {}
         FormResult::Cancel => {
-            app.mode = AppMode::Normal;
+            app.open_manage_tasks();
         }
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
@@ -213,6 +284,73 @@ fn handle_add_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let name = form.fields[1].value.clone();
                 let description = form.fields[2].value.clone();
                 if let Err(e) = app.add_task(&project, &name, &description) {
+                    app.status = Some((e.to_string(), true));
+                    app.mode = AppMode::AddTask(form);
+                } else {
+                    app.open_manage_tasks();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_manage_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            app.select_next_task();
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.select_prev_task();
+        }
+        KeyCode::Char('a') => {
+            app.open_add_task_modal();
+        }
+        KeyCode::Char('e') => {
+            if let Err(e) = app.open_edit_selected_task() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('d') => {
+            if let Err(e) = app.delete_selected_task() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('s') => {
+            app.task_sort = app.task_sort.next();
+            app.open_manage_tasks();
+        }
+        KeyCode::Char('f') => {
+            app.open_task_filter_modal();
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_edit_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::EditTask { form, .. } => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.mode = AppMode::ManageTasks {
+                tasks: app.tasks.clone(),
+                selected: 0,
+            };
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::EditTask { task_id, form } = old {
+                let name = form.fields[0].value.clone();
+                let description = form.fields[1].value.clone();
+                if let Err(e) = app.submit_edit_task(task_id, &name, &description) {
                     app.status = Some((e.to_string(), true));
                 }
             }

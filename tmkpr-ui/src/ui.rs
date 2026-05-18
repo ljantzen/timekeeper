@@ -44,8 +44,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::AddProject => render_add_project(frame, app, area),
         ModeKind::ManageProjects => render_manage_projects(frame, app, area),
         ModeKind::EditProject => render_edit_project(frame, app, area),
+        ModeKind::FilterProjects => render_filter_projects(frame, app, area),
         ModeKind::AddTask => render_add_task(frame, app, area),
+        ModeKind::ManageTasks => render_manage_tasks(frame, app, area),
+        ModeKind::EditTask => render_edit_task(frame, app, area),
         ModeKind::Filter => render_filter(frame, app, area),
+        ModeKind::FilterTasks => render_filter_tasks(frame, app, area),
         ModeKind::Comments => render_comments(frame, app, area),
         ModeKind::AddComment => render_add_comment(frame, app, area),
         ModeKind::Help => render_help(frame, area),
@@ -387,7 +391,13 @@ fn render_add_project(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::ManageProjects { projects, selected } = &app.mode {
-        let title = format!(" Projects ({}) ", projects.len());
+        let sort_info = app.project_sort.label();
+        let filter_info = if app.project_filter.hide_archived {
+            " [active]"
+        } else {
+            ""
+        };
+        let title = format!(" Projects ({}){} [{}] ", projects.len(), filter_info, sort_info);
         let popup_area = centered_rect(60, 75, area);
         frame.render_widget(Clear, popup_area);
 
@@ -412,12 +422,14 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
             let items: Vec<ListItem> = projects
                 .iter()
                 .map(|p| {
-                    let color_indicator = p
-                        .color
-                        .as_ref()
-                        .map(|_| "●")
-                        .unwrap_or(" ");
-                    ListItem::new(format!("{} {}", color_indicator, p.name))
+                    let color = p.color.as_ref().and_then(|c| parse_hex_color(c));
+                    let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
+                    let color_indicator = color.map(|_| "●").unwrap_or(" ");
+
+                    let mut spans = vec![Span::raw(format!("{} ", color_indicator))];
+                    spans.push(Span::styled(p.name.clone(), style));
+
+                    ListItem::new(Line::from(spans))
                 })
                 .collect();
 
@@ -432,7 +444,7 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
 
         frame.render_widget(
             Paragraph::new(Span::styled(
-                "[a] add  [e] edit  [j/k] navigate  [Esc] close",
+                "[a] add  [e] edit  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
                 Style::default().fg(Color::DarkGray),
             )),
             chunks[1],
@@ -449,6 +461,87 @@ fn render_edit_project(frame: &mut Frame, app: &App, area: Rect) {
 fn render_add_task(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddTask(form) = &app.mode {
         render_form_modal(frame, area, " Add Task ", 55, form);
+    }
+}
+
+fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::ManageTasks { tasks, selected } = &app.mode {
+        let sort_info = app.task_sort.label();
+        let filter_info = if app.task_filter.project_id.is_some() || app.task_filter.hide_archived {
+            let mut info = String::new();
+            if let Some(pid) = &app.task_filter.project_id {
+                if let Some(proj) = app.projects.iter().find(|p| &p.id == pid) {
+                    info.push_str(&format!("[{}]", proj.name));
+                }
+            }
+            if app.task_filter.hide_archived {
+                if !info.is_empty() { info.push(' '); }
+                info.push_str("[active]");
+            }
+            format!(" {}", info)
+        } else {
+            String::new()
+        };
+        let title = format!(" Tasks ({}){} [{}] ", tasks.len(), filter_info, sort_info);
+        let popup_area = centered_rect(60, 75, area);
+        frame.render_widget(Clear, popup_area);
+
+        let block = Block::default().title(title).borders(Borders::ALL);
+        let inner = block.inner(popup_area);
+        frame.render_widget(block, popup_area);
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(1)])
+            .split(inner);
+
+        if tasks.is_empty() {
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    "No tasks. Press [a] to add one.",
+                    Style::default().fg(Color::DarkGray),
+                )),
+                chunks[0],
+            );
+        } else {
+            let items: Vec<ListItem> = tasks
+                .iter()
+                .map(|t| {
+                    let proj_name = app.project_name(&t.project_id);
+                    let proj = app.projects.iter().find(|p| p.id == t.project_id);
+                    let color = proj.and_then(|p| p.color.as_ref()).and_then(|c| parse_hex_color(c));
+                    let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
+
+                    let mut spans = vec![Span::raw(format!("{} (", t.name))];
+                    spans.push(Span::styled(proj_name.to_string(), style));
+                    spans.push(Span::raw(")"));
+
+                    ListItem::new(Line::from(spans))
+                })
+                .collect();
+
+            let list = List::new(items)
+                .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+                .highlight_symbol("> ");
+
+            let mut state = ListState::default();
+            state.select(Some(*selected));
+            frame.render_stateful_widget(list, chunks[0], &mut state);
+        }
+
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "[a] add  [e] edit  [d] delete  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
+                Style::default().fg(Color::DarkGray),
+            )),
+            chunks[1],
+        );
+    }
+}
+
+fn render_edit_task(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::EditTask { form, .. } = &app.mode {
+        render_form_modal(frame, area, " Edit Task ", 55, form);
     }
 }
 
@@ -536,8 +629,24 @@ fn render_help(frame: &mut Frame, area: Rect) {
                 Span::raw("Manage projects (add/edit with [a]/[e])"),
             ]),
             Line::from(vec![
+                Span::styled("    s    ", bold),
+                Span::raw("Cycle sort (in project list)"),
+            ]),
+            Line::from(vec![
+                Span::styled("    f    ", bold),
+                Span::raw("Filter projects (in project list)"),
+            ]),
+            Line::from(vec![
                 Span::styled("  t      ", bold),
-                Span::raw("Add new task"),
+                Span::raw("Manage tasks (add/edit/delete with [a]/[e]/[d])"),
+            ]),
+            Line::from(vec![
+                Span::styled("    s    ", bold),
+                Span::raw("Cycle sort (in task list)"),
+            ]),
+            Line::from(vec![
+                Span::styled("    f    ", bold),
+                Span::raw("Filter tasks (in task list)"),
             ]),
             Line::from(""),
             Line::from(Span::styled("General", bold)),
@@ -622,6 +731,18 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 fn render_filter(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::Filter(form) = &app.mode {
         render_form_modal(frame, area, " Filter Entries ", 65, form);
+    }
+}
+
+fn render_filter_tasks(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::FilterTasks(form) = &app.mode {
+        render_form_modal(frame, area, " Filter Tasks ", 65, form);
+    }
+}
+
+fn render_filter_projects(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::FilterProjects(form) = &app.mode {
+        render_form_modal(frame, area, " Filter Projects ", 65, form);
     }
 }
 
