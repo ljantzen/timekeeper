@@ -393,19 +393,7 @@ pub fn print_gaps_table(
 pub fn print_projects(projects: &[Project], format: &str, color: bool) {
     match format {
         "json" => print_json(projects),
-        "csv" => {
-            println!("num_id,name,description,color,archived");
-            for p in projects {
-                println!(
-                    "{},{},{},{},{}",
-                    p.num_id,
-                    csv_escape(&p.name),
-                    csv_escape(p.description.as_deref().unwrap_or("")),
-                    csv_escape(p.color.as_deref().unwrap_or("")),
-                    p.archived,
-                );
-            }
-        }
+        "csv" => print!("{}", projects_to_csv(projects)),
         _ => print_projects_table(projects, color),
     }
 }
@@ -413,18 +401,7 @@ pub fn print_projects(projects: &[Project], format: &str, color: bool) {
 pub fn print_tasks(tasks: &[Task], format: &str) {
     match format {
         "json" => print_json(tasks),
-        "csv" => {
-            println!("num_id,name,description,archived");
-            for t in tasks {
-                println!(
-                    "{},{},{},{}",
-                    t.num_id,
-                    csv_escape(&t.name),
-                    csv_escape(t.description.as_deref().unwrap_or("")),
-                    t.archived,
-                );
-            }
-        }
+        "csv" => print!("{}", tasks_to_csv(tasks)),
         _ => print_tasks_table(tasks),
     }
 }
@@ -439,41 +416,7 @@ pub fn print_entries(
 ) {
     match format {
         "json" => print_json(entries),
-        "csv" => {
-            println!("id,project,task,note,tags,started,finished,duration_secs");
-            for e in entries {
-                let project = e
-                    .project_id
-                    .as_deref()
-                    .map(|id| projects.name(id))
-                    .unwrap_or_else(|| "-".to_string());
-                let task = e
-                    .task_id
-                    .as_deref()
-                    .map(|id| tasks.name(id))
-                    .unwrap_or_else(|| "-".to_string());
-                let note = e.note.as_deref().unwrap_or("");
-                let tags = e.tags.join(" ");
-                let started = format_datetime(&e.started_at, date_fmt);
-                let finished = e
-                    .finished_at
-                    .as_ref()
-                    .map(|f| format_datetime(f, date_fmt))
-                    .unwrap_or_else(|| "active".to_string());
-                let secs = e.elapsed().num_seconds();
-                println!(
-                    "{},{},{},{},{},{},{},{}",
-                    e.id,
-                    csv_escape(&project),
-                    csv_escape(&task),
-                    csv_escape(note),
-                    csv_escape(&tags),
-                    csv_escape(&started),
-                    csv_escape(&finished),
-                    secs,
-                );
-            }
-        }
+        "csv" => print!("{}", entries_to_csv(entries, projects, tasks, date_fmt)),
         "markdown" => print_entries_markdown(entries, projects, tasks, date_fmt),
         _ => print_entries_table(entries, projects, tasks, date_fmt, color),
     }
@@ -534,20 +477,7 @@ fn print_entries_markdown(
 pub fn print_report(report: &ReportData, projects: &ProjectIndex, format: &str, color: bool) {
     match format {
         "json" => print_json(report),
-        "csv" => {
-            println!("project,task,entries,duration_secs");
-            for proj in &report.by_project {
-                for task in &proj.by_task {
-                    println!(
-                        "{},{},{},{}",
-                        csv_escape(&proj.project_name),
-                        csv_escape(&task.task_name),
-                        task.entry_count,
-                        task.total_secs,
-                    );
-                }
-            }
-        }
+        "csv" => print!("{}", report_to_csv(report)),
         "markdown" => print_report_markdown(report),
         _ => print_report_table(report, projects, color),
     }
@@ -777,6 +707,93 @@ fn csv_escape(s: &str) -> String {
     }
 }
 
+fn projects_to_csv(projects: &[Project]) -> String {
+    let mut out = String::from("num_id,name,description,color,archived\n");
+    for p in projects {
+        out.push_str(&format!(
+            "{},{},{},{},{}\n",
+            p.num_id,
+            csv_escape(&p.name),
+            csv_escape(p.description.as_deref().unwrap_or("")),
+            csv_escape(p.color.as_deref().unwrap_or("")),
+            p.archived,
+        ));
+    }
+    out
+}
+
+fn tasks_to_csv(tasks: &[Task]) -> String {
+    let mut out = String::from("num_id,name,description,archived\n");
+    for t in tasks {
+        out.push_str(&format!(
+            "{},{},{},{}\n",
+            t.num_id,
+            csv_escape(&t.name),
+            csv_escape(t.description.as_deref().unwrap_or("")),
+            t.archived,
+        ));
+    }
+    out
+}
+
+fn entries_to_csv(
+    entries: &[Entry],
+    projects: &ProjectIndex,
+    tasks: &TaskIndex,
+    date_fmt: &str,
+) -> String {
+    let mut out = String::from("id,project,task,note,tags,started,finished,duration_secs\n");
+    for e in entries {
+        let project = e
+            .project_id
+            .as_deref()
+            .map(|id| projects.name(id))
+            .unwrap_or_else(|| "-".to_string());
+        let task = e
+            .task_id
+            .as_deref()
+            .map(|id| tasks.name(id))
+            .unwrap_or_else(|| "-".to_string());
+        let note = e.note.as_deref().unwrap_or("");
+        let tags = e.tags.join(" ");
+        let started = format_datetime(&e.started_at, date_fmt);
+        let finished = e
+            .finished_at
+            .as_ref()
+            .map(|f| format_datetime(f, date_fmt))
+            .unwrap_or_else(|| "active".to_string());
+        let secs = e.elapsed().num_seconds();
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            e.id,
+            csv_escape(&project),
+            csv_escape(&task),
+            csv_escape(note),
+            csv_escape(&tags),
+            csv_escape(&started),
+            csv_escape(&finished),
+            secs,
+        ));
+    }
+    out
+}
+
+fn report_to_csv(report: &ReportData) -> String {
+    let mut out = String::from("project,task,entries,duration_secs\n");
+    for proj in &report.by_project {
+        for task in &proj.by_task {
+            out.push_str(&format!(
+                "{},{},{},{}\n",
+                csv_escape(&proj.project_name),
+                csv_escape(&task.task_name),
+                task.entry_count,
+                task.total_secs,
+            ));
+        }
+    }
+    out
+}
+
 fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
     println!(
         "{}",
@@ -983,5 +1000,218 @@ mod tests {
         };
         let idx = ProjectIndex(vec![p]);
         assert_eq!(idx.color("p1"), None);
+    }
+
+    // ── CSV format helpers ───────────────────────────────────────────────────
+
+    #[test]
+    fn projects_to_csv_empty_has_header_only() {
+        let csv = projects_to_csv(&[]);
+        assert_eq!(csv.trim(), "num_id,name,description,color,archived");
+    }
+
+    #[test]
+    fn projects_to_csv_single_row() {
+        let p = Project {
+            id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Alpha".to_string(),
+            description: Some("First project".to_string()),
+            color: Some("#ff6600".to_string()),
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            num_id: 1,
+        };
+        let csv = projects_to_csv(&[p]);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 2); // header + 1 row
+        assert_eq!(lines[0], "num_id,name,description,color,archived");
+        assert!(lines[1].starts_with("1,Alpha,"));
+    }
+
+    #[test]
+    fn projects_to_csv_escapes_comma_in_name() {
+        let p = Project {
+            id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "My, Inc.".to_string(),
+            description: None,
+            color: None,
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            num_id: 1,
+        };
+        let csv = projects_to_csv(&[p]);
+        assert!(csv.contains("\"My, Inc.\""));
+    }
+
+    #[test]
+    fn tasks_to_csv_empty_has_header_only() {
+        let csv = tasks_to_csv(&[]);
+        assert_eq!(csv.trim(), "num_id,name,description,archived");
+    }
+
+    #[test]
+    fn tasks_to_csv_single_row() {
+        let t = Task {
+            id: "t1".to_string(),
+            project_id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Backlog".to_string(),
+            description: Some("Work queue".to_string()),
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            num_id: 1,
+        };
+        let csv = tasks_to_csv(&[t]);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], "num_id,name,description,archived");
+        assert!(lines[1].starts_with("1,Backlog,"));
+    }
+
+    #[test]
+    fn entries_to_csv_empty_has_header_only() {
+        let csv = entries_to_csv(&[], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F");
+        assert_eq!(csv.trim(), "id,project,task,note,tags,started,finished,duration_secs");
+    }
+
+    #[test]
+    fn entries_to_csv_resolves_project_and_task_names() {
+        use tmkpr_lib::models::entry::Entry;
+        let now = chrono::Utc::now();
+        let e = Entry {
+            id: "e1".to_string(),
+            user_id: "u1".to_string(),
+            project_id: Some("p1".to_string()),
+            task_id: Some("t1".to_string()),
+            note: Some("test note".to_string()),
+            started_at: now,
+            finished_at: Some(now),
+            tags: vec!["tag1".to_string()],
+            created_at: now,
+            updated_at: now,
+        };
+
+        let proj = Project {
+            id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Alpha".to_string(),
+            description: None,
+            color: None,
+            archived: false,
+            created_at: now,
+            updated_at: now,
+            num_id: 1,
+        };
+        let task = Task {
+            id: "t1".to_string(),
+            project_id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Task One".to_string(),
+            description: None,
+            archived: false,
+            created_at: now,
+            updated_at: now,
+            num_id: 1,
+        };
+        let csv = entries_to_csv(
+            &[e],
+            &ProjectIndex(vec![proj]),
+            &TaskIndex(vec![task]),
+            "%F",
+        );
+
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 2); // header + 1 row
+        assert!(lines[1].contains("Alpha")); // project name resolved
+        assert!(lines[1].contains("Task One")); // task name resolved
+    }
+
+    #[test]
+    fn entries_to_csv_active_entry_shows_active() {
+        use tmkpr_lib::models::entry::Entry;
+        let now = chrono::Utc::now();
+        let e = Entry {
+            id: "e1".to_string(),
+            user_id: "u1".to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now,
+            finished_at: None, // active
+            tags: vec![],
+            created_at: now,
+            updated_at: now,
+        };
+
+        let csv = entries_to_csv(&[e], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F");
+        assert!(csv.contains("active"));
+    }
+
+    #[test]
+    fn report_to_csv_empty_has_header_only() {
+        let report = ReportData {
+            from: None,
+            until: None,
+            total_secs: 0,
+            by_project: vec![],
+        };
+        let csv = report_to_csv(&report);
+        assert_eq!(csv.trim(), "project,task,entries,duration_secs");
+    }
+
+    #[test]
+    fn report_to_csv_rows() {
+        use tmkpr_lib::service::entry_service::{ProjectReport, TaskReport};
+
+        let report = ReportData {
+            from: None,
+            until: None,
+            total_secs: 3600,
+            by_project: vec![ProjectReport {
+                project_name: "Alpha".to_string(),
+                total_secs: 3600,
+                by_task: vec![TaskReport {
+                    task_name: "Task1".to_string(),
+                    total_secs: 3600,
+                    entry_count: 1,
+                }],
+            }],
+        };
+
+        let csv = report_to_csv(&report);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 2); // header + 1 row
+        assert_eq!(lines[0], "project,task,entries,duration_secs");
+        assert!(lines[1].contains("Alpha"));
+        assert!(lines[1].contains("Task1"));
+        assert!(lines[1].contains("1")); // entry_count
+        assert!(lines[1].contains("3600")); // duration_secs
+    }
+
+    // ── Format dispatcher smoke tests ────────────────────────────────────────
+
+    #[test]
+    fn print_projects_json_does_not_panic() {
+        print_projects(&[], "json", false);
+    }
+
+    #[test]
+    fn print_projects_csv_does_not_panic() {
+        print_projects(&[], "csv", false);
+    }
+
+    #[test]
+    fn print_entries_markdown_does_not_panic() {
+        print_entries(&[], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F", "markdown", false);
+    }
+
+    #[test]
+    fn print_entries_csv_does_not_panic() {
+        print_entries(&[], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F", "csv", false);
     }
 }
