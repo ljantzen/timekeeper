@@ -539,11 +539,12 @@ impl App {
             .as_deref()
             .map(|tid| self.task_name(tid).to_string())
             .unwrap_or_default();
+        let note_val = entry.note.clone().unwrap_or_default();
         self.mode = AppMode::StartModal(Form {
             fields: vec![
                 Field::new("Project", &project_val).with_completions(projects),
                 Field::new("Task", &task_val).with_completions(tasks),
-                Field::new("Note", ""),
+                Field::new("Note", &note_val),
                 Field::new("Tags (comma-separated)", ""),
             ],
             focused: 0,
