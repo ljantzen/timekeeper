@@ -156,7 +156,13 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 format!("  [{}]", entry.tags.join(", "))
             };
 
-            ListItem::new(format!("{start}-{end}  {dur:<8}{proj_task}{note}{tags}"))
+            let comment_indicator = if app.entry_has_comments(&entry.id) {
+                "  [c]"
+            } else {
+                ""
+            };
+
+            ListItem::new(format!("{start}-{end}  {dur:<8}{proj_task}{note}{tags}{comment_indicator}"))
         })
         .collect();
 

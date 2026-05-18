@@ -1,5 +1,6 @@
 use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use ratatui::widgets::ListState;
+use std::collections::HashSet;
 use tmkpr_lib::{
     models::{
         comment::Comment,
@@ -151,6 +152,7 @@ pub struct App {
     pub filter_project_id: Option<String>,
     pub filter_from: Option<chrono::DateTime<chrono::Utc>>,
     pub filter_until: Option<chrono::DateTime<chrono::Utc>>,
+    pub entries_with_comments: HashSet<String>,
 }
 
 impl App {
@@ -175,6 +177,7 @@ impl App {
             filter_project_id: None,
             filter_from: None,
             filter_until: None,
+            entries_with_comments: HashSet::new(),
         }
     }
 
@@ -204,6 +207,11 @@ impl App {
             let iso = now.iso_week();
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
             self.week_report = svc.week_report(iso.year(), iso.week(), false).ok();
+        }
+        {
+            let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
+            let all_comments = svc.list(None)?;
+            self.entries_with_comments = all_comments.iter().map(|c| c.entry_id.clone()).collect();
         }
         if !self.entries.is_empty() && self.selected >= self.entries.len() {
             self.selected = self.entries.len() - 1;
@@ -625,6 +633,10 @@ impl App {
 
     pub fn has_filter(&self) -> bool {
         self.filter_project_id.is_some() || self.filter_from.is_some() || self.filter_until.is_some()
+    }
+
+    pub fn entry_has_comments(&self, entry_id: &str) -> bool {
+        self.entries_with_comments.contains(entry_id)
     }
 
     pub fn open_filter_modal(&mut self) {
