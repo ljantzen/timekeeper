@@ -135,11 +135,17 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 format!("{}m", secs / 60)
             };
 
+            let comment_prefix = if app.entry_has_comments(&entry.id) {
+                "[c] "
+            } else {
+                "    "
+            };
+
             let proj_task = match (&entry.project_id, &entry.task_id) {
                 (Some(pid), Some(tid)) => {
-                    format!("  {}/{}", app.project_name(pid), app.task_name(tid))
+                    format!("{}{}/{}", comment_prefix, app.project_name(pid), app.task_name(tid))
                 }
-                (Some(pid), None) => format!("  {}", app.project_name(pid)),
+                (Some(pid), None) => format!("{}{}", comment_prefix, app.project_name(pid)),
                 _ => String::new(),
             };
 
@@ -156,13 +162,7 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 format!("  [{}]", entry.tags.join(", "))
             };
 
-            let comment_indicator = if app.entry_has_comments(&entry.id) {
-                "  [c]"
-            } else {
-                ""
-            };
-
-            ListItem::new(format!("{start}-{end}  {dur:<8}{proj_task}{note}{tags}{comment_indicator}"))
+            ListItem::new(format!("{start}-{end}  {dur:<8}{proj_task}{note}{tags}"))
         })
         .collect();
 
