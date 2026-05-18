@@ -563,6 +563,19 @@ impl App {
             Some(project)
         };
         let task_opt = if task.is_empty() { None } else { Some(task) };
+
+        // Auto-create task if specified and doesn't exist
+        if let (Some(proj_name), Some(task_name)) = (project_opt, task_opt) {
+            let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
+            let proj = svc.resolve(proj_name)?;
+
+            let task_svc = TaskService::new(self.storage.as_ref(), &self.user_id);
+            if task_svc.resolve(&proj.id, task_name).is_err() {
+                // Task doesn't exist, create it
+                task_svc.add(proj_name, task_name, None)?;
+            }
+        }
+
         let note_opt = if note.is_empty() {
             None
         } else {
