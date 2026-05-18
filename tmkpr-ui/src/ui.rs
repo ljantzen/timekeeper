@@ -135,7 +135,7 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 format!("{}m", secs / 60)
             };
 
-            let comment_prefix = if app.entry_has_comments(&entry.id) {
+            let comment_indicator = if app.entry_has_comments(&entry.id) {
                 "c "
             } else {
                 "  "
@@ -143,10 +143,10 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
 
             let proj_task = match (&entry.project_id, &entry.task_id) {
                 (Some(pid), Some(tid)) => {
-                    format!("{}{}/{}", comment_prefix, app.project_name(pid), app.task_name(tid))
+                    format!("{}{}/{}", comment_indicator, app.project_name(pid), app.task_name(tid))
                 }
-                (Some(pid), None) => format!("{}{}", comment_prefix, app.project_name(pid)),
-                _ => String::new(),
+                (Some(pid), None) => format!("{}{}", comment_indicator, app.project_name(pid)),
+                _ => format!("{}", comment_indicator),
             };
 
             let note = entry
