@@ -16,6 +16,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::ConfirmDelete => handle_confirm_delete(app, key),
         ModeKind::AddProject => handle_add_project(app, key),
         ModeKind::AddTask => handle_add_task(app, key),
+        ModeKind::Filter => handle_filter(app, key),
         ModeKind::Comments => handle_comments(app, key),
         ModeKind::AddComment => handle_add_comment(app, key),
         ModeKind::Help => {
@@ -58,6 +59,9 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.open_confirm_delete();
             }
         }
+        KeyCode::Char('f') => {
+            app.open_filter_modal();
+        }
         KeyCode::Char('r') => match app.refresh() {
             Ok(()) => app.status = Some(("Refreshed.".into(), false)),
             Err(e) => app.status = Some((e.to_string(), true)),
@@ -80,6 +84,32 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             app.mode = AppMode::Help;
         }
         _ => {}
+    }
+    Ok(())
+}
+
+fn handle_filter(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::Filter(form) => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.mode = AppMode::Normal;
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::Filter(form) = old {
+                let project = form.fields[0].value.clone();
+                let date_str = form.fields[1].value.clone();
+                if let Err(e) = app.apply_filter(&project, &date_str) {
+                    app.status = Some((e.to_string(), true));
+                    app.mode = AppMode::Normal;
+                }
+            }
+        }
     }
     Ok(())
 }

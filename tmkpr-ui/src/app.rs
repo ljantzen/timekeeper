@@ -1,4 +1,4 @@
-use chrono::{Datelike, Local, Utc};
+use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use ratatui::widgets::ListState;
 use tmkpr_lib::{
     models::{
@@ -14,6 +14,68 @@ use tmkpr_lib::{
 
 use crate::form::{Field, Form};
 
+fn parse_date_filter(s: &str) -> anyhow::Result<(Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>)> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Ok((None, None));
+    }
+
+    fn naive_to_utc(naive: chrono::NaiveDateTime) -> chrono::DateTime<Utc> {
+        Local.from_local_datetime(&naive).unwrap().with_timezone(&Utc)
+    }
+
+    match s {
+        "today" => {
+            let now = Local::now();
+            let from = now.date_naive().and_hms_opt(0, 0, 0).unwrap();
+            let until = (now.date_naive() + Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+            Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
+        }
+        "yesterday" => {
+            let now = Local::now();
+            let yesterday = now.date_naive() - Duration::days(1);
+            let from = yesterday.and_hms_opt(0, 0, 0).unwrap();
+            let until = now.date_naive().and_hms_opt(0, 0, 0).unwrap();
+            Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
+        }
+        "this week" => {
+            let now = Local::now();
+            let weekday = now.date_naive().weekday();
+            let days_since_monday = match weekday {
+                chrono::Weekday::Mon => 0,
+                chrono::Weekday::Tue => 1,
+                chrono::Weekday::Wed => 2,
+                chrono::Weekday::Thu => 3,
+                chrono::Weekday::Fri => 4,
+                chrono::Weekday::Sat => 5,
+                chrono::Weekday::Sun => 6,
+            };
+            let week_start = now.date_naive() - Duration::days(days_since_monday as i64);
+            let week_end = week_start + Duration::days(7);
+            let from = week_start.and_hms_opt(0, 0, 0).unwrap();
+            let until = week_end.and_hms_opt(0, 0, 0).unwrap();
+            Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
+        }
+        _ if s.contains("..") => {
+            let parts: Vec<&str> = s.split("..").collect();
+            if parts.len() != 2 {
+                return Err(anyhow::anyhow!("Invalid date range format"));
+            }
+            let from_date = NaiveDate::parse_from_str(parts[0].trim(), "%Y-%m-%d")?;
+            let until_date = NaiveDate::parse_from_str(parts[1].trim(), "%Y-%m-%d")?;
+            let from = from_date.and_hms_opt(0, 0, 0).unwrap();
+            let until = (until_date + Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+            Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
+        }
+        _ => {
+            let date = NaiveDate::parse_from_str(s, "%Y-%m-%d")?;
+            let from = date.and_hms_opt(0, 0, 0).unwrap();
+            let until = (date + Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+            Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
+        }
+    }
+}
+
 pub enum AppMode {
     Normal,
     StartModal(Form),
@@ -27,6 +89,7 @@ pub enum AppMode {
     },
     AddProject(Form),
     AddTask(Form),
+    Filter(Form),
     Comments {
         entry_id: String,
         comments: Vec<Comment>,
@@ -47,6 +110,7 @@ pub enum ModeKind {
     ConfirmDelete,
     AddProject,
     AddTask,
+    Filter,
     Comments,
     AddComment,
     Help,
@@ -61,6 +125,7 @@ impl AppMode {
             AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
             AppMode::AddProject(_) => ModeKind::AddProject,
             AppMode::AddTask(_) => ModeKind::AddTask,
+            AppMode::Filter(_) => ModeKind::Filter,
             AppMode::Comments { .. } => ModeKind::Comments,
             AppMode::AddComment { .. } => ModeKind::AddComment,
             AppMode::Help => ModeKind::Help,
@@ -81,6 +146,11 @@ pub struct App {
     pub list_state: ListState,
     pub mode: AppMode,
     pub status: Option<(String, bool)>,
+    pub filter_project_name: String,
+    pub filter_date_str: String,
+    pub filter_project_id: Option<String>,
+    pub filter_from: Option<chrono::DateTime<chrono::Utc>>,
+    pub filter_until: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl App {
@@ -100,6 +170,11 @@ impl App {
             list_state,
             mode: AppMode::Normal,
             status: None,
+            filter_project_name: String::new(),
+            filter_date_str: String::new(),
+            filter_project_id: None,
+            filter_from: None,
+            filter_until: None,
         }
     }
 
@@ -118,6 +193,9 @@ impl App {
             self.entries = svc.list(EntryFilter {
                 user_id: self.user_id.clone(),
                 include_active: false,
+                project_id: self.filter_project_id.clone(),
+                from: self.filter_from,
+                until: self.filter_until,
                 ..Default::default()
             })?;
         }
@@ -542,6 +620,42 @@ impl App {
         }
         self.refresh()?;
         self.status = Some((format!("Task '{name}' created in '{project}'."), false));
+        Ok(())
+    }
+
+    pub fn has_filter(&self) -> bool {
+        self.filter_project_id.is_some() || self.filter_from.is_some() || self.filter_until.is_some()
+    }
+
+    pub fn open_filter_modal(&mut self) {
+        let projects = self.project_names();
+        self.mode = AppMode::Filter(Form {
+            fields: vec![
+                Field::new("Project (empty = all)", &self.filter_project_name).with_completions(projects),
+                Field::new("Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD", &self.filter_date_str),
+            ],
+            focused: 0,
+        });
+    }
+
+    pub fn apply_filter(&mut self, project: &str, date_str: &str) -> anyhow::Result<()> {
+        self.filter_project_name = project.to_string();
+        self.filter_date_str = date_str.to_string();
+
+        if project.is_empty() {
+            self.filter_project_id = None;
+        } else {
+            let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
+            let proj = svc.resolve(project)?;
+            self.filter_project_id = Some(proj.id);
+        }
+
+        let (from, until) = parse_date_filter(date_str)?;
+        self.filter_from = from;
+        self.filter_until = until;
+
+        self.refresh()?;
+        self.status = Some(("Filter applied.".into(), false));
         Ok(())
     }
 }

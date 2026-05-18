@@ -32,6 +32,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::ConfirmDelete => render_confirm_delete(frame, app, area),
         ModeKind::AddProject => render_add_project(frame, app, area),
         ModeKind::AddTask => render_add_task(frame, app, area),
+        ModeKind::Filter => render_filter(frame, app, area),
         ModeKind::Comments => render_comments(frame, app, area),
         ModeKind::AddComment => render_add_comment(frame, app, area),
         ModeKind::Help => render_help(frame, area),
@@ -99,7 +100,18 @@ fn render_main(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
-    let title = format!(" Entries ({}) ", app.entries.len());
+    let title = if app.has_filter() {
+        let mut parts = Vec::new();
+        if !app.filter_project_name.is_empty() {
+            parts.push(format!("project: {}", app.filter_project_name));
+        }
+        if !app.filter_date_str.is_empty() {
+            parts.push(app.filter_date_str.clone());
+        }
+        format!(" Entries ({}) [{}] ", app.entries.len(), parts.join(", "))
+    } else {
+        format!(" Entries ({}) ", app.entries.len())
+    };
     let block = Block::default().title(title).borders(Borders::ALL);
 
     let items: Vec<ListItem> = app
@@ -215,7 +227,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [x]stop  [e]dit  [d]el  [c]omments  [C]comment  [p]roject  [t]ask  [r]efresh  [?]help  [q]quit",
+            " [s]tart  [x]stop  [e]dit  [d]el  [f]ilter  [c]omments  [C]comment  [p]roject  [t]ask  [r]efresh  [?]help  [q]uit",
             Style::default().fg(Color::DarkGray),
         )),
     };
@@ -412,6 +424,10 @@ fn render_help(frame: &mut Frame, area: Rect) {
                 Span::raw("Delete selected entry"),
             ]),
             Line::from(vec![
+                Span::styled("  f      ", bold),
+                Span::raw("Filter entries by project / date"),
+            ]),
+            Line::from(vec![
                 Span::styled("  c      ", bold),
                 Span::raw("View/add comments on selected entry"),
             ]),
@@ -509,6 +525,12 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
         )),
         chunks[1],
     );
+}
+
+fn render_filter(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::Filter(form) = &app.mode {
+        render_form_modal(frame, area, " Filter Entries ", 65, form);
+    }
 }
 
 fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
