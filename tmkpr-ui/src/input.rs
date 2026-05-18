@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, AppMode, ModeKind};
+use crate::app::{App, AppMode, ModeKind, form_fields};
 use crate::form::FormResult;
 
 pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
@@ -108,8 +108,8 @@ fn handle_filter(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::Filter(form) = old {
-                let project = form.fields[0].value.clone();
-                let date_str = form.fields[1].value.clone();
+                let project = form.fields[form_fields::filter::PROJECT].value.clone();
+                let date_str = form.fields[form_fields::filter::DATE].value.clone();
                 if let Err(e) = app.apply_filter(&project, &date_str) {
                     app.status = Some((e.to_string(), true));
                     app.mode = AppMode::Normal;
@@ -134,8 +134,8 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterTasks(form) = old {
-                let project_name = form.fields[0].value.clone();
-                let include_archived = form.fields[1].value.to_lowercase();
+                let project_name = form.fields[form_fields::filter_tasks::PROJECT].value.clone();
+                let include_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED].value.to_lowercase();
 
                 app.task_filter.hide_archived = !matches!(include_archived.as_str(), "y" | "yes");
                 app.task_filter.project_id = if project_name.is_empty() {
@@ -168,9 +168,9 @@ fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::AddProject(form) = old {
-                let name = form.fields[0].value.clone();
-                let description = form.fields[1].value.clone();
-                let color = form.fields[2].value.clone();
+                let name = form.fields[form_fields::add_project::NAME].value.clone();
+                let description = form.fields[form_fields::add_project::DESCRIPTION].value.clone();
+                let color = form.fields[form_fields::add_project::COLOR].value.clone();
                 if let Err(e) = app.add_project(&name, &description, &color) {
                     app.status = Some((e.to_string(), true));
                     app.mode = AppMode::AddProject(form);
@@ -228,7 +228,7 @@ fn handle_filter_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterProjects(form) = old {
-                let include_archived = form.fields[0].value.to_lowercase();
+                let include_archived = form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED].value.to_lowercase();
                 app.project_filter.hide_archived = !matches!(include_archived.as_str(), "y" | "yes");
                 app.open_manage_projects();
             }
@@ -254,9 +254,9 @@ fn handle_edit_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::EditProject { project_id, form } = old {
-                let name = form.fields[0].value.clone();
-                let description = form.fields[1].value.clone();
-                let color = form.fields[2].value.clone();
+                let name = form.fields[form_fields::edit_project::NAME].value.clone();
+                let description = form.fields[form_fields::edit_project::DESCRIPTION].value.clone();
+                let color = form.fields[form_fields::edit_project::COLOR].value.clone();
                 if let Err(e) = app.submit_edit_project(project_id, &name, &description, &color) {
                     app.status = Some((e.to_string(), true));
                 }
@@ -280,9 +280,9 @@ fn handle_add_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::AddTask(form) = old {
-                let project = form.fields[0].value.clone();
-                let name = form.fields[1].value.clone();
-                let description = form.fields[2].value.clone();
+                let project = form.fields[form_fields::add_task::PROJECT].value.clone();
+                let name = form.fields[form_fields::add_task::NAME].value.clone();
+                let description = form.fields[form_fields::add_task::DESCRIPTION].value.clone();
                 if let Err(e) = app.add_task(&project, &name, &description) {
                     app.status = Some((e.to_string(), true));
                     app.mode = AppMode::AddTask(form);
@@ -348,8 +348,8 @@ fn handle_edit_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::EditTask { task_id, form } = old {
-                let name = form.fields[0].value.clone();
-                let description = form.fields[1].value.clone();
+                let name = form.fields[form_fields::edit_task::NAME].value.clone();
+                let description = form.fields[form_fields::edit_task::DESCRIPTION].value.clone();
                 if let Err(e) = app.submit_edit_task(task_id, &name, &description) {
                     app.status = Some((e.to_string(), true));
                 }
@@ -373,10 +373,10 @@ fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::StartModal(form) = old {
-                let project = form.fields[0].value.clone();
-                let task = form.fields[1].value.clone();
-                let note = form.fields[2].value.clone();
-                let tags = form.fields[3].value.clone();
+                let project = form.fields[form_fields::start_modal::PROJECT].value.clone();
+                let task = form.fields[form_fields::start_modal::TASK].value.clone();
+                let note = form.fields[form_fields::start_modal::NOTE].value.clone();
+                let tags = form.fields[form_fields::start_modal::TAGS].value.clone();
                 if let Err(e) = app.start_entry(&project, &task, &note, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
@@ -400,12 +400,12 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::EditModal { id, form } = old {
-                let project = form.fields[0].value.clone();
-                let task = form.fields[1].value.clone();
-                let note = form.fields[2].value.clone();
-                let start = form.fields[3].value.clone();
-                let end = form.fields[4].value.clone();
-                let tags = form.fields[5].value.clone();
+                let project = form.fields[form_fields::edit_modal::PROJECT].value.clone();
+                let task = form.fields[form_fields::edit_modal::TASK].value.clone();
+                let note = form.fields[form_fields::edit_modal::NOTE].value.clone();
+                let start = form.fields[form_fields::edit_modal::START].value.clone();
+                let end = form.fields[form_fields::edit_modal::END].value.clone();
+                let tags = form.fields[form_fields::edit_modal::TAGS].value.clone();
                 if let Err(e) = app.edit_entry(&id, &project, &task, &note, &start, &end, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
@@ -482,7 +482,7 @@ fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::AddComment { entry_id, form } = old {
-                let body = form.fields[0].value.clone();
+                let body = form.fields[form_fields::add_comment::BODY].value.clone();
                 if let Err(e) = app.submit_add_comment(entry_id, body) {
                     app.status = Some((e.to_string(), true));
                 }

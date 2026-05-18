@@ -15,6 +15,66 @@ use tmkpr_lib::{
 
 use crate::form::{Field, Form};
 
+// Form field indices — prevents magic numbers in handlers
+pub mod form_fields {
+    pub mod start_modal {
+        pub const PROJECT: usize = 0;
+        pub const TASK: usize = 1;
+        pub const NOTE: usize = 2;
+        pub const TAGS: usize = 3;
+    }
+
+    pub mod edit_modal {
+        pub const PROJECT: usize = 0;
+        pub const TASK: usize = 1;
+        pub const NOTE: usize = 2;
+        pub const START: usize = 3;
+        pub const END: usize = 4;
+        pub const TAGS: usize = 5;
+    }
+
+    pub mod add_project {
+        pub const NAME: usize = 0;
+        pub const DESCRIPTION: usize = 1;
+        pub const COLOR: usize = 2;
+    }
+
+    pub mod edit_project {
+        pub const NAME: usize = 0;
+        pub const DESCRIPTION: usize = 1;
+        pub const COLOR: usize = 2;
+    }
+
+    pub mod add_task {
+        pub const PROJECT: usize = 0;
+        pub const NAME: usize = 1;
+        pub const DESCRIPTION: usize = 2;
+    }
+
+    pub mod edit_task {
+        pub const NAME: usize = 0;
+        pub const DESCRIPTION: usize = 1;
+    }
+
+    pub mod filter {
+        pub const PROJECT: usize = 0;
+        pub const DATE: usize = 1;
+    }
+
+    pub mod filter_tasks {
+        pub const PROJECT: usize = 0;
+        pub const INCLUDE_ARCHIVED: usize = 1;
+    }
+
+    pub mod filter_projects {
+        pub const INCLUDE_ARCHIVED: usize = 0;
+    }
+
+    pub mod add_comment {
+        pub const BODY: usize = 0;
+    }
+}
+
 fn parse_date_filter(s: &str) -> anyhow::Result<(Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>)> {
     let s = s.trim();
     if s.is_empty() {
@@ -845,9 +905,11 @@ impl App {
 
         self.storage.update_project(&project_id, update)?;
         self.refresh()?;
+        let projects = self.apply_project_sort_filter(self.projects.clone());
+        let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited project in list
         self.mode = AppMode::ManageProjects {
-            projects: self.projects.clone(),
-            selected: 0,
+            projects,
+            selected,
         };
         self.status = Some((format!("Project '{name}' updated."), false));
         Ok(())
@@ -992,9 +1054,11 @@ impl App {
 
         self.storage.update_task(&task_id, update)?;
         self.refresh()?;
+        let tasks = self.apply_task_sort_filter(self.tasks.clone());
+        let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited task in list
         self.mode = AppMode::ManageTasks {
-            tasks: self.tasks.clone(),
-            selected: 0,
+            tasks,
+            selected,
         };
         self.status = Some((format!("Task '{name}' updated."), false));
         Ok(())
@@ -1018,9 +1082,11 @@ impl App {
         let svc = TaskService::new(self.storage.as_ref(), &self.user_id);
         svc.delete(&project_name, &task_name, false)?;
         self.refresh()?;
+        let tasks = self.apply_task_sort_filter(self.tasks.clone());
+        let selected = 0; // Reset on delete; could preserve position if list still non-empty
         self.mode = AppMode::ManageTasks {
-            tasks: self.tasks.clone(),
-            selected: 0,
+            tasks,
+            selected,
         };
         self.status = Some((format!("Task '{}' deleted.", task_name), false));
         Ok(())

@@ -389,6 +389,53 @@ fn render_add_project(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+fn render_list_panel(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    items: Vec<ListItem>,
+    selected: usize,
+    empty_msg: &str,
+) {
+    let popup_area = centered_rect(60, 75, area);
+    frame.render_widget(Clear, popup_area);
+
+    let block = Block::default().title(title).borders(Borders::ALL);
+    let inner = block.inner(popup_area);
+    frame.render_widget(block, popup_area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(inner);
+
+    if items.is_empty() {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                empty_msg,
+                Style::default().fg(Color::DarkGray),
+            )),
+            chunks[0],
+        );
+    } else {
+        let list = List::new(items)
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .highlight_symbol("> ");
+
+        let mut state = ListState::default();
+        state.select(Some(selected));
+        frame.render_stateful_widget(list, chunks[0], &mut state);
+    }
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            "[a] add  [e] edit  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
+            Style::default().fg(Color::DarkGray),
+        )),
+        chunks[1],
+    );
+}
+
 fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::ManageProjects { projects, selected } = &app.mode {
         let sort_info = app.project_sort.label();
@@ -398,56 +445,28 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
             ""
         };
         let title = format!(" Projects ({}){} [{}] ", projects.len(), filter_info, sort_info);
-        let popup_area = centered_rect(60, 75, area);
-        frame.render_widget(Clear, popup_area);
 
-        let block = Block::default().title(title).borders(Borders::ALL);
-        let inner = block.inner(popup_area);
-        frame.render_widget(block, popup_area);
+        let items: Vec<ListItem> = projects
+            .iter()
+            .map(|p| {
+                let color = p.color.as_ref().and_then(|c| parse_hex_color(c));
+                let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
+                let color_indicator = color.map(|_| "●").unwrap_or(" ");
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(0), Constraint::Length(1)])
-            .split(inner);
+                let mut spans = vec![Span::raw(format!("{} ", color_indicator))];
+                spans.push(Span::styled(p.name.clone(), style));
 
-        if projects.is_empty() {
-            frame.render_widget(
-                Paragraph::new(Span::styled(
-                    "No projects. Press [a] to add one.",
-                    Style::default().fg(Color::DarkGray),
-                )),
-                chunks[0],
-            );
-        } else {
-            let items: Vec<ListItem> = projects
-                .iter()
-                .map(|p| {
-                    let color = p.color.as_ref().and_then(|c| parse_hex_color(c));
-                    let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
-                    let color_indicator = color.map(|_| "●").unwrap_or(" ");
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
 
-                    let mut spans = vec![Span::raw(format!("{} ", color_indicator))];
-                    spans.push(Span::styled(p.name.clone(), style));
-
-                    ListItem::new(Line::from(spans))
-                })
-                .collect();
-
-            let list = List::new(items)
-                .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
-                .highlight_symbol("> ");
-
-            let mut state = ListState::default();
-            state.select(Some(*selected));
-            frame.render_stateful_widget(list, chunks[0], &mut state);
-        }
-
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                "[a] add  [e] edit  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
-                Style::default().fg(Color::DarkGray),
-            )),
-            chunks[1],
+        render_list_panel(
+            frame,
+            area,
+            &title,
+            items,
+            *selected,
+            "No projects. Press [a] to add one.",
         );
     }
 }
@@ -483,10 +502,27 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             String::new()
         };
         let title = format!(" Tasks ({}){} [{}] ", tasks.len(), filter_info, sort_info);
+
+        let items: Vec<ListItem> = tasks
+            .iter()
+            .map(|t| {
+                let proj_name = app.project_name(&t.project_id);
+                let proj = app.projects.iter().find(|p| p.id == t.project_id);
+                let color = proj.and_then(|p| p.color.as_ref()).and_then(|c| parse_hex_color(c));
+                let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
+
+                let mut spans = vec![Span::raw(format!("{} (", t.name))];
+                spans.push(Span::styled(proj_name.to_string(), style));
+                spans.push(Span::raw(")"));
+
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
+
         let popup_area = centered_rect(60, 75, area);
         frame.render_widget(Clear, popup_area);
 
-        let block = Block::default().title(title).borders(Borders::ALL);
+        let block = Block::default().title(title.as_str()).borders(Borders::ALL);
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
 
@@ -495,7 +531,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             .constraints([Constraint::Min(0), Constraint::Length(1)])
             .split(inner);
 
-        if tasks.is_empty() {
+        if items.is_empty() {
             frame.render_widget(
                 Paragraph::new(Span::styled(
                     "No tasks. Press [a] to add one.",
@@ -504,22 +540,6 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
                 chunks[0],
             );
         } else {
-            let items: Vec<ListItem> = tasks
-                .iter()
-                .map(|t| {
-                    let proj_name = app.project_name(&t.project_id);
-                    let proj = app.projects.iter().find(|p| p.id == t.project_id);
-                    let color = proj.and_then(|p| p.color.as_ref()).and_then(|c| parse_hex_color(c));
-                    let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
-
-                    let mut spans = vec![Span::raw(format!("{} (", t.name))];
-                    spans.push(Span::styled(proj_name.to_string(), style));
-                    spans.push(Span::raw(")"));
-
-                    ListItem::new(Line::from(spans))
-                })
-                .collect();
-
             let list = List::new(items)
                 .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
                 .highlight_symbol("> ");
