@@ -893,7 +893,9 @@ impl App {
                 filtered.sort_by(|a, b| b.name.cmp(&a.name));
             }
             TaskSort::Project => {
-                filtered.sort_by(|a, b| a.project_id.cmp(&b.project_id));
+                filtered.sort_by(|a, b| {
+                    self.project_name(&a.project_id).cmp(self.project_name(&b.project_id))
+                });
             }
             TaskSort::Created => {
                 filtered.sort_by(|a, b| a.created_at.cmp(&b.created_at));
