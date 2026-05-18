@@ -31,6 +31,18 @@ fn short_id(id: &str) -> &str {
     &id[..id.len().min(8)]
 }
 
+fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
+    let h = hex.trim_start_matches('#');
+    if h.len() != 6 {
+        return None;
+    }
+    Some((
+        u8::from_str_radix(&h[0..2], 16).ok()?,
+        u8::from_str_radix(&h[2..4], 16).ok()?,
+        u8::from_str_radix(&h[4..6], 16).ok()?,
+    ))
+}
+
 // ── Entry table ───────────────────────────────────────────────────────────────
 
 pub struct ProjectIndex(pub Vec<Project>);
@@ -43,6 +55,22 @@ impl ProjectIndex {
             .find(|p| p.id == id)
             .map(|p| p.name.clone())
             .unwrap_or_else(|| id.to_string())
+    }
+
+    pub fn color(&self, id: &str) -> Option<(u8, u8, u8)> {
+        self.0
+            .iter()
+            .find(|p| p.id == id)
+            .and_then(|p| p.color.as_deref())
+            .and_then(hex_to_rgb)
+    }
+
+    pub fn color_by_name(&self, name: &str) -> Option<(u8, u8, u8)> {
+        self.0
+            .iter()
+            .find(|p| p.name == name)
+            .and_then(|p| p.color.as_deref())
+            .and_then(hex_to_rgb)
     }
 }
 
@@ -105,6 +133,23 @@ pub fn print_entries_table(
             Cell::new(short_id(&entry.id))
         };
 
+        let project_cell = {
+            let cell = Cell::new(&project);
+            if color {
+                if let Some(pid) = entry.project_id.as_deref() {
+                    if let Some((r, g, b)) = projects.color(pid) {
+                        cell.fg(Color::Rgb { r, g, b })
+                    } else {
+                        cell
+                    }
+                } else {
+                    cell
+                }
+            } else {
+                cell
+            }
+        };
+
         let finished_cell = if color && entry.is_active() {
             Cell::new(finished).fg(Color::Green)
         } else {
@@ -113,7 +158,7 @@ pub fn print_entries_table(
 
         table.add_row(vec![
             id_cell,
-            Cell::new(project),
+            project_cell,
             Cell::new(task),
             Cell::new(note),
             Cell::new(tags),
@@ -128,7 +173,7 @@ pub fn print_entries_table(
 
 // ── Report table ──────────────────────────────────────────────────────────────
 
-pub fn print_report_table(report: &ReportData, color: bool) {
+pub fn print_report_table(report: &ReportData, projects: &ProjectIndex, color: bool) {
     if report.by_project.is_empty() {
         println!("No entries in the selected range.");
         return;
@@ -141,11 +186,15 @@ pub fn print_report_table(report: &ReportData, color: bool) {
     for proj in &report.by_project {
         for (i, task) in proj.by_task.iter().enumerate() {
             let proj_cell = if i == 0 {
-                let c = Cell::new(&proj.project_name);
+                let cell = Cell::new(&proj.project_name);
                 if color {
-                    c.fg(Color::Cyan)
+                    if let Some((r, g, b)) = projects.color_by_name(&proj.project_name) {
+                        cell.fg(Color::Rgb { r, g, b })
+                    } else {
+                        cell.fg(Color::Cyan)
+                    }
                 } else {
-                    c
+                    cell
                 }
             } else {
                 Cell::new("")
@@ -188,7 +237,7 @@ pub fn print_report_table(report: &ReportData, color: bool) {
 
 // ── Project table ─────────────────────────────────────────────────────────────
 
-pub fn print_projects_table(projects: &[Project]) {
+pub fn print_projects_table(projects: &[Project], color: bool) {
     if projects.is_empty() {
         println!("No projects found.");
         return;
@@ -197,9 +246,18 @@ pub fn print_projects_table(projects: &[Project]) {
     table.load_preset(UTF8_FULL);
     table.set_header(vec!["#", "Name", "Description", "Color", "Archived"]);
     for p in projects {
+        let name_cell = if color {
+            if let Some((r, g, b)) = p.color.as_deref().and_then(hex_to_rgb) {
+                Cell::new(&p.name).fg(Color::Rgb { r, g, b })
+            } else {
+                Cell::new(&p.name)
+            }
+        } else {
+            Cell::new(&p.name)
+        };
         table.add_row(vec![
             Cell::new(p.num_id).set_alignment(CellAlignment::Right),
-            Cell::new(&p.name),
+            name_cell,
             Cell::new(p.description.as_deref().unwrap_or("-")),
             Cell::new(p.color.as_deref().unwrap_or("-")),
             Cell::new(if p.archived { "yes" } else { "no" }),
@@ -254,7 +312,16 @@ pub fn print_status(
 
     if color {
         print!("{} ", "●".green().bold());
-        print!("{}", project.cyan());
+        let project_display = if let Some(pid) = entry.project_id.as_deref() {
+            if let Some((r, g, b)) = projects.color(pid) {
+                project.truecolor(r, g, b).to_string()
+            } else {
+                project.cyan().to_string()
+            }
+        } else {
+            project.to_string()
+        };
+        print!("{}", project_display);
         if task != "-" {
             print!(" / {}", task.cyan());
         }
@@ -323,7 +390,7 @@ pub fn print_gaps_table(
 
 // ── Format-dispatching helpers ────────────────────────────────────────────────
 
-pub fn print_projects(projects: &[Project], format: &str) {
+pub fn print_projects(projects: &[Project], format: &str, color: bool) {
     match format {
         "json" => print_json(projects),
         "csv" => {
@@ -339,7 +406,7 @@ pub fn print_projects(projects: &[Project], format: &str) {
                 );
             }
         }
-        _ => print_projects_table(projects),
+        _ => print_projects_table(projects, color),
     }
 }
 
@@ -464,7 +531,7 @@ fn print_entries_markdown(
     }
 }
 
-pub fn print_report(report: &ReportData, format: &str, color: bool) {
+pub fn print_report(report: &ReportData, projects: &ProjectIndex, format: &str, color: bool) {
     match format {
         "json" => print_json(report),
         "csv" => {
@@ -482,7 +549,7 @@ pub fn print_report(report: &ReportData, format: &str, color: bool) {
             }
         }
         "markdown" => print_report_markdown(report),
-        _ => print_report_table(report, color),
+        _ => print_report_table(report, projects, color),
     }
 }
 
@@ -840,5 +907,81 @@ mod tests {
     fn short_id_leaves_short_ids_alone() {
         assert_eq!(short_id("abc"), "abc");
         assert_eq!(short_id("abcdefgh"), "abcdefgh");
+    }
+
+    // ── hex_to_rgb ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn hex_to_rgb_valid_color() {
+        assert_eq!(hex_to_rgb("#ff6600"), Some((255, 102, 0)));
+        assert_eq!(hex_to_rgb("#000000"), Some((0, 0, 0)));
+        assert_eq!(hex_to_rgb("#ffffff"), Some((255, 255, 255)));
+        assert_eq!(hex_to_rgb("#FF6600"), Some((255, 102, 0)));
+    }
+
+    #[test]
+    fn hex_to_rgb_invalid_color() {
+        assert_eq!(hex_to_rgb("#fff"), None);
+        assert_eq!(hex_to_rgb("#gggggg"), None);
+        assert_eq!(hex_to_rgb("ff6600"), Some((255, 102, 0)));
+        assert_eq!(hex_to_rgb(""), None);
+    }
+
+    #[test]
+    fn project_index_color_found() {
+        let p = Project {
+            id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Project One".to_string(),
+            description: None,
+            color: Some("#ff6600".to_string()),
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            num_id: 1,
+        };
+        let idx = ProjectIndex(vec![p]);
+        assert_eq!(idx.color("p1"), Some((255, 102, 0)));
+    }
+
+    #[test]
+    fn project_index_color_by_name() {
+        let p = Project {
+            id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Design".to_string(),
+            description: None,
+            color: Some("#ff0000".to_string()),
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            num_id: 1,
+        };
+        let idx = ProjectIndex(vec![p]);
+        assert_eq!(idx.color_by_name("Design"), Some((255, 0, 0)));
+    }
+
+    #[test]
+    fn project_index_color_missing_returns_none() {
+        let idx = ProjectIndex(vec![]);
+        assert_eq!(idx.color("unknown"), None);
+        assert_eq!(idx.color_by_name("Unknown"), None);
+    }
+
+    #[test]
+    fn project_index_color_no_color_set_returns_none() {
+        let p = Project {
+            id: "p1".to_string(),
+            user_id: "u1".to_string(),
+            name: "Project".to_string(),
+            description: None,
+            color: None,
+            archived: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            num_id: 1,
+        };
+        let idx = ProjectIndex(vec![p]);
+        assert_eq!(idx.color("p1"), None);
     }
 }

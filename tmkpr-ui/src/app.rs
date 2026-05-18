@@ -137,7 +137,7 @@ fn parse_date_filter(s: &str) -> anyhow::Result<(Option<chrono::DateTime<Utc>>, 
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ProjectSort {
     Name,
     NameDesc,
@@ -178,7 +178,7 @@ impl Default for ProjectFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TaskSort {
     Name,
     NameDesc,
@@ -209,6 +209,7 @@ impl TaskSort {
     }
 }
 
+
 #[derive(Clone)]
 pub struct TaskFilter {
     pub project_id: Option<String>,
@@ -221,6 +222,33 @@ impl Default for TaskFilter {
             project_id: None,
             hide_archived: false,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct EntryFilterInput {
+    pub project_name: String,
+    pub date_str: String,
+    pub project_id: Option<String>,
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub until: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl Default for EntryFilterInput {
+    fn default() -> Self {
+        Self {
+            project_name: String::new(),
+            date_str: String::new(),
+            project_id: None,
+            from: None,
+            until: None,
+        }
+    }
+}
+
+impl EntryFilterInput {
+    pub fn is_active(&self) -> bool {
+        self.project_id.is_some() || self.from.is_some() || self.until.is_some()
     }
 }
 
@@ -324,11 +352,7 @@ pub struct App {
     pub list_state: ListState,
     pub mode: AppMode,
     pub status: Option<(String, bool)>,
-    pub filter_project_name: String,
-    pub filter_date_str: String,
-    pub filter_project_id: Option<String>,
-    pub filter_from: Option<chrono::DateTime<chrono::Utc>>,
-    pub filter_until: Option<chrono::DateTime<chrono::Utc>>,
+    pub entry_filter: EntryFilterInput,
     pub entries_with_comments: HashSet<String>,
     pub project_sort: ProjectSort,
     pub project_filter: ProjectFilter,
@@ -353,11 +377,7 @@ impl App {
             list_state,
             mode: AppMode::Normal,
             status: None,
-            filter_project_name: String::new(),
-            filter_date_str: String::new(),
-            filter_project_id: None,
-            filter_from: None,
-            filter_until: None,
+            entry_filter: EntryFilterInput::default(),
             entries_with_comments: HashSet::new(),
             project_sort: ProjectSort::Name,
             project_filter: ProjectFilter::default(),
@@ -381,9 +401,9 @@ impl App {
             self.entries = svc.list(EntryFilter {
                 user_id: self.user_id.clone(),
                 include_active: false,
-                project_id: self.filter_project_id.clone(),
-                from: self.filter_from,
-                until: self.filter_until,
+                project_id: self.entry_filter.project_id.clone(),
+                from: self.entry_filter.from,
+                until: self.entry_filter.until,
                 ..Default::default()
             })?;
         }
@@ -797,7 +817,7 @@ impl App {
     pub fn open_project_filter_modal(&mut self) {
         self.mode = AppMode::FilterProjects(Form {
             fields: vec![
-                Field::new("Include archived projects? (y/n)", if self.project_filter.hide_archived { "n" } else { "y" }),
+                Field::new("Show archived projects? (y/n)", if self.project_filter.hide_archived { "n" } else { "y" }),
             ],
             focused: 0,
         });
@@ -992,7 +1012,7 @@ impl App {
         self.mode = AppMode::FilterTasks(Form {
             fields: vec![
                 Field::new("Filter by project (empty = all)", &project_filter).with_completions(projects),
-                Field::new("Include archived tasks? (y/n)", if self.task_filter.hide_archived { "n" } else { "y" }),
+                Field::new("Show archived tasks? (y/n)", if self.task_filter.hide_archived { "n" } else { "y" }),
             ],
             focused: 0,
         });
@@ -1093,7 +1113,7 @@ impl App {
     }
 
     pub fn has_filter(&self) -> bool {
-        self.filter_project_id.is_some() || self.filter_from.is_some() || self.filter_until.is_some()
+        self.entry_filter.is_active()
     }
 
     pub fn entry_has_comments(&self, entry_id: &str) -> bool {
@@ -1104,31 +1124,164 @@ impl App {
         let projects = self.project_names();
         self.mode = AppMode::Filter(Form {
             fields: vec![
-                Field::new("Project (empty = all)", &self.filter_project_name).with_completions(projects),
-                Field::new("Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD", &self.filter_date_str),
+                Field::new("Project (empty = all)", &self.entry_filter.project_name).with_completions(projects),
+                Field::new("Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD", &self.entry_filter.date_str),
             ],
             focused: 0,
         });
     }
 
     pub fn apply_filter(&mut self, project: &str, date_str: &str) -> anyhow::Result<()> {
-        self.filter_project_name = project.to_string();
-        self.filter_date_str = date_str.to_string();
+        self.entry_filter.project_name = project.to_string();
+        self.entry_filter.date_str = date_str.to_string();
 
         if project.is_empty() {
-            self.filter_project_id = None;
+            self.entry_filter.project_id = None;
         } else {
             let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
             let proj = svc.resolve(project)?;
-            self.filter_project_id = Some(proj.id);
+            self.entry_filter.project_id = Some(proj.id);
         }
 
         let (from, until) = parse_date_filter(date_str)?;
-        self.filter_from = from;
-        self.filter_until = until;
+        self.entry_filter.from = from;
+        self.entry_filter.until = until;
 
         self.refresh()?;
         self.status = Some(("Filter applied.".into(), false));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_date_filter_empty_returns_none() {
+        let (from, until) = parse_date_filter("").unwrap();
+        assert!(from.is_none());
+        assert!(until.is_none());
+    }
+
+    #[test]
+    fn parse_date_filter_whitespace_returns_none() {
+        let (from, until) = parse_date_filter("   ").unwrap();
+        assert!(from.is_none());
+        assert!(until.is_none());
+    }
+
+    #[test]
+    fn parse_date_filter_today() {
+        let (from, until) = parse_date_filter("today").unwrap();
+        assert!(from.is_some());
+        assert!(until.is_some());
+        let from = from.unwrap();
+        let until = until.unwrap();
+        // Duration should be approximately 24 hours
+        let duration = until.signed_duration_since(from);
+        assert_eq!(duration.num_hours(), 24);
+    }
+
+    #[test]
+    fn parse_date_filter_yesterday() {
+        let (from, until) = parse_date_filter("yesterday").unwrap();
+        assert!(from.is_some());
+        assert!(until.is_some());
+        let from = from.unwrap();
+        let until = until.unwrap();
+        // Duration should be approximately 24 hours
+        let duration = until.signed_duration_since(from);
+        assert_eq!(duration.num_hours(), 24);
+    }
+
+    #[test]
+    fn parse_date_filter_this_week() {
+        let (from, until) = parse_date_filter("this week").unwrap();
+        assert!(from.is_some());
+        assert!(until.is_some());
+        let from = from.unwrap();
+        let until = until.unwrap();
+        // Duration should be approximately 7 days
+        let duration = until.signed_duration_since(from);
+        assert_eq!(duration.num_days(), 7);
+    }
+
+    #[test]
+    fn parse_date_filter_specific_date() {
+        let (from, until) = parse_date_filter("2024-05-15").unwrap();
+        assert!(from.is_some());
+        assert!(until.is_some());
+        let from = from.unwrap();
+        let until = until.unwrap();
+        // Duration should be 24 hours
+        let duration = until.signed_duration_since(from);
+        assert_eq!(duration.num_hours(), 24);
+    }
+
+    #[test]
+    fn parse_date_filter_date_range() {
+        let (from, until) = parse_date_filter("2024-05-15..2024-05-18").unwrap();
+        assert!(from.is_some());
+        assert!(until.is_some());
+        let from = from.unwrap();
+        let until = until.unwrap();
+        // Duration should be approximately 4 days (from May 15 to May 18 inclusive)
+        let duration = until.signed_duration_since(from);
+        assert_eq!(duration.num_days(), 4);
+    }
+
+    #[test]
+    fn parse_date_filter_invalid_date_fails() {
+        let result = parse_date_filter("invalid-date");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn project_sort_cycles() {
+        let mut sort = ProjectSort::Name;
+        assert_eq!(sort, ProjectSort::Name);
+        sort = sort.next();
+        assert_eq!(sort, ProjectSort::NameDesc);
+        sort = sort.next();
+        assert_eq!(sort, ProjectSort::Created);
+        sort = sort.next();
+        assert_eq!(sort, ProjectSort::CreatedDesc);
+        sort = sort.next();
+        assert_eq!(sort, ProjectSort::Name);
+    }
+
+    #[test]
+    fn task_sort_cycles() {
+        let mut sort = TaskSort::Name;
+        assert_eq!(sort, TaskSort::Name);
+        sort = sort.next();
+        assert_eq!(sort, TaskSort::NameDesc);
+        sort = sort.next();
+        assert_eq!(sort, TaskSort::Project);
+        sort = sort.next();
+        assert_eq!(sort, TaskSort::Created);
+        sort = sort.next();
+        assert_eq!(sort, TaskSort::CreatedDesc);
+        sort = sort.next();
+        assert_eq!(sort, TaskSort::Name);
+    }
+
+    #[test]
+    fn entry_filter_input_is_active() {
+        let filter = EntryFilterInput::default();
+        assert!(!filter.is_active());
+
+        let mut filter = EntryFilterInput::default();
+        filter.project_id = Some("proj-1".to_string());
+        assert!(filter.is_active());
+
+        let mut filter = EntryFilterInput::default();
+        filter.from = Some(Utc::now());
+        assert!(filter.is_active());
+
+        let mut filter = EntryFilterInput::default();
+        filter.until = Some(Utc::now());
+        assert!(filter.is_active());
     }
 }

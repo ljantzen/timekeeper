@@ -135,19 +135,27 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterTasks(form) = old {
                 let project_name = form.fields[form_fields::filter_tasks::PROJECT].value.clone();
-                let include_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED].value.to_lowercase();
+                let show_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED].value.to_lowercase();
 
-                app.task_filter.hide_archived = !matches!(include_archived.as_str(), "y" | "yes");
-                app.task_filter.project_id = if project_name.is_empty() {
-                    None
-                } else {
-                    app.projects
-                        .iter()
-                        .find(|p| p.name == project_name)
-                        .map(|p| p.id.clone())
-                };
+                match show_archived.as_str() {
+                    "y" | "yes" | "n" | "no" | "" => {
+                        app.task_filter.hide_archived = !matches!(show_archived.as_str(), "y" | "yes");
+                        app.task_filter.project_id = if project_name.is_empty() {
+                            None
+                        } else {
+                            app.projects
+                                .iter()
+                                .find(|p| p.name == project_name)
+                                .map(|p| p.id.clone())
+                        };
 
-                app.open_manage_tasks();
+                        app.open_manage_tasks();
+                    }
+                    _ => {
+                        app.status = Some(("Invalid input. Please enter 'y', 'n', or leave blank.".into(), true));
+                        app.open_task_filter_modal();
+                    }
+                }
             }
         }
     }
@@ -228,9 +236,17 @@ fn handle_filter_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterProjects(form) = old {
-                let include_archived = form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED].value.to_lowercase();
-                app.project_filter.hide_archived = !matches!(include_archived.as_str(), "y" | "yes");
-                app.open_manage_projects();
+                let show_archived = form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED].value.to_lowercase();
+                match show_archived.as_str() {
+                    "y" | "yes" | "n" | "no" | "" => {
+                        app.project_filter.hide_archived = !matches!(show_archived.as_str(), "y" | "yes");
+                        app.open_manage_projects();
+                    }
+                    _ => {
+                        app.status = Some(("Invalid input. Please enter 'y', 'n', or leave blank.".into(), true));
+                        app.open_project_filter_modal();
+                    }
+                }
             }
         }
     }

@@ -1,11 +1,11 @@
 use anyhow::Result;
 use chrono::Datelike;
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
-use tmkpr_lib::service::EntryService;
+use tmkpr_lib::service::{EntryService, ProjectService};
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::ReportArgs;
-use crate::output;
+use crate::output::{self, ProjectIndex};
 
 pub fn run(
     args: ReportArgs,
@@ -48,6 +48,10 @@ pub fn run(
 
     let report = svc.report(from, until, args.project.as_deref())?;
 
-    output::print_report(&report, format, color);
+    let proj_svc = ProjectService::new(storage, user_id);
+    let projects = proj_svc.list(false)?;
+    let project_index = ProjectIndex(projects);
+
+    output::print_report(&report, &project_index, format, color);
     Ok(())
 }

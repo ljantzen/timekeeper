@@ -61,7 +61,7 @@ fn run() -> anyhow::Result<()> {
         Commands::Project(sub) => match sub {
             ProjectCommands::Add(args) => commands::project::add(args, storage.as_ref(), &user_id)?,
             ProjectCommands::List(args) => {
-                commands::project::list(args, storage.as_ref(), &user_id, format)?
+                commands::project::list(args, storage.as_ref(), &user_id, format, color)?
             }
             ProjectCommands::Edit(args) => {
                 commands::project::edit(args, storage.as_ref(), &user_id)?

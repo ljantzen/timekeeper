@@ -10,6 +10,22 @@ use ratatui::{
 use crate::app::{App, AppMode, ModeKind};
 use crate::form::Form;
 
+// Layout constants
+#[allow(dead_code)]
+mod layout {
+    pub const MODAL_WIDTH: u16 = 60;
+    pub const MODAL_HEIGHT: u16 = 75;
+    pub const ADD_PROJECT_WIDTH: u16 = 55;
+    pub const EDIT_PROJECT_WIDTH: u16 = 55;
+    pub const ADD_TASK_WIDTH: u16 = 55;
+    pub const EDIT_TASK_WIDTH: u16 = 55;
+    pub const FILTER_ENTRIES_WIDTH: u16 = 65;
+    pub const FILTER_TASKS_WIDTH: u16 = 65;
+    pub const FILTER_PROJECTS_WIDTH: u16 = 65;
+    pub const COMMENTS_WIDTH: u16 = 70;
+    pub const ADD_COMMENT_WIDTH: u16 = 35;
+}
+
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 {
@@ -19,6 +35,14 @@ fn parse_hex_color(hex: &str) -> Option<Color> {
     let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
     let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
     Some(Color::Rgb(r, g, b))
+}
+
+fn project_color(app: &App, project_id: &str) -> Option<Color> {
+    app.projects
+        .iter()
+        .find(|p| p.id == project_id)
+        .and_then(|p| p.color.as_ref())
+        .and_then(|c| parse_hex_color(c))
 }
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -119,11 +143,11 @@ fn render_main(frame: &mut Frame, app: &mut App, area: Rect) {
 fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
     let title = if app.has_filter() {
         let mut parts = Vec::new();
-        if !app.filter_project_name.is_empty() {
-            parts.push(format!("project: {}", app.filter_project_name));
+        if !app.entry_filter.project_name.is_empty() {
+            parts.push(format!("project: {}", app.entry_filter.project_name));
         }
-        if !app.filter_date_str.is_empty() {
-            parts.push(app.filter_date_str.clone());
+        if !app.entry_filter.date_str.is_empty() {
+            parts.push(app.entry_filter.date_str.clone());
         }
         format!(" Entries ({}) [{}] ", app.entries.len(), parts.join(", "))
     } else {
@@ -168,15 +192,13 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 (Some(pid), Some(tid)) => {
                     let proj_name = app.project_name(pid);
                     let task_name = app.task_name(tid);
-                    let proj = app.projects.iter().find(|p| p.id == *pid);
-                    let color = proj.and_then(|p| p.color.as_ref()).and_then(|c| parse_hex_color(c));
+                    let color = project_color(app, pid);
                     let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
                     spans.push(Span::styled(format!("{}/{}", proj_name, task_name), style));
                 }
                 (Some(pid), None) => {
                     let proj_name = app.project_name(pid);
-                    let proj = app.projects.iter().find(|p| p.id == *pid);
-                    let color = proj.and_then(|p| p.color.as_ref()).and_then(|c| parse_hex_color(c));
+                    let color = project_color(app, pid);
                     let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
                     spans.push(Span::styled(proj_name.to_string(), style));
                 }
@@ -290,7 +312,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16, form: &Form) {
-    let popup_area = centered_rect(65, percent_y, area);
+    let popup_area = centered_rect(layout::FILTER_ENTRIES_WIDTH, percent_y, area);
     frame.render_widget(Clear, popup_area);
 
     let block = Block::default().title(title).borders(Borders::ALL);
@@ -385,7 +407,7 @@ fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_add_project(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddProject(form) = &app.mode {
-        render_form_modal(frame, area, " Add Project ", 55, form);
+        render_form_modal(frame, area, " Add Project ", layout::ADD_PROJECT_WIDTH, form);
     }
 }
 
@@ -397,7 +419,7 @@ fn render_list_panel(
     selected: usize,
     empty_msg: &str,
 ) {
-    let popup_area = centered_rect(60, 75, area);
+    let popup_area = centered_rect(layout::MODAL_WIDTH, layout::MODAL_HEIGHT, area);
     frame.render_widget(Clear, popup_area);
 
     let block = Block::default().title(title).borders(Borders::ALL);
@@ -473,13 +495,13 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_edit_project(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditProject { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Project ", 55, form);
+        render_form_modal(frame, area, " Edit Project ", layout::EDIT_PROJECT_WIDTH, form);
     }
 }
 
 fn render_add_task(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddTask(form) = &app.mode {
-        render_form_modal(frame, area, " Add Task ", 55, form);
+        render_form_modal(frame, area, " Add Task ", layout::ADD_TASK_WIDTH, form);
     }
 }
 
@@ -507,8 +529,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             .iter()
             .map(|t| {
                 let proj_name = app.project_name(&t.project_id);
-                let proj = app.projects.iter().find(|p| p.id == t.project_id);
-                let color = proj.and_then(|p| p.color.as_ref()).and_then(|c| parse_hex_color(c));
+                let color = project_color(app, &t.project_id);
                 let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
 
                 let mut spans = vec![Span::raw(format!("{} (", t.name))];
@@ -519,7 +540,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             })
             .collect();
 
-        let popup_area = centered_rect(60, 75, area);
+        let popup_area = centered_rect(layout::MODAL_WIDTH, layout::MODAL_HEIGHT, area);
         frame.render_widget(Clear, popup_area);
 
         let block = Block::default().title(title.as_str()).borders(Borders::ALL);
@@ -561,7 +582,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_edit_task(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditTask { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Task ", 55, form);
+        render_form_modal(frame, area, " Edit Task ", layout::EDIT_TASK_WIDTH, form);
     }
 }
 
@@ -590,7 +611,7 @@ fn render_confirm_delete(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_help(frame: &mut Frame, area: Rect) {
-    let popup_area = centered_rect(55, 80, area);
+    let popup_area = centered_rect(layout::ADD_PROJECT_WIDTH, 80, area);
     frame.render_widget(Clear, popup_area);
     let block = Block::default().title(" Help ").borders(Borders::ALL);
     let inner = block.inner(popup_area);
@@ -750,19 +771,19 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_filter(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::Filter(form) = &app.mode {
-        render_form_modal(frame, area, " Filter Entries ", 65, form);
+        render_form_modal(frame, area, " Filter Entries ", layout::FILTER_ENTRIES_WIDTH, form);
     }
 }
 
 fn render_filter_tasks(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::FilterTasks(form) = &app.mode {
-        render_form_modal(frame, area, " Filter Tasks ", 65, form);
+        render_form_modal(frame, area, " Filter Tasks ", layout::FILTER_TASKS_WIDTH, form);
     }
 }
 
 fn render_filter_projects(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::FilterProjects(form) = &app.mode {
-        render_form_modal(frame, area, " Filter Projects ", 65, form);
+        render_form_modal(frame, area, " Filter Projects ", layout::FILTER_PROJECTS_WIDTH, form);
     }
 }
 

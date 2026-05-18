@@ -18,6 +18,7 @@ pub fn list(
     storage: &dyn Storage,
     user_id: &str,
     format: &str,
+    color: bool,
 ) -> Result<()> {
     let svc = ProjectService::new(storage, user_id);
     let projects = svc.list(args.archived)?;
@@ -37,7 +38,7 @@ pub fn list(
             serde_json::to_string_pretty(&values).unwrap_or_default()
         );
     } else {
-        output::print_projects(&projects, format);
+        output::print_projects(&projects, format, color);
     }
     Ok(())
 }
