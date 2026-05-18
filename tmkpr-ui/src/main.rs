@@ -61,6 +61,8 @@ fn run_app(
 ) -> anyhow::Result<()> {
     let mut app = App::new(storage, user_id);
     app.refresh()?;
+    app.load_ui_state()?;
+    app.status = None;
 
     let tick = Duration::from_millis(250);
     let mut last_tick = Instant::now();
@@ -86,5 +88,6 @@ fn run_app(
         }
     }
 
+    let _ = app.save_ui_state();
     Ok(())
 }

@@ -11,6 +11,7 @@ use tmkpr_lib::{
     nlp::parser::{parse_datetime, TimeFormat},
     service::{CommentService, EntryService, ProjectService, TaskService, WeekReport},
     storage::Storage,
+    ui_state::UiState,
 };
 
 use crate::form::{Field, Form};
@@ -209,6 +210,47 @@ impl TaskSort {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum EntrySort {
+    StartDesc,
+    Start,
+    DurationDesc,
+    Duration,
+    Project,
+}
+
+impl EntrySort {
+    pub fn label(&self) -> &'static str {
+        match self {
+            EntrySort::StartDesc => "Newest first",
+            EntrySort::Start => "Oldest first",
+            EntrySort::DurationDesc => "Longest first",
+            EntrySort::Duration => "Shortest first",
+            EntrySort::Project => "Project (A-Z)",
+        }
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            EntrySort::StartDesc => EntrySort::Start,
+            EntrySort::Start => EntrySort::DurationDesc,
+            EntrySort::DurationDesc => EntrySort::Duration,
+            EntrySort::Duration => EntrySort::Project,
+            EntrySort::Project => EntrySort::StartDesc,
+        }
+    }
+
+    pub fn from_label(s: &str) -> Option<Self> {
+        match s {
+            "Newest first" => Some(EntrySort::StartDesc),
+            "Oldest first" => Some(EntrySort::Start),
+            "Longest first" => Some(EntrySort::DurationDesc),
+            "Shortest first" => Some(EntrySort::Duration),
+            "Project (A-Z)" => Some(EntrySort::Project),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct TaskFilter {
@@ -354,6 +396,7 @@ pub struct App {
     pub status: Option<(String, bool)>,
     pub entry_filter: EntryFilterInput,
     pub entries_with_comments: HashSet<String>,
+    pub entry_sort: EntrySort,
     pub project_sort: ProjectSort,
     pub project_filter: ProjectFilter,
     pub task_sort: TaskSort,
@@ -379,6 +422,7 @@ impl App {
             status: None,
             entry_filter: EntryFilterInput::default(),
             entries_with_comments: HashSet::new(),
+            entry_sort: EntrySort::StartDesc,
             project_sort: ProjectSort::Name,
             project_filter: ProjectFilter::default(),
             task_sort: TaskSort::Name,
@@ -406,6 +450,7 @@ impl App {
                 until: self.entry_filter.until,
                 ..Default::default()
             })?;
+            self.apply_entry_sort();
         }
         {
             let now = Local::now();
@@ -1133,6 +1178,42 @@ impl App {
         self.entries_with_comments.contains(entry_id)
     }
 
+    fn apply_entry_sort(&mut self) {
+        match self.entry_sort {
+            EntrySort::StartDesc => {
+                self.entries.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+            }
+            EntrySort::Start => {
+                self.entries.sort_by(|a, b| a.started_at.cmp(&b.started_at));
+            }
+            EntrySort::DurationDesc => {
+                self.entries.sort_by(|a, b| {
+                    let a_secs = a.elapsed().num_seconds();
+                    let b_secs = b.elapsed().num_seconds();
+                    b_secs.cmp(&a_secs)
+                });
+            }
+            EntrySort::Duration => {
+                self.entries.sort_by(|a, b| {
+                    let a_secs = a.elapsed().num_seconds();
+                    let b_secs = b.elapsed().num_seconds();
+                    a_secs.cmp(&b_secs)
+                });
+            }
+            EntrySort::Project => {
+                let project_map: std::collections::HashMap<&str, &str> = self.projects
+                    .iter()
+                    .map(|p| (p.id.as_str(), p.name.as_str()))
+                    .collect();
+                self.entries.sort_by(|a, b| {
+                    let a_proj = a.project_id.as_deref().and_then(|pid| project_map.get(pid)).copied().unwrap_or("?");
+                    let b_proj = b.project_id.as_deref().and_then(|pid| project_map.get(pid)).copied().unwrap_or("?");
+                    a_proj.cmp(&b_proj)
+                });
+            }
+        }
+    }
+
     pub fn open_filter_modal(&mut self) {
         let projects = self.project_names();
         self.mode = AppMode::Filter(Form {
@@ -1145,6 +1226,10 @@ impl App {
     }
 
     pub fn apply_filter(&mut self, project: &str, date_str: &str) -> anyhow::Result<()> {
+        self.apply_filter_internal(project, date_str, true)
+    }
+
+    fn apply_filter_internal(&mut self, project: &str, date_str: &str, show_message: bool) -> anyhow::Result<()> {
         self.entry_filter.project_name = project.to_string();
         self.entry_filter.date_str = date_str.to_string();
 
@@ -1161,7 +1246,39 @@ impl App {
         self.entry_filter.until = until;
 
         self.refresh()?;
-        self.status = Some(("Filter applied.".into(), false));
+        if show_message && !project.is_empty() {
+            self.status = Some(("Filter applied.".into(), false));
+        } else if show_message {
+            self.status = None;
+        }
+        Ok(())
+    }
+
+    pub fn load_ui_state(&mut self) -> anyhow::Result<()> {
+        match UiState::load() {
+            Ok(state) => {
+                if !state.entry_filter_project.is_empty() || !state.entry_filter_date.is_empty() {
+                    self.apply_filter(&state.entry_filter_project, &state.entry_filter_date)?;
+                }
+                if !state.entry_sort.is_empty() {
+                    if let Some(sort) = EntrySort::from_label(&state.entry_sort) {
+                        self.entry_sort = sort;
+                        self.apply_entry_sort();
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+        Ok(())
+    }
+
+    pub fn save_ui_state(&self) -> anyhow::Result<()> {
+        let state = UiState {
+            entry_sort: self.entry_sort.label().to_string(),
+            entry_filter_project: self.entry_filter.project_name.clone(),
+            entry_filter_date: self.entry_filter.date_str.clone(),
+        };
+        state.save()?;
         Ok(())
     }
 }

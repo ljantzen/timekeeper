@@ -68,6 +68,27 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('f') => {
             app.open_filter_modal();
         }
+        KeyCode::Char('o') => {
+            app.entry_sort = app.entry_sort.next();
+            if let Err(e) = app.refresh() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('T') => {
+            if let Err(e) = app.apply_filter("", "today") {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('Y') => {
+            if let Err(e) = app.apply_filter("", "yesterday") {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('W') => {
+            if let Err(e) = app.apply_filter("", "this week") {
+                app.status = Some((e.to_string(), true));
+            }
+        }
         KeyCode::Char('r') => match app.refresh() {
             Ok(()) => app.status = Some(("Refreshed.".into(), false)),
             Err(e) => app.status = Some((e.to_string(), true)),

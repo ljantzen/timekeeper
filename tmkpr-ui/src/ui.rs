@@ -149,7 +149,14 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
         if !app.entry_filter.date_str.is_empty() {
             parts.push(app.entry_filter.date_str.clone());
         }
-        format!(" Entries ({}) [{}] ", app.entries.len(), parts.join(", "))
+        let sort_part = if app.entry_sort != crate::app::EntrySort::StartDesc {
+            format!(" [{}]", app.entry_sort.label())
+        } else {
+            String::new()
+        };
+        format!(" Entries ({}) [{}]{} ", app.entries.len(), parts.join(", "), sort_part)
+    } else if app.entry_sort != crate::app::EntrySort::StartDesc {
+        format!(" Entries ({}) [{}] ", app.entries.len(), app.entry_sort.label())
     } else {
         format!(" Entries ({}) ", app.entries.len())
     };
@@ -284,7 +291,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [x]stop  [e]dit  [d]el  [f]ilter  [c]omments  [C]comment  [p]roject  [t]ask  [r]efresh  [?]help  [q]uit",
+            " [s]tart  [x]stop  [e]dit  [d]el  [f]ilter  [o]rder  [T/Y/W]uick dates  [c]omments  [p]roject  [t]ask  [r]efresh  [?]",
             Style::default().fg(Color::DarkGray),
         )),
     };
@@ -652,6 +659,14 @@ fn render_help(frame: &mut Frame, area: Rect) {
             Line::from(vec![
                 Span::styled("  f      ", bold),
                 Span::raw("Filter entries by project / date"),
+            ]),
+            Line::from(vec![
+                Span::styled("  o      ", bold),
+                Span::raw("Cycle sort order"),
+            ]),
+            Line::from(vec![
+                Span::styled("  T/Y/W  ", bold),
+                Span::raw("Quick filter: Today / Yesterday / This week"),
             ]),
             Line::from(vec![
                 Span::styled("  c      ", bold),

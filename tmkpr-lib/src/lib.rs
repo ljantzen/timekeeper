@@ -4,4 +4,5 @@ pub mod models;
 pub mod nlp;
 pub mod service;
 pub mod storage;
+pub mod ui_state;
 pub mod util;
