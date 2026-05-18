@@ -511,9 +511,9 @@ impl App {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
             svc.add(Some(&entry_id), body)?;
         }
+        self.entries_with_comments.insert(entry_id.clone());
         self.refresh_comments_mode(entry_id, 0)?;
         self.status = Some(("Comment added.".into(), false));
-        self.refresh()?;
         Ok(())
     }
 
@@ -543,9 +543,13 @@ impl App {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
             svc.delete(&comment_id)?;
         }
-        self.refresh_comments_mode(entry_id, 0)?;
+        self.refresh_comments_mode(entry_id.clone(), 0)?;
+        if let AppMode::Comments { comments, .. } = &self.mode {
+            if comments.is_empty() {
+                self.entries_with_comments.remove(&entry_id);
+            }
+        }
         self.status = Some(("Comment deleted.".into(), false));
-        self.refresh()?;
         Ok(())
     }
 
