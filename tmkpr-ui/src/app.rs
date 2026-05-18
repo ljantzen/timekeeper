@@ -522,6 +522,34 @@ impl App {
         });
     }
 
+    pub fn open_start_modal_from_selected(&mut self) {
+        if self.entries.is_empty() {
+            return;
+        }
+        let entry = &self.entries[self.selected];
+        let projects = self.project_names();
+        let tasks = self.task_names();
+        let project_val = entry
+            .project_id
+            .as_deref()
+            .map(|pid| self.project_name(pid).to_string())
+            .unwrap_or_default();
+        let task_val = entry
+            .task_id
+            .as_deref()
+            .map(|tid| self.task_name(tid).to_string())
+            .unwrap_or_default();
+        self.mode = AppMode::StartModal(Form {
+            fields: vec![
+                Field::new("Project", &project_val).with_completions(projects),
+                Field::new("Task", &task_val).with_completions(tasks),
+                Field::new("Note", ""),
+                Field::new("Tags (comma-separated)", ""),
+            ],
+            focused: 0,
+        });
+    }
+
     pub fn open_edit_modal(&mut self) {
         let entry = &self.entries[self.selected];
         let id = entry.id.clone();

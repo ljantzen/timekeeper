@@ -46,6 +46,13 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some(("Already tracking. Stop first with [x].".into(), true));
             }
         }
+        KeyCode::Char('S') => {
+            if app.active_entry.is_none() {
+                app.open_start_modal_from_selected();
+            } else {
+                app.status = Some(("Already tracking. Stop first with [x].".into(), true));
+            }
+        }
         KeyCode::Char('x') => {
             if app.active_entry.is_some() {
                 if let Err(e) = app.stop_active() {

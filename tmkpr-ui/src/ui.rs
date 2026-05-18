@@ -291,7 +291,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [x]stop  [e]dit  [d]el  [f]ilter  [o]rder  [T/Y/W]uick dates  [c]omments  [p]roject  [t]ask  [r]efresh  [?]",
+            " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]roject  [?]",
             Style::default().fg(Color::DarkGray),
         )),
     };
@@ -643,6 +643,10 @@ fn render_help(frame: &mut Frame, area: Rect) {
             Line::from(vec![
                 Span::styled("  s      ", bold),
                 Span::raw("Start new entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  S      ", bold),
+                Span::raw("Start entry with same project/task as selected"),
             ]),
             Line::from(vec![
                 Span::styled("  x      ", bold),
