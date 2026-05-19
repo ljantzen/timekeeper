@@ -1,4 +1,16 @@
 use crate::app::{App, CompletedSession, Screen, TimerState};
+
+fn hex_to_rgb(hex: &str) -> Option<Color> {
+    let h = hex.trim_start_matches('#');
+    if h.len() == 6 {
+        let r = u8::from_str_radix(&h[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&h[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&h[4..6], 16).ok()?;
+        Some(Color::Rgb(r, g, b))
+    } else {
+        None
+    }
+}
 use ratatui::{
     prelude::*,
     text::{Line, Span},
@@ -97,12 +109,19 @@ fn draw_projects(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(idx, proj)| {
-            let content = if idx == selected {
-                format!("▶ {}", proj.name)
-            } else {
-                format!("  {}", proj.name)
-            };
-            ListItem::new(content)
+            let is_selected = idx == selected;
+            let prefix = if is_selected { "▶ " } else { "  " };
+            let mut style = Style::default();
+            if let Some(c) = proj.color.as_deref().and_then(hex_to_rgb) {
+                style = style.fg(c);
+            }
+            if is_selected {
+                style = style.add_modifier(Modifier::BOLD);
+            }
+            ListItem::new(Line::from(Span::styled(
+                format!("{prefix}{}", proj.name),
+                style,
+            )))
         })
         .collect();
 
@@ -116,17 +135,26 @@ fn draw_projects(f: &mut Frame, app: &App, area: Rect) {
 fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
     let tasks = app.tasks();
     let selected = app.selected_task_idx();
+    let proj_color = app
+        .selected_project()
+        .and_then(|p| p.color.as_deref())
+        .and_then(hex_to_rgb)
+        .unwrap_or(Color::White);
 
     let items: Vec<ListItem> = tasks
         .iter()
         .enumerate()
         .map(|(idx, task)| {
-            let content = if idx == selected {
-                format!("▶ {}", task.name)
-            } else {
-                format!("  {}", task.name)
-            };
-            ListItem::new(content)
+            let is_selected = idx == selected;
+            let prefix = if is_selected { "▶ " } else { "  " };
+            let mut style = Style::default().fg(proj_color);
+            if is_selected {
+                style = style.add_modifier(Modifier::BOLD);
+            }
+            ListItem::new(Line::from(Span::styled(
+                format!("{prefix}{}", task.name),
+                style,
+            )))
         })
         .collect();
 
@@ -149,12 +177,17 @@ fn draw_sessions(f: &mut Frame, app: &App, area: Rect) {
             let num = total - idx;
             let mins = s.duration.as_secs() / 60;
             let secs = s.duration.as_secs() % 60;
-            let text = if s.project.is_empty() {
-                format!("#{num}  {mins:02}:{secs:02}")
+            let proj_color = s.color.as_deref().and_then(hex_to_rgb).unwrap_or(Color::White);
+            let line = if s.project.is_empty() {
+                Line::from(format!("#{num}  {mins:02}:{secs:02}"))
             } else {
-                format!("#{num}  {} / {} ({mins:02}:{secs:02})", s.project, s.task)
+                Line::from(vec![
+                    Span::raw(format!("#{num}  ")),
+                    Span::styled(&*s.project, Style::default().fg(proj_color)),
+                    Span::raw(format!(" / {} ({mins:02}:{secs:02})", s.task)),
+                ])
             };
-            ListItem::new(text)
+            ListItem::new(line)
         })
         .collect();
 

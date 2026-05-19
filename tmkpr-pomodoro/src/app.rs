@@ -11,6 +11,7 @@ pub struct CompletedSession {
     pub project: String,
     pub task: String,
     pub duration: Duration,
+    pub color: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -200,11 +201,12 @@ impl<'a> App<'a> {
             let elapsed = self.elapsed;
             let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
             let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
+            let color = self.selected_project().and_then(|p| p.color.clone());
 
             let svc = EntryService::new(self.storage, self.user_id);
             svc.stop(None)?;
 
-            self.completed_sessions.push(CompletedSession { project: proj, task, duration: elapsed });
+            self.completed_sessions.push(CompletedSession { project: proj, task, duration: elapsed, color });
             if self.completed_sessions.len() > 20 {
                 self.completed_sessions.remove(0);
             }
@@ -341,10 +343,12 @@ impl<'a> App<'a> {
                 if self.timer_state == TimerState::Running && self.elapsed > self.work_duration {
                     let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
                     let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
+                    let color = self.selected_project().and_then(|p| p.color.clone());
                     self.completed_sessions.push(CompletedSession {
                         project: proj,
                         task,
                         duration: self.work_duration,
+                        color,
                     });
                     if self.completed_sessions.len() > 20 {
                         self.completed_sessions.remove(0);
