@@ -373,4 +373,76 @@ mod tests {
             }
         ));
     }
+
+    #[test]
+    fn complete_marks_task_done() {
+        let s = storage();
+        let proj = setup_project(&s);
+        let svc = TaskService::new(&s, LOCAL_USER_ID);
+        svc.add(&proj, "mytask", None).unwrap();
+        let done = svc.complete(&proj, "mytask").unwrap();
+        assert!(done.completed);
+    }
+
+    #[test]
+    fn reactivate_clears_completed_flag() {
+        let s = storage();
+        let proj = setup_project(&s);
+        let svc = TaskService::new(&s, LOCAL_USER_ID);
+        svc.add(&proj, "mytask", None).unwrap();
+        svc.complete(&proj, "mytask").unwrap();
+        let active = svc.reactivate(&proj, "mytask").unwrap();
+        assert!(!active.completed);
+    }
+
+    #[test]
+    fn complete_unknown_project_errors() {
+        let s = storage();
+        let err = TaskService::new(&s, LOCAL_USER_ID)
+            .complete("ghost", "task")
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn complete_unknown_task_errors() {
+        let s = storage();
+        let proj = setup_project(&s);
+        let err = TaskService::new(&s, LOCAL_USER_ID)
+            .complete(&proj, "ghost")
+            .unwrap_err();
+        assert!(matches!(err, TmkprError::NotFound { entity: "task", .. }));
+    }
+
+    #[test]
+    fn reactivate_unknown_project_errors() {
+        let s = storage();
+        let err = TaskService::new(&s, LOCAL_USER_ID)
+            .reactivate("ghost", "task")
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            TmkprError::NotFound {
+                entity: "project",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn complete_by_num_id() {
+        let s = storage();
+        let proj = setup_project(&s);
+        let svc = TaskService::new(&s, LOCAL_USER_ID);
+        svc.add(&proj, "first", None).unwrap();
+        let done = svc.complete(&proj, "1").unwrap();
+        assert!(done.completed);
+        assert_eq!(done.name, "first");
+    }
 }

@@ -887,6 +887,110 @@ mod tests {
     }
 
     #[test]
+    fn new_task_defaults_to_not_completed() {
+        let s = storage();
+        let p = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let task = s
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: p.id.clone(),
+                name: "work".to_string(),
+                description: None,
+            })
+            .unwrap();
+        assert!(!task.completed);
+    }
+
+    #[test]
+    fn update_task_completed_roundtrip() {
+        let s = storage();
+        let p = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let task = s
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: p.id.clone(),
+                name: "work".to_string(),
+                description: None,
+            })
+            .unwrap();
+
+        let done = s
+            .update_task(
+                &task.id,
+                UpdateTask {
+                    completed: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(done.completed);
+
+        // Persisted: re-fetch confirms the flag
+        assert!(s.get_task(&task.id).unwrap().completed);
+
+        // Reactivate
+        let active = s
+            .update_task(
+                &task.id,
+                UpdateTask {
+                    completed: Some(false),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(!active.completed);
+        assert!(!s.get_task(&task.id).unwrap().completed);
+    }
+
+    #[test]
+    fn completed_task_visible_in_list() {
+        let s = storage();
+        let p = s
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let task = s
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: p.id.clone(),
+                name: "work".to_string(),
+                description: None,
+            })
+            .unwrap();
+        s.update_task(
+            &task.id,
+            UpdateTask {
+                completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // completed tasks are NOT archived — they still appear in normal listing
+        let tasks = s.list_tasks(&p.id, false).unwrap();
+        assert_eq!(tasks.len(), 1);
+        assert!(tasks[0].completed);
+    }
+
+    #[test]
     fn duplicate_task_is_conflict() {
         let s = storage();
         let p = s

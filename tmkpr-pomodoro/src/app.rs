@@ -972,4 +972,93 @@ mod tests {
         );
         assert_eq!(app.settings_state().0.sound_work_to_break, None);
     }
+
+    // ── task completion ───────────────────────────────────────────────────────
+
+    fn seed_project_and_task(s: &dyn Storage) {
+        use tmkpr_lib::models::project::NewProject;
+        use tmkpr_lib::models::task::NewTask;
+        let p = s
+            .create_project(NewProject {
+                user_id: "local".to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        s.create_task(NewTask {
+            user_id: "local".to_string(),
+            project_id: p.id.clone(),
+            name: "task".to_string(),
+            description: None,
+        })
+        .unwrap();
+    }
+
+    fn seed_and_make_app(s: &dyn Storage) -> App<'_> {
+        seed_project_and_task(s);
+        make_app(s)
+    }
+
+    #[test]
+    fn task_complete_toggle_marks_task_done() {
+        let s = storage();
+        let mut app = seed_and_make_app(&s);
+        assert_eq!(app.tasks().len(), 1);
+        assert!(!app.tasks()[0].completed);
+
+        app.task_complete_toggle().unwrap();
+
+        assert!(app.tasks()[0].completed);
+        assert_eq!(app.message(), Some("Task marked completed."));
+    }
+
+    #[test]
+    fn task_complete_toggle_reactivates_completed_task() {
+        let s = storage();
+        let mut app = seed_and_make_app(&s);
+        app.task_complete_toggle().unwrap();
+        app.task_complete_toggle().unwrap();
+        assert!(!app.tasks()[0].completed);
+        assert_eq!(app.message(), Some("Task reactivated."));
+    }
+
+    #[test]
+    fn start_timer_blocked_when_task_completed() {
+        let s = storage();
+        let mut app = seed_and_make_app(&s);
+        app.task_complete_toggle().unwrap();
+        assert!(app.tasks()[0].completed);
+
+        app.start_timer().unwrap();
+
+        assert_eq!(app.timer_state(), TimerState::Stopped);
+        assert_eq!(
+            app.message(),
+            Some("Task is completed. Reactivate it first.")
+        );
+    }
+
+    #[test]
+    fn start_timer_allowed_after_reactivation() {
+        let s = storage();
+        let mut app = seed_and_make_app(&s);
+        app.task_complete_toggle().unwrap();
+        app.task_complete_toggle().unwrap();
+
+        app.start_timer().unwrap();
+        assert_eq!(app.timer_state(), TimerState::Running);
+    }
+
+    #[test]
+    fn task_complete_toggle_noop_when_timer_running() {
+        let s = storage();
+        let mut app = seed_and_make_app(&s);
+        app.start_timer().unwrap();
+        assert_eq!(app.timer_state(), TimerState::Running);
+
+        app.task_complete_toggle().unwrap();
+
+        assert!(!app.tasks()[0].completed);
+    }
 }

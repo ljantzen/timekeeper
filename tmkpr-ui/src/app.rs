@@ -1988,4 +1988,72 @@ mod tests {
         let updated = app.entries.iter().find(|e| e.id == target.id).unwrap();
         assert_eq!(updated.finished_at, Some(t2));
     }
+
+    // ── task completion ───────────────────────────────────────────────────────
+
+    fn setup_project_and_task(app: &App) -> (String, String) {
+        use tmkpr_lib::models::project::NewProject;
+        use tmkpr_lib::models::task::NewTask;
+        let p = app
+            .storage
+            .create_project(NewProject {
+                user_id: LOCAL_USER_ID.to_string(),
+                name: "proj".to_string(),
+                description: None,
+                color: None,
+            })
+            .unwrap();
+        let t = app
+            .storage
+            .create_task(NewTask {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: p.id.clone(),
+                name: "task".to_string(),
+                description: None,
+            })
+            .unwrap();
+        (p.id, t.id)
+    }
+
+    #[test]
+    fn toggle_complete_marks_task_done() {
+        let mut app = make_app();
+        let (_pid, tid) = setup_project_and_task(&app);
+        app.refresh().unwrap();
+        app.open_manage_tasks();
+        app.toggle_complete_selected_task().unwrap();
+        assert!(app.storage.get_task(&tid).unwrap().completed);
+        assert_eq!(app.status.as_ref().unwrap().0, "Task marked completed.");
+    }
+
+    #[test]
+    fn toggle_complete_reactivates_already_completed_task() {
+        let mut app = make_app();
+        let (_pid, tid) = setup_project_and_task(&app);
+        // pre-mark as completed
+        use tmkpr_lib::models::task::UpdateTask;
+        app.storage
+            .update_task(
+                &tid,
+                UpdateTask {
+                    completed: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        app.refresh().unwrap();
+        app.open_manage_tasks();
+        app.toggle_complete_selected_task().unwrap();
+        assert!(!app.storage.get_task(&tid).unwrap().completed);
+        assert_eq!(app.status.as_ref().unwrap().0, "Task reactivated.");
+    }
+
+    #[test]
+    fn toggle_complete_noop_when_no_tasks() {
+        let mut app = make_app();
+        app.refresh().unwrap();
+        app.open_manage_tasks();
+        // should not panic or error
+        app.toggle_complete_selected_task().unwrap();
+    }
 }
