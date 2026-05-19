@@ -1,5 +1,4 @@
 use anyhow::Result;
-use chrono::Utc;
 use std::io::Write;
 use std::time::{Duration, Instant};
 use tmkpr_lib::{
@@ -130,6 +129,13 @@ impl<'a> App<'a> {
             self.session_start = Some(Instant::now());
             self.elapsed = Duration::ZERO;
             self.message = Some("Timer started! Press space to pause.".to_string());
+
+            let svc = EntryService::new(self.storage, self.user_id);
+            if let Some(proj) = self.selected_project() {
+                if let Some(task) = self.selected_task() {
+                    let _ = svc.start(Some(&proj.name), Some(&task.name), None, vec![], None);
+                }
+            }
             Ok(())
         } else {
             Ok(())
@@ -139,10 +145,16 @@ impl<'a> App<'a> {
     pub fn start_break(&mut self) -> Result<()> {
         if self.timer_state == TimerState::Stopped {
             self.work_sessions_completed += 1;
+            let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+
+            if is_long_break {
+                let svc = EntryService::new(self.storage, self.user_id);
+                let _ = svc.stop(None);
+            }
+
             self.timer_state = TimerState::Break;
             self.session_start = Some(Instant::now());
             self.elapsed = Duration::ZERO;
-            let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
             let break_msg = if is_long_break {
                 "Break started! (Long break)"
             } else {
@@ -176,26 +188,9 @@ impl<'a> App<'a> {
 
     pub fn log_session(&mut self) -> Result<()> {
         if self.timer_state != TimerState::Stopped && self.elapsed > Duration::ZERO {
-            let project = self.selected_project();
-            let task = self.selected_task();
-
-            if let (Some(proj), Some(t)) = (project, task) {
-                let now = Utc::now();
-                let started_at = now - chrono::Duration::seconds(self.elapsed.as_secs() as i64);
-                let svc = EntryService::new(self.storage, self.user_id);
-                svc.log(
-                    Some(&proj.name),
-                    Some(&t.name),
-                    None,
-                    vec![],
-                    started_at,
-                    now,
-                )?;
-                self.message = Some("Session logged!".to_string());
-            } else {
-                self.message = Some("Please select a project and task.".to_string());
-            }
-
+            let svc = EntryService::new(self.storage, self.user_id);
+            svc.stop(None)?;
+            self.message = Some("Session logged!".to_string());
             self.reset();
             Ok(())
         } else {
@@ -205,6 +200,9 @@ impl<'a> App<'a> {
     }
 
     pub fn reset(&mut self) {
+        let svc = EntryService::new(self.storage, self.user_id);
+        let _ = svc.stop(None);
+
         self.timer_state = TimerState::Stopped;
         self.elapsed = Duration::ZERO;
         self.session_start = None;
@@ -317,13 +315,18 @@ impl<'a> App<'a> {
     }
 
     pub fn update(&mut self) {
-        if self.timer_state == TimerState::Running {
+        if matches!(self.timer_state, TimerState::Running | TimerState::Break) {
             if let Some(start) = self.session_start {
                 self.elapsed = start.elapsed();
 
                 if self.elapsed > self.work_duration {
                     self.work_sessions_completed += 1;
                     let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+
+                    if is_long_break {
+                        let svc = EntryService::new(self.storage, self.user_id);
+                        let _ = svc.stop(None);
+                    }
 
                     if self.auto_start_break {
                         self.timer_state = TimerState::Break;
