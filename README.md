@@ -2,18 +2,20 @@
 
 A time tracker written in Rust. Tracks time against projects and tasks, stored locally in SQLite.
 
-Two interfaces are available:
+Three interfaces are available:
 
 - **[tmkpr-cli](tmkpr-cli/README.md)** — `tmkpr`, a full-featured command-line tool
 - **[tmkpr-ui](tmkpr-ui/README.md)** — `tmkpr-ui`, a terminal dashboard built with ratatui
+- **[tmkpr-pomodoro](tmkpr-pomodoro/README.md)** — `tmkpr-pomodoro`, a Pomodoro timer that logs sessions to the database
 
-Both share the same database and config.
+All three share the same database and config.
 
 ## Install
 
 ```
 cargo install --path tmkpr-cli
 cargo install --path tmkpr-ui
+cargo install --path tmkpr-pomodoro
 ```
 
 ## Storage and config
