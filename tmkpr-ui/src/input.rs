@@ -100,6 +100,13 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             Ok(()) => app.status = Some(("Refreshed.".into(), false)),
             Err(e) => app.status = Some((e.to_string(), true)),
         },
+        KeyCode::Char('m') => {
+            if !app.entries.is_empty() {
+                if let Err(e) = app.merge_with_next() {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
         KeyCode::Char('c') => {
             if !app.entries.is_empty() {
                 if let Err(e) = app.open_comments() {

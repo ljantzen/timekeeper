@@ -291,7 +291,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]roject  [?]",
+            " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [m]erge  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]roject  [?]",
             Style::default().fg(Color::DarkGray),
         )),
     };
@@ -659,6 +659,10 @@ fn render_help(frame: &mut Frame, area: Rect) {
             Line::from(vec![
                 Span::styled("  d      ", bold),
                 Span::raw("Delete selected entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  m      ", bold),
+                Span::raw("Merge selected entry into the next entry (same project/task)"),
             ]),
             Line::from(vec![
                 Span::styled("  f      ", bold),

@@ -3,7 +3,7 @@ use ratatui::widgets::ListState;
 use std::collections::HashSet;
 use tmkpr_lib::{
     models::{
-        comment::Comment,
+        comment::{Comment, NewComment},
         entry::{parse_tags, Entry, EntryFilter, UpdateEntry},
         project::{Project, UpdateProject},
         task::{Task, UpdateTask},
@@ -746,6 +746,82 @@ impl App {
         Ok(())
     }
 
+    pub fn merge_with_next(&mut self) -> anyhow::Result<()> {
+        if self.entries.is_empty() {
+            return Ok(());
+        }
+
+        let first = self.entries[self.selected].clone();
+
+        // Find the chronologically nearest entry after `first` with the same project and task.
+        let second = {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            let mut candidates = svc.list(EntryFilter {
+                user_id: self.user_id.clone(),
+                from: Some(first.started_at),
+                include_active: true,
+                ..Default::default()
+            })?;
+            candidates.retain(|e| {
+                e.id != first.id
+                    && e.project_id == first.project_id
+                    && e.task_id == first.task_id
+                    && e.started_at > first.started_at
+            });
+            candidates.sort_by_key(|e| e.started_at);
+            candidates.into_iter().next()
+        };
+
+        let second = match second {
+            Some(e) => e,
+            None => {
+                return Err(anyhow::anyhow!(
+                    "No subsequent entry with the same project and task found."
+                ));
+            }
+        };
+
+        // Prepend first's note to second's unless they are identical.
+        let merged_note = match (&first.note, &second.note) {
+            (Some(a), Some(b)) if a == b => Some(b.clone()),
+            (Some(a), Some(b)) => Some(format!("{}\n{}", a, b)),
+            (Some(a), None) => Some(a.clone()),
+            (None, note) => note.clone(),
+        };
+
+        // Move comments from first to second before deletion cascades them away.
+        let comments = self.storage.list_comments(&first.id)?;
+        for comment in comments {
+            self.storage.create_comment(NewComment {
+                entry_id: second.id.clone(),
+                body: comment.body,
+            })?;
+        }
+
+        // Update second: adopt first's start time and merged note.
+        {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            svc.update(
+                &second.id,
+                UpdateEntry {
+                    note: Some(merged_note),
+                    started_at: Some(first.started_at),
+                    ..Default::default()
+                },
+            )?;
+        }
+
+        // Delete first; CASCADE removes its (now-moved) comments.
+        {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            svc.delete(&first.id)?;
+        }
+
+        self.refresh()?;
+        self.status = Some(("Entries merged.".into(), false));
+        Ok(())
+    }
+
     pub fn open_comments(&mut self) -> anyhow::Result<()> {
         let entry_id = self.entries[self.selected].id.clone();
         self.refresh_comments_mode(entry_id, 0)
@@ -1315,6 +1391,52 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::DateTime;
+    use tmkpr_lib::models::entry::NewEntry;
+    use tmkpr_lib::models::LOCAL_USER_ID;
+    use tmkpr_lib::storage::sqlite::SqliteStorage;
+
+    fn make_app() -> App {
+        let storage = SqliteStorage::open_in_memory().unwrap();
+        App::new(Box::new(storage), LOCAL_USER_ID.to_string())
+    }
+
+    fn finished(
+        app: &App,
+        note: Option<&str>,
+        started_at: DateTime<Utc>,
+        finished_at: DateTime<Utc>,
+    ) -> Entry {
+        app.storage
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: note.map(str::to_string),
+                started_at,
+                finished_at: Some(finished_at),
+                tags: vec![],
+            })
+            .unwrap()
+    }
+
+    fn active(app: &App, note: Option<&str>, started_at: DateTime<Utc>) -> Entry {
+        app.storage
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: note.map(str::to_string),
+                started_at,
+                finished_at: None,
+                tags: vec![],
+            })
+            .unwrap()
+    }
+
+    fn select(app: &mut App, id: &str) {
+        app.selected = app.entries.iter().position(|e| e.id == id).unwrap();
+    }
 
     #[test]
     fn parse_date_filter_empty_returns_none() {
@@ -1442,5 +1564,199 @@ mod tests {
         let mut filter = EntryFilterInput::default();
         filter.until = Some(Utc::now());
         assert!(filter.is_active());
+    }
+
+    // ── merge_with_next ───────────────────────────────────────────────────────
+
+    #[test]
+    fn merge_adopts_first_start_time() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = finished(&app, None, t0, t1);
+        finished(&app, None, t1, t2);
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        // Only one entry should remain.
+        assert_eq!(app.entries.len(), 1);
+        assert_eq!(app.entries[0].started_at, t0);
+        assert_eq!(app.entries[0].finished_at, Some(t2));
+    }
+
+    #[test]
+    fn merge_notes_prepended_when_distinct() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = finished(&app, Some("alpha"), t0, t1);
+        finished(&app, Some("beta"), t1, t2);
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        assert_eq!(app.entries[0].note.as_deref(), Some("alpha\nbeta"));
+    }
+
+    #[test]
+    fn merge_notes_unchanged_when_identical() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = finished(&app, Some("same"), t0, t1);
+        finished(&app, Some("same"), t1, t2);
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        assert_eq!(app.entries[0].note.as_deref(), Some("same"));
+    }
+
+    #[test]
+    fn merge_note_from_first_when_second_empty() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = finished(&app, Some("only first"), t0, t1);
+        finished(&app, None, t1, t2);
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        assert_eq!(app.entries[0].note.as_deref(), Some("only first"));
+    }
+
+    #[test]
+    fn merge_note_kept_when_first_empty() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = finished(&app, None, t0, t1);
+        finished(&app, Some("only second"), t1, t2);
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        assert_eq!(app.entries[0].note.as_deref(), Some("only second"));
+    }
+
+    #[test]
+    fn merge_moves_comments_to_second() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = finished(&app, None, t0, t1);
+        let second = finished(&app, None, t1, t2);
+
+        app.storage
+            .create_comment(NewComment {
+                entry_id: first.id.clone(),
+                body: "moved comment".to_string(),
+            })
+            .unwrap();
+
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        let comments = app.storage.list_comments(&second.id).unwrap();
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].body, "moved comment");
+
+        // First entry is gone; its original comments were cascade-deleted.
+        let first_comments = app.storage.list_comments(&first.id).unwrap();
+        assert!(first_comments.is_empty());
+    }
+
+    #[test]
+    fn merge_works_when_second_is_active() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(2);
+        let t1 = now - Duration::hours(1);
+
+        let first = finished(&app, Some("note"), t0, t1);
+        active(&app, None, t1);
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        app.merge_with_next().unwrap();
+
+        // First entry gone, active entry adopts first's start time and note.
+        assert!(app.entries.is_empty());
+        let merged = app.active_entry.as_ref().unwrap();
+        assert_eq!(merged.started_at, t0);
+        assert_eq!(merged.note.as_deref(), Some("note"));
+    }
+
+    #[test]
+    fn merge_errors_when_no_successor() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let first = finished(&app, None, now - Duration::hours(2), now - Duration::hours(1));
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        let err = app.merge_with_next().unwrap_err();
+        assert!(err.to_string().contains("No subsequent entry"));
+    }
+
+    #[test]
+    fn merge_skips_entries_with_different_project_or_task() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        // Create a real project so the foreign key constraint is satisfied.
+        let proj = ProjectService::new(app.storage.as_ref(), LOCAL_USER_ID)
+            .add("other-proj", None, None)
+            .unwrap();
+
+        // First entry: no project. Second entry: has a project — different from first.
+        let first = finished(&app, None, t0, t1);
+        app.storage
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj.id.clone()),
+                task_id: None,
+                note: None,
+                started_at: t1,
+                finished_at: Some(t2),
+                tags: vec![],
+            })
+            .unwrap();
+
+        app.refresh().unwrap();
+        select(&mut app, &first.id);
+
+        let err = app.merge_with_next().unwrap_err();
+        assert!(err.to_string().contains("No subsequent entry"));
     }
 }
