@@ -95,9 +95,16 @@ fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
     let active_line = if app.timer_state() != TimerState::Stopped {
         match (app.selected_project(), app.selected_task()) {
             (Some(proj), Some(task)) => {
-                let color = proj.color.as_deref().and_then(hex_to_rgb).unwrap_or(Color::White);
+                let color = proj
+                    .color
+                    .as_deref()
+                    .and_then(hex_to_rgb)
+                    .unwrap_or(Color::White);
                 Line::from(vec![
-                    Span::styled(proj.name.clone(), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        proj.name.clone(),
+                        Style::default().fg(color).add_modifier(Modifier::BOLD),
+                    ),
                     Span::raw(" / "),
                     Span::styled(task.name.clone(), Style::default().fg(color)),
                 ])
@@ -195,7 +202,11 @@ fn draw_sessions(f: &mut Frame, app: &App, area: Rect) {
             let num = total - idx;
             let mins = s.duration.as_secs() / 60;
             let secs = s.duration.as_secs() % 60;
-            let proj_color = s.color.as_deref().and_then(hex_to_rgb).unwrap_or(Color::White);
+            let proj_color = s
+                .color
+                .as_deref()
+                .and_then(hex_to_rgb)
+                .unwrap_or(Color::White);
             let line = if s.project.is_empty() {
                 Line::from(format!("#{num}  {mins:02}:{secs:02}"))
             } else {
@@ -244,7 +255,9 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         if selected {
             Line::from(Span::styled(
                 text,
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ))
         } else {
             Line::from(text)
@@ -253,7 +266,12 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 
     let sound_line = |label: &str, path: Option<&str>, field: SoundField| -> Line {
         let is_editing = editing == Some(field);
-        let is_selected = cursor == if field == SoundField::WorkToBreak { 8 } else { 9 };
+        let is_selected = cursor
+            == if field == SoundField::WorkToBreak {
+                8
+            } else {
+                9
+            };
         let value = if is_editing {
             format!("{buf}█")
         } else {
@@ -263,7 +281,9 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         if is_editing {
             Line::from(Span::styled(
                 text,
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ))
         } else {
             sel(text, is_selected)
@@ -278,23 +298,85 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 
     let lines: Vec<Line> = vec![
         Line::from(""),
-        sel(format!("  Work duration:       ◀  {} min  ▶", cfg.work_duration_minutes), cursor == 0),
-        sel(format!("  Break duration:      ◀  {} min  ▶", cfg.break_duration_minutes), cursor == 1),
-        sel(format!("  Sessions / cycle:    ◀  {}      ▶", cfg.sessions_before_long_break), cursor == 2),
-        sel(format!("  Long break:          ◀  {} min  ▶", cfg.long_break_duration_minutes), cursor == 3),
+        sel(
+            format!(
+                "  Work duration:       ◀  {} min  ▶",
+                cfg.work_duration_minutes
+            ),
+            cursor == 0,
+        ),
+        sel(
+            format!(
+                "  Break duration:      ◀  {} min  ▶",
+                cfg.break_duration_minutes
+            ),
+            cursor == 1,
+        ),
+        sel(
+            format!(
+                "  Sessions / cycle:    ◀  {}      ▶",
+                cfg.sessions_before_long_break
+            ),
+            cursor == 2,
+        ),
+        sel(
+            format!(
+                "  Long break:          ◀  {} min  ▶",
+                cfg.long_break_duration_minutes
+            ),
+            cursor == 3,
+        ),
         sel(
             format!(
                 "  Max cycles:          ◀  {}  ▶",
-                if cfg.max_cycles == 0 { "0 (unlimited)".to_string() } else { cfg.max_cycles.to_string() }
+                if cfg.max_cycles == 0 {
+                    "0 (unlimited)".to_string()
+                } else {
+                    cfg.max_cycles.to_string()
+                }
             ),
             cursor == 4,
         ),
-        sel(format!("  Desktop notify:         {}", if cfg.notify_desktop { "[✓] On" } else { "[ ] Off" }), cursor == 5),
-        sel(format!("  Message timeout:     ◀  {} sec  ▶", cfg.message_timeout_secs), cursor == 6),
-        sel(format!("  Auto-start break:       {}", if cfg.auto_start_break { "[✓] On" } else { "[ ] Off" }), cursor == 7),
+        sel(
+            format!(
+                "  Desktop notify:         {}",
+                if cfg.notify_desktop {
+                    "[✓] On"
+                } else {
+                    "[ ] Off"
+                }
+            ),
+            cursor == 5,
+        ),
+        sel(
+            format!(
+                "  Message timeout:     ◀  {} sec  ▶",
+                cfg.message_timeout_secs
+            ),
+            cursor == 6,
+        ),
+        sel(
+            format!(
+                "  Auto-start break:       {}",
+                if cfg.auto_start_break {
+                    "[✓] On"
+                } else {
+                    "[ ] Off"
+                }
+            ),
+            cursor == 7,
+        ),
         Line::from(""),
-        sound_line("Sound (work→break):", cfg.sound_work_to_break.as_deref(), SoundField::WorkToBreak),
-        sound_line("Sound (break→work):", cfg.sound_break_to_work.as_deref(), SoundField::BreakToWork),
+        sound_line(
+            "Sound (work→break):",
+            cfg.sound_work_to_break.as_deref(),
+            SoundField::WorkToBreak,
+        ),
+        sound_line(
+            "Sound (break→work):",
+            cfg.sound_break_to_work.as_deref(),
+            SoundField::BreakToWork,
+        ),
         Line::from(""),
         Line::from(Span::styled(
             "  Formats: WAV · MP3 · OGG · FLAC",
@@ -309,13 +391,17 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
     ];
 
     let block = Block::default().title("Settings").borders(Borders::ALL);
-    let paragraph = Paragraph::new(lines).block(block).alignment(Alignment::Left);
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .alignment(Alignment::Left);
     f.render_widget(paragraph, area);
 }
 
 fn draw_help(f: &mut Frame, area: Rect) {
-    let help_text = ["↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
-        "Space: Pause/Resume  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit"];
+    let help_text = [
+        "↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
+        "Space: Pause/Resume  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
+    ];
 
     let help = Paragraph::new(help_text.join("\n"))
         .block(Block::default().borders(Borders::ALL).title("Help"))
@@ -323,4 +409,44 @@ fn draw_help(f: &mut Frame, area: Rect) {
         .wrap(Wrap { trim: true });
 
     f.render_widget(help, area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_to_rgb_with_hash_prefix() {
+        assert_eq!(hex_to_rgb("#ff5733"), Some(Color::Rgb(255, 87, 51)));
+    }
+
+    #[test]
+    fn hex_to_rgb_without_hash_prefix() {
+        assert_eq!(hex_to_rgb("ff5733"), Some(Color::Rgb(255, 87, 51)));
+    }
+
+    #[test]
+    fn hex_to_rgb_black_and_white() {
+        assert_eq!(hex_to_rgb("#000000"), Some(Color::Rgb(0, 0, 0)));
+        assert_eq!(hex_to_rgb("#ffffff"), Some(Color::Rgb(255, 255, 255)));
+    }
+
+    #[test]
+    fn hex_to_rgb_uppercase() {
+        assert_eq!(hex_to_rgb("#FF5733"), Some(Color::Rgb(255, 87, 51)));
+    }
+
+    #[test]
+    fn hex_to_rgb_wrong_length_returns_none() {
+        assert_eq!(hex_to_rgb("#fff"), None);
+        assert_eq!(hex_to_rgb("#fffffff"), None);
+        assert_eq!(hex_to_rgb(""), None);
+        assert_eq!(hex_to_rgb("#"), None);
+    }
+
+    #[test]
+    fn hex_to_rgb_invalid_chars_returns_none() {
+        assert_eq!(hex_to_rgb("#gggggg"), None);
+        assert_eq!(hex_to_rgb("#xyz123"), None);
+    }
 }

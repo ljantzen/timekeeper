@@ -1,7 +1,10 @@
 use anyhow::Result;
 use std::time::{Duration, Instant};
 use tmkpr_lib::{
-    config::{Config, PomodoroConfig}, models::project::Project, models::task::Task, service::EntryService,
+    config::{Config, PomodoroConfig},
+    models::project::Project,
+    models::task::Task,
+    service::EntryService,
     storage::Storage,
 };
 
@@ -91,7 +94,9 @@ impl<'a> App<'a> {
             message: None,
             work_duration: Duration::from_secs(config.pomodoro.work_duration_minutes * 60),
             break_duration: Duration::from_secs(config.pomodoro.break_duration_minutes * 60),
-            long_break_duration: Duration::from_secs(config.pomodoro.long_break_duration_minutes * 60),
+            long_break_duration: Duration::from_secs(
+                config.pomodoro.long_break_duration_minutes * 60,
+            ),
             sessions_before_long_break: config.pomodoro.sessions_before_long_break,
             work_sessions_completed: 0,
             notify_desktop: config.pomodoro.notify_desktop,
@@ -168,7 +173,9 @@ impl<'a> App<'a> {
     pub fn start_break(&mut self) -> Result<()> {
         if self.timer_state == TimerState::Stopped {
             self.work_sessions_completed += 1;
-            let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+            let is_long_break = self
+                .work_sessions_completed
+                .is_multiple_of(self.sessions_before_long_break);
 
             if is_long_break {
                 let svc = EntryService::new(self.storage, self.user_id);
@@ -212,14 +219,25 @@ impl<'a> App<'a> {
     pub fn log_session(&mut self) -> Result<()> {
         if self.timer_state != TimerState::Stopped && self.elapsed > Duration::ZERO {
             let elapsed = self.elapsed;
-            let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
-            let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
+            let proj = self
+                .selected_project()
+                .map(|p| p.name.clone())
+                .unwrap_or_default();
+            let task = self
+                .selected_task()
+                .map(|t| t.name.clone())
+                .unwrap_or_default();
             let color = self.selected_project().and_then(|p| p.color.clone());
 
             let svc = EntryService::new(self.storage, self.user_id);
             svc.stop(None)?;
 
-            self.completed_sessions.push(CompletedSession { project: proj, task, duration: elapsed, color });
+            self.completed_sessions.push(CompletedSession {
+                project: proj,
+                task,
+                duration: elapsed,
+                color,
+            });
             if self.completed_sessions.len() > 20 {
                 self.completed_sessions.remove(0);
             }
@@ -263,17 +281,24 @@ impl<'a> App<'a> {
 fn play_sound(path: &str) {
     let path = path.to_string();
     std::thread::spawn(move || {
-        let Ok((_stream, handle)) = rodio::OutputStream::try_default() else { return };
-        let Ok(sink) = rodio::Sink::try_new(&handle) else { return };
-        let Ok(file) = std::fs::File::open(&path) else { return };
-        let Ok(source) = rodio::Decoder::new(std::io::BufReader::new(file)) else { return };
+        let Ok((_stream, handle)) = rodio::OutputStream::try_default() else {
+            return;
+        };
+        let Ok(sink) = rodio::Sink::try_new(&handle) else {
+            return;
+        };
+        let Ok(file) = std::fs::File::open(&path) else {
+            return;
+        };
+        let Ok(source) = rodio::Decoder::new(std::io::BufReader::new(file)) else {
+            return;
+        };
         sink.append(source);
         sink.sleep_until_end();
     });
 }
 
 impl<'a> App<'a> {
-
     pub fn open_settings(&mut self) {
         if self.timer_state == TimerState::Stopped {
             self.settings_edit = self.config.pomodoro.clone();
@@ -342,7 +367,8 @@ impl<'a> App<'a> {
 
         self.work_duration = Duration::from_secs(self.config.pomodoro.work_duration_minutes * 60);
         self.break_duration = Duration::from_secs(self.config.pomodoro.break_duration_minutes * 60);
-        self.long_break_duration = Duration::from_secs(self.config.pomodoro.long_break_duration_minutes * 60);
+        self.long_break_duration =
+            Duration::from_secs(self.config.pomodoro.long_break_duration_minutes * 60);
         self.sessions_before_long_break = self.config.pomodoro.sessions_before_long_break;
         self.notify_desktop = self.config.pomodoro.notify_desktop;
         self.message_timeout = Duration::from_secs(self.config.pomodoro.message_timeout_secs);
@@ -389,8 +415,16 @@ impl<'a> App<'a> {
 
     pub fn sound_edit_begin(&mut self) {
         let current = match self.settings_cursor {
-            8 => self.settings_edit.sound_work_to_break.as_deref().unwrap_or(""),
-            9 => self.settings_edit.sound_break_to_work.as_deref().unwrap_or(""),
+            8 => self
+                .settings_edit
+                .sound_work_to_break
+                .as_deref()
+                .unwrap_or(""),
+            9 => self
+                .settings_edit
+                .sound_break_to_work
+                .as_deref()
+                .unwrap_or(""),
             _ => return,
         };
         self.sound_edit_buf = current.to_string();
@@ -431,8 +465,14 @@ impl<'a> App<'a> {
                 self.elapsed = start.elapsed();
 
                 if self.timer_state == TimerState::Running && self.elapsed > self.work_duration {
-                    let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
-                    let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
+                    let proj = self
+                        .selected_project()
+                        .map(|p| p.name.clone())
+                        .unwrap_or_default();
+                    let task = self
+                        .selected_task()
+                        .map(|t| t.name.clone())
+                        .unwrap_or_default();
                     let color = self.selected_project().and_then(|p| p.color.clone());
                     self.completed_sessions.push(CompletedSession {
                         project: proj,
@@ -445,7 +485,9 @@ impl<'a> App<'a> {
                     }
 
                     self.work_sessions_completed += 1;
-                    let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+                    let is_long_break = self
+                        .work_sessions_completed
+                        .is_multiple_of(self.sessions_before_long_break);
 
                     if is_long_break {
                         let svc = EntryService::new(self.storage, self.user_id);
@@ -454,7 +496,8 @@ impl<'a> App<'a> {
 
                     if self.auto_start_break {
                         self.timer_state = TimerState::Break;
-                        self.session_start = Some(Instant::now() - (self.elapsed - self.work_duration));
+                        self.session_start =
+                            Some(Instant::now() - (self.elapsed - self.work_duration));
                     } else {
                         self.timer_state = TimerState::Paused;
                         self.paused_at = Some(Instant::now());
@@ -470,7 +513,9 @@ impl<'a> App<'a> {
                 }
 
                 let is_long_break = self.work_sessions_completed > 0
-                    && self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+                    && self
+                        .work_sessions_completed
+                        .is_multiple_of(self.sessions_before_long_break);
                 let current_break_duration = if is_long_break {
                     self.long_break_duration
                 } else {
@@ -552,9 +597,10 @@ impl<'a> App<'a> {
 
     pub fn work_duration(&self) -> u64 {
         if self.timer_state == TimerState::Break {
-            let is_long_break =
-                self.work_sessions_completed > 0
-                    && self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+            let is_long_break = self.work_sessions_completed > 0
+                && self
+                    .work_sessions_completed
+                    .is_multiple_of(self.sessions_before_long_break);
             if is_long_break {
                 self.long_break_duration.as_secs()
             } else {
@@ -579,5 +625,263 @@ impl<'a> App<'a> {
 
     pub fn completed_sessions(&self) -> &[CompletedSession] {
         &self.completed_sessions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tmkpr_lib::{config::Config, storage::sqlite::SqliteStorage};
+
+    fn storage() -> SqliteStorage {
+        SqliteStorage::open_in_memory().unwrap()
+    }
+
+    fn make_app(s: &dyn Storage) -> App<'_> {
+        App::new(s, "local", Config::default()).unwrap()
+    }
+
+    // --- timer state ---
+
+    #[test]
+    fn initial_state_stopped_and_can_quit() {
+        let s = storage();
+        let app = make_app(&s);
+        assert_eq!(app.timer_state(), TimerState::Stopped);
+        assert!(app.can_quit());
+    }
+
+    #[test]
+    fn start_timer_transitions_to_running() {
+        let s = storage();
+        let mut app = make_app(&s);
+        app.start_timer().unwrap();
+        assert_eq!(app.timer_state(), TimerState::Running);
+        assert!(!app.can_quit());
+    }
+
+    #[test]
+    fn toggle_cycles_running_paused_running() {
+        let s = storage();
+        let mut app = make_app(&s);
+        app.start_timer().unwrap();
+        app.toggle_timer();
+        assert_eq!(app.timer_state(), TimerState::Paused);
+        app.toggle_timer();
+        assert_eq!(app.timer_state(), TimerState::Running);
+    }
+
+    #[test]
+    fn toggle_noop_when_stopped() {
+        let s = storage();
+        let mut app = make_app(&s);
+        app.toggle_timer();
+        assert_eq!(app.timer_state(), TimerState::Stopped);
+    }
+
+    #[test]
+    fn reset_returns_to_stopped_with_zero_elapsed() {
+        let s = storage();
+        let mut app = make_app(&s);
+        app.start_timer().unwrap();
+        app.reset();
+        assert_eq!(app.timer_state(), TimerState::Stopped);
+        assert_eq!(app.elapsed(), Duration::ZERO);
+    }
+
+    // --- settings cursor ---
+
+    #[test]
+    fn cursor_down_wraps_from_9_to_0() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..9 {
+            app.settings_cursor_down();
+        }
+        assert_eq!(app.settings_state().1, 9);
+        app.settings_cursor_down();
+        assert_eq!(app.settings_state().1, 0);
+    }
+
+    #[test]
+    fn cursor_up_wraps_from_0_to_9() {
+        let s = storage();
+        let mut app = make_app(&s);
+        assert_eq!(app.settings_state().1, 0);
+        app.settings_cursor_up();
+        assert_eq!(app.settings_state().1, 9);
+    }
+
+    #[test]
+    fn sound_field_boundary_at_cursor_8() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..7 {
+            app.settings_cursor_down();
+        }
+        assert_eq!(app.settings_state().1, 7);
+        assert!(!app.settings_cursor_on_sound_field());
+        app.settings_cursor_down();
+        assert_eq!(app.settings_state().1, 8);
+        assert!(app.settings_cursor_on_sound_field());
+        app.settings_cursor_down();
+        assert!(app.settings_cursor_on_sound_field());
+    }
+
+    // --- settings adjust ---
+
+    #[test]
+    fn work_duration_clamps_at_1() {
+        let s = storage();
+        let mut app = make_app(&s);
+        // cursor 0 = work_duration
+        app.settings_adjust(-9999);
+        assert_eq!(app.settings_state().0.work_duration_minutes, 1);
+    }
+
+    #[test]
+    fn max_cycles_clamps_at_0() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..4 {
+            app.settings_cursor_down();
+        } // cursor 4 = max_cycles
+        app.settings_adjust(-9999);
+        assert_eq!(app.settings_state().0.max_cycles, 0);
+    }
+
+    #[test]
+    fn max_cycles_increments_and_decrements() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..4 {
+            app.settings_cursor_down();
+        }
+        app.settings_adjust(3);
+        assert_eq!(app.settings_state().0.max_cycles, 3);
+        app.settings_adjust(-1);
+        assert_eq!(app.settings_state().0.max_cycles, 2);
+    }
+
+    #[test]
+    fn notify_desktop_toggles_on_any_nonzero_delta() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..5 {
+            app.settings_cursor_down();
+        } // cursor 5 = notify_desktop
+        let initial = app.settings_state().0.notify_desktop;
+        app.settings_adjust(1);
+        assert_eq!(app.settings_state().0.notify_desktop, !initial);
+        app.settings_adjust(-1);
+        assert_eq!(app.settings_state().0.notify_desktop, initial);
+    }
+
+    #[test]
+    fn adjust_noop_on_sound_field_cursors() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..8 {
+            app.settings_cursor_down();
+        } // cursor 8 = sound field
+        let before = app.settings_state().0.sound_work_to_break.clone();
+        app.settings_adjust(1);
+        assert_eq!(app.settings_state().0.sound_work_to_break, before);
+    }
+
+    // --- sound edit ---
+
+    #[test]
+    fn sound_edit_begin_populates_buf_from_current_value() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..8 {
+            app.settings_cursor_down();
+        }
+        // first set a value via confirm
+        app.sound_edit_begin();
+        app.sound_edit_push('/');
+        app.sound_edit_push('a');
+        app.sound_edit_confirm();
+        // now begin again — buf should be pre-populated
+        app.sound_edit_begin();
+        assert_eq!(app.sound_edit_buf(), "/a");
+    }
+
+    #[test]
+    fn sound_edit_confirm_updates_work_to_break_path() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..8 {
+            app.settings_cursor_down();
+        }
+        app.sound_edit_begin();
+        for c in "/sounds/ding.wav".chars() {
+            app.sound_edit_push(c);
+        }
+        app.sound_edit_confirm();
+        assert_eq!(
+            app.settings_state().0.sound_work_to_break.as_deref(),
+            Some("/sounds/ding.wav"),
+        );
+    }
+
+    #[test]
+    fn sound_edit_empty_confirm_sets_none() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..8 {
+            app.settings_cursor_down();
+        }
+        app.sound_edit_begin();
+        app.sound_edit_confirm(); // confirm with empty buf
+        assert_eq!(app.settings_state().0.sound_work_to_break, None);
+    }
+
+    #[test]
+    fn sound_edit_cancel_discards_typed_chars() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..8 {
+            app.settings_cursor_down();
+        }
+        app.sound_edit_begin();
+        app.sound_edit_push('x');
+        app.sound_edit_cancel();
+        assert!(!app.is_editing_sound());
+        assert_eq!(app.settings_state().0.sound_work_to_break, None);
+    }
+
+    #[test]
+    fn sound_edit_pop_removes_last_char() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..8 {
+            app.settings_cursor_down();
+        }
+        app.sound_edit_begin();
+        app.sound_edit_push('a');
+        app.sound_edit_push('b');
+        app.sound_edit_pop();
+        assert_eq!(app.sound_edit_buf(), "a");
+    }
+
+    #[test]
+    fn break_to_work_uses_break_to_work_sound_cursor() {
+        let s = storage();
+        let mut app = make_app(&s);
+        for _ in 0..9 {
+            app.settings_cursor_down();
+        } // cursor 9 = sound break→work
+        app.sound_edit_begin();
+        for c in "/sounds/chime.wav".chars() {
+            app.sound_edit_push(c);
+        }
+        app.sound_edit_confirm();
+        assert_eq!(
+            app.settings_state().0.sound_break_to_work.as_deref(),
+            Some("/sounds/chime.wav"),
+        );
+        assert_eq!(app.settings_state().0.sound_work_to_break, None);
     }
 }

@@ -75,10 +75,9 @@ fn run_app(
                         }
                     }
                     Screen::Main => match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc
-                            if app.can_quit() => {
-                                break;
-                            }
+                        KeyCode::Char('q') | KeyCode::Esc if app.can_quit() => {
+                            break;
+                        }
                         KeyCode::Char('s') => app.open_settings(),
                         KeyCode::Up => app.previous_project(),
                         KeyCode::Down => app.next_project(),
