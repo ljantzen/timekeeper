@@ -779,11 +779,18 @@ impl App {
             })?
         };
 
-        // Prior: the finished entry whose finished_at is closest-before (or at) started_at.
+        // Prior: the finished entry whose finished_at is closest-before (or at) started_at,
+        // but only if it falls on the same local calendar day.  If the selected entry is
+        // the first entry of its day, the start time is left alone.
+        let start_day = started_at.with_timezone(&Local).date_naive();
         let new_start = finished_entries
             .iter()
             .filter(|e| e.id != id)
-            .filter_map(|e| e.finished_at.filter(|&fat| fat <= started_at))
+            .filter_map(|e| {
+                e.finished_at.filter(|&fat| {
+                    fat <= started_at && fat.with_timezone(&Local).date_naive() == start_day
+                })
+            })
             .max();
 
         // Subsequent: the entry (finished or active) whose started_at is closest-after
@@ -1946,6 +1953,41 @@ mod tests {
 
         let merged = app.active_entry.as_ref().unwrap();
         assert_eq!(merged.started_at, t1);
+    }
+
+    #[test]
+    fn fill_gaps_does_not_extend_start_when_prior_is_previous_day() {
+        let mut app = make_app();
+        let yesterday_17h = {
+            let yesterday = Local::now().date_naive() - chrono::Duration::days(1);
+            Local
+                .from_local_datetime(&yesterday.and_hms_opt(17, 0, 0).unwrap())
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+        let today_9am = {
+            let today = Local::now().date_naive();
+            Local
+                .from_local_datetime(&today.and_hms_opt(9, 0, 0).unwrap())
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+
+        // Prior entry is clearly on the previous day.
+        finished(&app, None, yesterday_17h - Duration::hours(1), yesterday_17h);
+
+        let target_start = today_9am;
+        let target_end = today_9am + Duration::hours(1);
+        let target = finished(&app, None, target_start, target_end);
+
+        app.refresh().unwrap();
+        select(&mut app, &target.id);
+        app.fill_gaps().unwrap();
+
+        let updated = app.entries.iter().find(|e| e.id == target.id).unwrap();
+        // Start must NOT change (first entry of the day); end has no same-day subsequent.
+        assert_eq!(updated.started_at, target_start);
+        assert_eq!(updated.finished_at, Some(target_end));
     }
 
     #[test]
