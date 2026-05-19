@@ -46,6 +46,7 @@ pub struct PomodoroConfig {
     pub notify_bell: bool,
     pub notify_desktop: bool,
     pub message_timeout_secs: u64,
+    pub auto_start_break: bool,
 }
 
 /// Serde-compatible wrapper for chrono::Weekday.
@@ -105,6 +106,7 @@ impl Default for PomodoroConfig {
             notify_bell: true,
             notify_desktop: false,
             message_timeout_secs: 5,
+            auto_start_break: false,
         }
     }
 }

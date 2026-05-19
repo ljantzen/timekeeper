@@ -42,6 +42,7 @@ pub struct App<'a> {
     notify_desktop: bool,
     message_timeout: Duration,
     message_set_at: Option<Instant>,
+    auto_start_break: bool,
     screen: Screen,
     config: Config,
     settings_edit: PomodoroConfig,
@@ -80,6 +81,7 @@ impl<'a> App<'a> {
             notify_desktop: config.pomodoro.notify_desktop,
             message_timeout: Duration::from_secs(config.pomodoro.message_timeout_secs),
             message_set_at: None,
+            auto_start_break: config.pomodoro.auto_start_break,
             screen: Screen::Main,
             settings_edit: config.pomodoro.clone(),
             config,
@@ -236,14 +238,14 @@ impl<'a> App<'a> {
 
     pub fn settings_cursor_up(&mut self) {
         if self.settings_cursor == 0 {
-            self.settings_cursor = 6;
+            self.settings_cursor = 7;
         } else {
             self.settings_cursor -= 1;
         }
     }
 
     pub fn settings_cursor_down(&mut self) {
-        if self.settings_cursor == 6 {
+        if self.settings_cursor == 7 {
             self.settings_cursor = 0;
         } else {
             self.settings_cursor += 1;
@@ -278,6 +280,9 @@ impl<'a> App<'a> {
                 self.settings_edit.message_timeout_secs =
                     (self.settings_edit.message_timeout_secs as i64 + delta).max(0) as u64;
             }
+            7 if delta != 0 => {
+                self.settings_edit.auto_start_break = !self.settings_edit.auto_start_break;
+            }
             _ => {}
         }
     }
@@ -293,6 +298,7 @@ impl<'a> App<'a> {
         self.notify_bell = self.config.pomodoro.notify_bell;
         self.notify_desktop = self.config.pomodoro.notify_desktop;
         self.message_timeout = Duration::from_secs(self.config.pomodoro.message_timeout_secs);
+        self.auto_start_break = self.config.pomodoro.auto_start_break;
 
         self.screen = Screen::Main;
         Ok(())
@@ -318,8 +324,15 @@ impl<'a> App<'a> {
                 if self.elapsed > self.work_duration {
                     self.work_sessions_completed += 1;
                     let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
-                    self.timer_state = TimerState::Break;
-                    self.session_start = Some(Instant::now() - (self.elapsed - self.work_duration));
+
+                    if self.auto_start_break {
+                        self.timer_state = TimerState::Break;
+                        self.session_start = Some(Instant::now() - (self.elapsed - self.work_duration));
+                    } else {
+                        self.timer_state = TimerState::Paused;
+                        self.paused_at = Some(Instant::now());
+                    }
+
                     let break_msg = if is_long_break {
                         "Work session complete! Time for a long break."
                     } else {

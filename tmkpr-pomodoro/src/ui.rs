@@ -182,13 +182,17 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             "  Message timeout:     ◀  {} sec  ▶",
             app.settings_state().0.message_timeout_secs
         )),
+        Line::from(format!(
+            "  Auto-start break:       {}",
+            if app.settings_state().0.auto_start_break { "[✓] On" } else { "[ ] Off" }
+        )),
         Line::from(""),
         Line::from("  ↑↓ select   ←→ adjust   Enter save   Esc cancel"),
     ];
 
     let mut styled_lines = Vec::new();
     for (idx, line) in settings_lines.iter().enumerate() {
-        if idx == app.settings_state().1 + 1 && idx > 0 && idx < 9 {
+        if idx == app.settings_state().1 + 1 && idx > 0 && idx < 10 {
             styled_lines.push(
                 Line::from(vec![Span::styled(
                     line.to_string(),
