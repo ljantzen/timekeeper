@@ -787,21 +787,23 @@ impl App {
             .max();
 
         // Subsequent: the entry (finished or active) whose started_at is closest-after
-        // (or at) finished_at.  Active entry is checked separately since it isn't in
-        // the finished list.
+        // (or at) finished_at, but only if it falls on the same local calendar day.
+        // If the selected entry is the last entry of its day, the end time is left alone.
         let new_end = finished_at.and_then(|fat| {
+            let fat_day = fat.with_timezone(&Local).date_naive();
+            let same_day = |sat: DateTime<Utc>| sat.with_timezone(&Local).date_naive() == fat_day;
             let from_finished = finished_entries
                 .iter()
                 .filter(|e| e.id != id)
                 .map(|e| e.started_at)
-                .filter(|&sat| sat >= fat)
+                .filter(|&sat| sat >= fat && same_day(sat))
                 .min();
             let from_active = self
                 .active_entry
                 .as_ref()
                 .filter(|e| e.id != id)
                 .map(|e| e.started_at)
-                .filter(|&sat| sat >= fat);
+                .filter(|&sat| sat >= fat && same_day(sat));
             match (from_finished, from_active) {
                 (Some(a), Some(b)) => Some(a.min(b)),
                 (a, b) => a.or(b),
@@ -1944,6 +1946,36 @@ mod tests {
 
         let merged = app.active_entry.as_ref().unwrap();
         assert_eq!(merged.started_at, t1);
+    }
+
+    #[test]
+    fn fill_gaps_does_not_extend_end_when_subsequent_is_next_day() {
+        let mut app = make_app();
+        // Place the target entry clearly within today and the subsequent entry tomorrow.
+        let today_noon = {
+            let today = Local::now().date_naive();
+            Local
+                .from_local_datetime(&today.and_hms_opt(12, 0, 0).unwrap())
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+        let tomorrow_9am = today_noon + Duration::hours(21); // next day
+
+        let prior_end = today_noon - Duration::hours(2);
+        let prior_start = today_noon - Duration::hours(3);
+        finished(&app, None, prior_start, prior_end); // prior, same day
+
+        let target = finished(&app, None, today_noon - Duration::hours(1), today_noon);
+        finished(&app, None, tomorrow_9am, tomorrow_9am + Duration::hours(1)); // next-day entry
+
+        app.refresh().unwrap();
+        select(&mut app, &target.id);
+        app.fill_gaps().unwrap();
+
+        let updated = app.entries.iter().find(|e| e.id == target.id).unwrap();
+        // Start extends to prior's end; finish must NOT change (last entry of the day).
+        assert_eq!(updated.started_at, prior_end);
+        assert_eq!(updated.finished_at, Some(today_noon));
     }
 
     #[test]
