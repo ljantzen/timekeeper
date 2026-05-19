@@ -6,6 +6,13 @@ use tmkpr_lib::{
     storage::Storage,
 };
 
+#[derive(Clone, Debug)]
+pub struct CompletedSession {
+    pub project: String,
+    pub task: String,
+    pub duration: Duration,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Screen {
     Main,
@@ -46,6 +53,7 @@ pub struct App<'a> {
     config: Config,
     settings_edit: PomodoroConfig,
     settings_cursor: usize,
+    completed_sessions: Vec<CompletedSession>,
 }
 
 impl<'a> App<'a> {
@@ -85,6 +93,7 @@ impl<'a> App<'a> {
             settings_edit: config.pomodoro.clone(),
             config,
             settings_cursor: 0,
+            completed_sessions: Vec::new(),
         })
     }
 
@@ -188,8 +197,18 @@ impl<'a> App<'a> {
 
     pub fn log_session(&mut self) -> Result<()> {
         if self.timer_state != TimerState::Stopped && self.elapsed > Duration::ZERO {
+            let elapsed = self.elapsed;
+            let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
+            let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
+
             let svc = EntryService::new(self.storage, self.user_id);
             svc.stop(None)?;
+
+            self.completed_sessions.push(CompletedSession { project: proj, task, duration: elapsed });
+            if self.completed_sessions.len() > 20 {
+                self.completed_sessions.remove(0);
+            }
+
             self.message = Some("Session logged!".to_string());
             self.reset();
             Ok(())
@@ -320,6 +339,17 @@ impl<'a> App<'a> {
                 self.elapsed = start.elapsed();
 
                 if self.elapsed > self.work_duration {
+                    let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
+                    let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
+                    self.completed_sessions.push(CompletedSession {
+                        project: proj,
+                        task,
+                        duration: self.work_duration,
+                    });
+                    if self.completed_sessions.len() > 20 {
+                        self.completed_sessions.remove(0);
+                    }
+
                     self.work_sessions_completed += 1;
                     let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
 
@@ -442,5 +472,9 @@ impl<'a> App<'a> {
 
     pub fn sessions_before_long(&self) -> u64 {
         self.sessions_before_long_break
+    }
+
+    pub fn completed_sessions(&self) -> &[CompletedSession] {
+        &self.completed_sessions
     }
 }

@@ -1,4 +1,4 @@
-use crate::app::{App, Screen, TimerState};
+use crate::app::{App, CompletedSession, Screen, TimerState};
 use ratatui::{
     prelude::*,
     text::{Line, Span},
@@ -25,14 +25,19 @@ pub fn draw(f: &mut Frame, app: &App) {
     // Timer display
     draw_timer(f, app, chunks[0]);
 
-    // Project and Task selection
+    // Project, Task, and completed session list
     let selection_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+        ])
         .split(chunks[1]);
 
     draw_projects(f, app, selection_chunks[0]);
     draw_tasks(f, app, selection_chunks[1]);
+    draw_sessions(f, app, selection_chunks[2]);
 
     // Status bar
     draw_status(f, app, chunks[2]);
@@ -127,6 +132,34 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
 
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Tasks"))
+        .style(Style::default().fg(Color::White));
+
+    f.render_widget(list, area);
+}
+
+fn draw_sessions(f: &mut Frame, app: &App, area: Rect) {
+    let sessions: &[CompletedSession] = app.completed_sessions();
+    let total = sessions.len();
+
+    let items: Vec<ListItem> = sessions
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(idx, s)| {
+            let num = total - idx;
+            let mins = s.duration.as_secs() / 60;
+            let secs = s.duration.as_secs() % 60;
+            let text = if s.project.is_empty() {
+                format!("#{num}  {mins:02}:{secs:02}")
+            } else {
+                format!("#{num}  {} / {} ({mins:02}:{secs:02})", s.project, s.task)
+            };
+            ListItem::new(text)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Completed"))
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
