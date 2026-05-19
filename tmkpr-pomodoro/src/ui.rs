@@ -89,7 +89,8 @@ fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
         let current_in_cycle = (sessions % cycle_size) + 1;
         format!("Work session {} of {}", current_in_cycle, cycle_size)
     } else {
-        "Session 1 of X".to_string()
+        let cycle_size = app.sessions_before_long();
+        format!("Work session 1 of {}", cycle_size)
     };
 
     let active_line = if app.timer_state() != TimerState::Stopped {

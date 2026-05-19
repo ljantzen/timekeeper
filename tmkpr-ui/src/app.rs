@@ -455,7 +455,11 @@ impl App {
     }
 
     fn task_names(&self) -> Vec<String> {
-        self.tasks.iter().map(|t| t.name.clone()).collect()
+        self.tasks
+            .iter()
+            .filter(|t| !t.completed)
+            .map(|t| t.name.clone())
+            .collect()
     }
 
     pub fn project_name<'a>(&'a self, id: &str) -> &'a str {
@@ -2055,5 +2059,31 @@ mod tests {
         app.open_manage_tasks();
         // should not panic or error
         app.toggle_complete_selected_task().unwrap();
+    }
+
+    #[test]
+    fn task_names_excludes_completed() {
+        let mut app = make_app();
+        let (_pid, tid) = setup_project_and_task(&app);
+        use tmkpr_lib::models::task::UpdateTask;
+        app.storage
+            .update_task(
+                &tid,
+                UpdateTask {
+                    completed: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        app.refresh().unwrap();
+        assert!(app.task_names().is_empty());
+    }
+
+    #[test]
+    fn task_names_includes_active_tasks() {
+        let mut app = make_app();
+        setup_project_and_task(&app);
+        app.refresh().unwrap();
+        assert_eq!(app.task_names(), vec!["task"]);
     }
 }
