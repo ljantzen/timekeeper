@@ -41,7 +41,8 @@ tmkpr-pomodoro
 |-----|--------|
 | `↑` / `↓` | Select project |
 | `←` / `→` | Select task |
-| `Enter` | Start timer |
+| `Enter` | Start work session |
+| `B` | Start break (short or long) |
 | `Space` | Pause / Resume |
 | `L` | Log current session to database |
 | `R` | Reset timer |
@@ -61,13 +62,20 @@ tmkpr-pomodoro
 
 The timer follows this pattern (with default durations):
 
-1. **Work Session**: 25 minutes
+1. **Work Session**: 25 minutes (started with `Enter`)
 2. **Short Break**: 5 minutes
 3. *(repeat 3 more times)*
 4. **Long Break**: 15 minutes
 5. *(cycle repeats)*
 
 Example: Work → Break → Work → Break → Work → Break → Work → **Long Break** → *(repeat)*
+
+### Manual Break Control
+
+You can start a break at any time with `B` (when timer is stopped). This:
+- Immediately starts a break (short or long, depending on cycle position)
+- Increments the work session counter toward the next long break
+- Useful for taking breaks without doing a work session first
 
 All durations and cycle length are configurable in settings.
 
