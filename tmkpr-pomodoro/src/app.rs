@@ -338,7 +338,7 @@ impl<'a> App<'a> {
             if let Some(start) = self.session_start {
                 self.elapsed = start.elapsed();
 
-                if self.elapsed > self.work_duration {
+                if self.timer_state == TimerState::Running && self.elapsed > self.work_duration {
                     let proj = self.selected_project().map(|p| p.name.clone()).unwrap_or_default();
                     let task = self.selected_task().map(|t| t.name.clone()).unwrap_or_default();
                     self.completed_sessions.push(CompletedSession {
