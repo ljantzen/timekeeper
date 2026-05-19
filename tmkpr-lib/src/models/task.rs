@@ -9,6 +9,7 @@ pub struct Task {
     pub name: String,
     pub description: Option<String>,
     pub archived: bool,
+    pub completed: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub num_id: u32,
@@ -28,6 +29,7 @@ pub struct UpdateTask {
     /// `Some(None)` clears the field; `None` leaves it unchanged.
     pub description: Option<Option<String>>,
     pub archived: Option<bool>,
+    pub completed: Option<bool>,
     /// Move task to a different project (UUID).
     pub project_id: Option<String>,
 }

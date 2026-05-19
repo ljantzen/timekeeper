@@ -88,6 +88,7 @@ fn run_app(
                                 KeyCode::Char('q') | KeyCode::Esc if app.can_quit() => {
                                     break;
                                 }
+                                KeyCode::Char('c') => app.task_complete_toggle()?,
                                 KeyCode::Char('n') => app.new_task_begin(),
                                 KeyCode::Char('s') => app.open_settings(),
                                 KeyCode::Up => app.previous_project(),

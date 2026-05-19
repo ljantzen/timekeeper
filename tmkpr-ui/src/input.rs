@@ -392,6 +392,11 @@ fn handle_manage_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some((e.to_string(), true));
             }
         }
+        KeyCode::Char('c') => {
+            if let Err(e) = app.toggle_complete_selected_task() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
         KeyCode::Char('s') => {
             app.task_sort = app.task_sort.next();
             app.open_manage_tasks();

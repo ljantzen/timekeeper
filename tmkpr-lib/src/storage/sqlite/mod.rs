@@ -75,6 +75,7 @@ fn row_to_project(row: &Row<'_>) -> rusqlite::Result<Project> {
 
 fn row_to_task(row: &Row<'_>) -> rusqlite::Result<Task> {
     let archived: i64 = row.get(5)?;
+    let completed: i64 = row.get(6)?;
     Ok(Task {
         id: row.get(0)?,
         user_id: row.get(1)?,
@@ -82,9 +83,10 @@ fn row_to_task(row: &Row<'_>) -> rusqlite::Result<Task> {
         name: row.get(3)?,
         description: row.get(4)?,
         archived: archived != 0,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
-        num_id: row.get::<_, Option<u32>>(8)?.unwrap_or(0),
+        completed: completed != 0,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+        num_id: row.get::<_, Option<u32>>(9)?.unwrap_or(0),
     })
 }
 
@@ -298,7 +300,7 @@ impl Storage for SqliteStorage {
     fn get_task(&self, id: &str) -> TmkprResult<Task> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
+            "SELECT id, user_id, project_id, name, description, archived, completed, created_at, updated_at, num_id
              FROM tasks WHERE id = ?1",
             params![id],
             row_to_task,
@@ -315,7 +317,7 @@ impl Storage for SqliteStorage {
     fn get_task_by_name(&self, project_id: &str, name: &str) -> TmkprResult<Option<Task>> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
+            "SELECT id, user_id, project_id, name, description, archived, completed, created_at, updated_at, num_id
              FROM tasks WHERE project_id = ?1 AND name = ?2",
             params![project_id, name],
             row_to_task,
@@ -327,7 +329,7 @@ impl Storage for SqliteStorage {
     fn get_task_by_num_id(&self, project_id: &str, num_id: u32) -> TmkprResult<Option<Task>> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
+            "SELECT id, user_id, project_id, name, description, archived, completed, created_at, updated_at, num_id
              FROM tasks WHERE project_id = ?1 AND num_id = ?2",
             params![project_id, num_id],
             row_to_task,
@@ -344,7 +346,7 @@ impl Storage for SqliteStorage {
             "archived = 0"
         };
         let sql = format!(
-            "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
+            "SELECT id, user_id, project_id, name, description, archived, completed, created_at, updated_at, num_id
              FROM tasks WHERE project_id = ?1 AND {} ORDER BY num_id",
             archived_filter
         );
@@ -362,7 +364,7 @@ impl Storage for SqliteStorage {
             "archived = 0"
         };
         let sql = format!(
-            "SELECT id, user_id, project_id, name, description, archived, created_at, updated_at, num_id
+            "SELECT id, user_id, project_id, name, description, archived, completed, created_at, updated_at, num_id
              FROM tasks WHERE user_id = ?1 AND {} ORDER BY project_id, num_id",
             archived_filter
         );
@@ -388,6 +390,10 @@ impl Storage for SqliteStorage {
         if let Some(archived) = u.archived {
             binds.push(Box::new(archived as i64));
             sets.push(format!("archived = ?{}", binds.len()));
+        }
+        if let Some(completed) = u.completed {
+            binds.push(Box::new(completed as i64));
+            sets.push(format!("completed = ?{}", binds.len()));
         }
         if let Some(pid) = u.project_id {
             binds.push(Box::new(pid.clone()));

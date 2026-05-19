@@ -304,6 +304,10 @@ pub enum TaskCommands {
     /// Delete (archive) a task
     #[command(aliases = ["d", "rm"])]
     Delete(TaskDeleteArgs),
+    /// Mark a task as completed
+    Done(TaskDoneArgs),
+    /// Reactivate a completed task
+    Reactivate(TaskReactivateArgs),
 }
 
 #[derive(Args)]
@@ -352,6 +356,24 @@ pub struct TaskDeleteArgs {
     /// Permanently delete instead of archiving
     #[arg(long)]
     pub hard: bool,
+}
+
+#[derive(Args)]
+pub struct TaskDoneArgs {
+    /// Task name or numeric ID
+    #[arg(add = ArgValueCompleter::new(complete_tasks))]
+    pub task: String,
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
+    pub project: String,
+}
+
+#[derive(Args)]
+pub struct TaskReactivateArgs {
+    /// Task name or numeric ID
+    #[arg(add = ArgValueCompleter::new(complete_tasks))]
+    pub task: String,
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
+    pub project: String,
 }
 
 // ── Edit ──────────────────────────────────────────────────────────────────────

@@ -1206,6 +1206,7 @@ impl App {
                 Some(description.to_string())
             }),
             archived: None,
+            completed: None,
             project_id: None,
         };
 
@@ -1215,6 +1216,39 @@ impl App {
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited task in list
         self.mode = AppMode::ManageTasks { tasks, selected };
         self.status = Some((format!("Task '{name}' updated."), false));
+        Ok(())
+    }
+
+    pub fn toggle_complete_selected_task(&mut self) -> anyhow::Result<()> {
+        let (task_id, currently_completed) =
+            if let AppMode::ManageTasks { tasks, selected } = &self.mode {
+                if *selected < tasks.len() {
+                    let task = &tasks[*selected];
+                    (task.id.clone(), task.completed)
+                } else {
+                    return Ok(());
+                }
+            } else {
+                return Ok(());
+            };
+
+        self.storage.update_task(
+            &task_id,
+            UpdateTask {
+                completed: Some(!currently_completed),
+                ..Default::default()
+            },
+        )?;
+        self.refresh()?;
+        let tasks = self.apply_task_sort_filter(self.tasks.clone());
+        let selected = 0;
+        self.mode = AppMode::ManageTasks { tasks, selected };
+        let msg = if !currently_completed {
+            "Task marked completed."
+        } else {
+            "Task reactivated."
+        };
+        self.status = Some((msg.to_string(), false));
         Ok(())
     }
 

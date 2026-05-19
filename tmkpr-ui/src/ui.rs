@@ -564,14 +564,23 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             .iter()
             .map(|t| {
                 let proj_name = app.project_name(&t.project_id);
-                let color = project_color(app, &t.project_id);
-                let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
+                if t.completed {
+                    let style = Style::default().fg(Color::DarkGray);
+                    let line = Line::from(vec![
+                        Span::styled(format!("{} (", t.name), style),
+                        Span::styled(proj_name.to_string(), style),
+                        Span::styled(") ✓", style),
+                    ]);
+                    ListItem::new(line)
+                } else {
+                    let color = project_color(app, &t.project_id);
+                    let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
 
-                let mut spans = vec![Span::raw(format!("{} (", t.name))];
-                spans.push(Span::styled(proj_name.to_string(), style));
-                spans.push(Span::raw(")"));
-
-                ListItem::new(Line::from(spans))
+                    let mut spans = vec![Span::raw(format!("{} (", t.name))];
+                    spans.push(Span::styled(proj_name.to_string(), style));
+                    spans.push(Span::raw(")"));
+                    ListItem::new(Line::from(spans))
+                }
             })
             .collect();
 
@@ -607,7 +616,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
 
         frame.render_widget(
             Paragraph::new(Span::styled(
-                "[a] add  [e] edit  [d] delete  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
+                "[a] add  [e] edit  [c] complete  [d] delete  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
                 Style::default().fg(Color::DarkGray),
             )),
             chunks[1],

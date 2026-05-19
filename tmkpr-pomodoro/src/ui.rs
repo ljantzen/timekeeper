@@ -172,14 +172,21 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
         .map(|(idx, task)| {
             let is_selected = idx == selected;
             let prefix = if is_selected { "▶ " } else { "  " };
-            let mut style = Style::default().fg(proj_color);
-            if is_selected {
-                style = style.add_modifier(Modifier::BOLD);
-            }
-            ListItem::new(Line::from(Span::styled(
-                format!("{prefix}{}", task.name),
-                style,
-            )))
+            let style = if task.completed {
+                Style::default().fg(Color::DarkGray)
+            } else {
+                let mut s = Style::default().fg(proj_color);
+                if is_selected {
+                    s = s.add_modifier(Modifier::BOLD);
+                }
+                s
+            };
+            let label = if task.completed {
+                format!("{prefix}{} ✓", task.name)
+            } else {
+                format!("{prefix}{}", task.name)
+            };
+            ListItem::new(Line::from(Span::styled(label, style)))
         })
         .collect();
 
@@ -415,7 +422,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 fn draw_help(f: &mut Frame, area: Rect) {
     let help_text = [
         "↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
-        "Space: Pause/Resume  |  N: New task  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
+        "Space: Pause/Resume  |  C: Complete task  |  N: New task  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
     ];
 
     let help = Paragraph::new(help_text.join("\n"))

@@ -101,7 +101,18 @@ CREATE INDEX IF NOT EXISTS idx_entry_comments_entry ON entry_comments(entry_id);
 INSERT OR IGNORE INTO schema_versions(version) VALUES (3);
 ";
 
-const MIGRATIONS: &[(i64, &str)] = &[(1, MIGRATION_001), (2, MIGRATION_002), (3, MIGRATION_003)];
+const MIGRATION_004: &str = "
+ALTER TABLE tasks ADD COLUMN completed INTEGER NOT NULL DEFAULT 0;
+
+INSERT OR IGNORE INTO schema_versions(version) VALUES (4);
+";
+
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, MIGRATION_001),
+    (2, MIGRATION_002),
+    (3, MIGRATION_003),
+    (4, MIGRATION_004),
+];
 
 pub fn run_migrations(conn: &Connection) -> TmkprResult<()> {
     conn.execute_batch(

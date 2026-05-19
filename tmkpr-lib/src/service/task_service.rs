@@ -69,6 +69,42 @@ impl<'a> TaskService<'a> {
         self.storage.update_task(&task.id, update)
     }
 
+    pub fn complete(&self, project_name: &str, task_input: &str) -> TmkprResult<Task> {
+        let project = self
+            .storage
+            .get_project_by_name(self.user_id, project_name)?
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "project",
+                id: project_name.to_string(),
+            })?;
+        let task = self.resolve(&project.id, task_input)?;
+        self.storage.update_task(
+            &task.id,
+            UpdateTask {
+                completed: Some(true),
+                ..Default::default()
+            },
+        )
+    }
+
+    pub fn reactivate(&self, project_name: &str, task_input: &str) -> TmkprResult<Task> {
+        let project = self
+            .storage
+            .get_project_by_name(self.user_id, project_name)?
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "project",
+                id: project_name.to_string(),
+            })?;
+        let task = self.resolve(&project.id, task_input)?;
+        self.storage.update_task(
+            &task.id,
+            UpdateTask {
+                completed: Some(false),
+                ..Default::default()
+            },
+        )
+    }
+
     /// Soft-archive by default; `hard = true` physically deletes.
     pub fn delete(&self, project_name: &str, task_name: &str, hard: bool) -> TmkprResult<()> {
         let project = self

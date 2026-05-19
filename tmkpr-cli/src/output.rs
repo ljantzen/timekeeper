@@ -275,13 +275,19 @@ pub fn print_tasks_table(tasks: &[Task]) {
     }
     let mut table = Table::new();
     table.load_preset(UTF8_FULL);
-    table.set_header(vec!["#", "Name", "Description", "Archived"]);
+    table.set_header(vec!["#", "Name", "Description", "Archived", "Completed"]);
     for t in tasks {
+        let name_cell = if t.completed {
+            Cell::new(&t.name).fg(Color::DarkGrey)
+        } else {
+            Cell::new(&t.name)
+        };
         table.add_row(vec![
             Cell::new(t.num_id).set_alignment(CellAlignment::Right),
-            Cell::new(&t.name),
+            name_cell,
             Cell::new(t.description.as_deref().unwrap_or("-")),
             Cell::new(if t.archived { "yes" } else { "no" }),
+            Cell::new(if t.completed { "yes" } else { "no" }),
         ]);
     }
     println!("{table}");
@@ -723,14 +729,15 @@ fn projects_to_csv(projects: &[Project]) -> String {
 }
 
 fn tasks_to_csv(tasks: &[Task]) -> String {
-    let mut out = String::from("num_id,name,description,archived\n");
+    let mut out = String::from("num_id,name,description,archived,completed\n");
     for t in tasks {
         out.push_str(&format!(
-            "{},{},{},{}\n",
+            "{},{},{},{},{}\n",
             t.num_id,
             csv_escape(&t.name),
             csv_escape(t.description.as_deref().unwrap_or("")),
             t.archived,
+            t.completed,
         ));
     }
     out
@@ -884,6 +891,7 @@ mod tests {
             name: name.to_string(),
             description: None,
             archived: false,
+            completed: false,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
@@ -1050,7 +1058,7 @@ mod tests {
     #[test]
     fn tasks_to_csv_empty_has_header_only() {
         let csv = tasks_to_csv(&[]);
-        assert_eq!(csv.trim(), "num_id,name,description,archived");
+        assert_eq!(csv.trim(), "num_id,name,description,archived,completed");
     }
 
     #[test]
@@ -1062,6 +1070,7 @@ mod tests {
             name: "Backlog".to_string(),
             description: Some("Work queue".to_string()),
             archived: false,
+            completed: false,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             num_id: 1,
@@ -1069,7 +1078,7 @@ mod tests {
         let csv = tasks_to_csv(&[t]);
         let lines: Vec<&str> = csv.lines().collect();
         assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0], "num_id,name,description,archived");
+        assert_eq!(lines[0], "num_id,name,description,archived,completed");
         assert!(lines[1].starts_with("1,Backlog,"));
     }
 
@@ -1117,6 +1126,7 @@ mod tests {
             name: "Task One".to_string(),
             description: None,
             archived: false,
+            completed: false,
             created_at: now,
             updated_at: now,
             num_id: 1,

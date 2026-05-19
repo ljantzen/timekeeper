@@ -157,6 +157,10 @@ impl<'a> App<'a> {
 
     pub fn start_timer(&mut self) -> Result<()> {
         if self.timer_state == TimerState::Stopped {
+            if self.selected_task().map(|t| t.completed).unwrap_or(false) {
+                self.message = Some("Task is completed. Reactivate it first.".to_string());
+                return Ok(());
+            }
             self.timer_state = TimerState::Running;
             self.session_start = Some(Instant::now());
             self.elapsed = Duration::ZERO;
@@ -685,6 +689,30 @@ impl<'a> App<'a> {
     pub fn new_task_cancel(&mut self) {
         self.new_task_editing = false;
         self.new_task_buf = String::new();
+    }
+
+    pub fn task_complete_toggle(&mut self) -> Result<()> {
+        if self.timer_state != TimerState::Stopped {
+            return Ok(());
+        }
+        if let Some(task) = self.tasks.get(self.selected_task_idx) {
+            let new_state = !task.completed;
+            use tmkpr_lib::models::task::UpdateTask;
+            self.storage.update_task(
+                &task.id.clone(),
+                UpdateTask {
+                    completed: Some(new_state),
+                    ..Default::default()
+                },
+            )?;
+            self.refresh_tasks();
+            self.message = Some(if new_state {
+                "Task marked completed.".to_string()
+            } else {
+                "Task reactivated.".to_string()
+            });
+        }
+        Ok(())
     }
 }
 

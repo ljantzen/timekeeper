@@ -77,6 +77,10 @@ fn run() -> anyhow::Result<()> {
             }
             TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id)?,
             TaskCommands::Delete(args) => commands::task::delete(args, storage.as_ref(), &user_id)?,
+            TaskCommands::Done(args) => commands::task::done(args, storage.as_ref(), &user_id)?,
+            TaskCommands::Reactivate(args) => {
+                commands::task::reactivate(args, storage.as_ref(), &user_id)?
+            }
         },
         Commands::Edit(args) => {
             commands::edit::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?

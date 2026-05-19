@@ -3,7 +3,9 @@ use tmkpr_lib::models::task::UpdateTask;
 use tmkpr_lib::service::{ProjectService, TaskService};
 use tmkpr_lib::storage::Storage;
 
-use crate::cli::{TaskAddArgs, TaskDeleteArgs, TaskEditArgs, TaskListArgs};
+use crate::cli::{
+    TaskAddArgs, TaskDeleteArgs, TaskDoneArgs, TaskEditArgs, TaskListArgs, TaskReactivateArgs,
+};
 use crate::output;
 use crate::prompt;
 
@@ -44,9 +46,24 @@ pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str) -> Result<
         },
         project_id: dest_project_id,
         archived: None,
+        completed: None,
     };
     let task = TaskService::new(storage, user_id).edit(&project.id, &args.task, update)?;
     println!("Updated task '{}'.", task.name);
+    Ok(())
+}
+
+pub fn done(args: TaskDoneArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+    let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
+    let task = TaskService::new(storage, user_id).complete(&project.name, &args.task)?;
+    println!("Marked task '{}' as completed.", task.name);
+    Ok(())
+}
+
+pub fn reactivate(args: TaskReactivateArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+    let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
+    let task = TaskService::new(storage, user_id).reactivate(&project.name, &args.task)?;
+    println!("Reactivated task '{}'.", task.name);
     Ok(())
 }
 
