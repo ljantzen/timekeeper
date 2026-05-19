@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
 use tmkpr_lib::{
@@ -743,6 +743,90 @@ impl App {
         }
         self.refresh()?;
         self.status = Some(("Updated.".into(), false));
+        Ok(())
+    }
+
+    pub fn fill_gaps(&mut self) -> anyhow::Result<()> {
+        if self.entries.is_empty() {
+            return Ok(());
+        }
+        let entry = self.entries[self.selected].clone();
+        self.fill_gaps_for_entry(&entry.id, entry.started_at, entry.finished_at)
+    }
+
+    pub fn fill_gaps_active(&mut self) -> anyhow::Result<()> {
+        match self.active_entry.clone() {
+            Some(e) => self.fill_gaps_for_entry(&e.id, e.started_at, None),
+            None => {
+                self.status = Some(("No active entry.".into(), true));
+                Ok(())
+            }
+        }
+    }
+
+    fn fill_gaps_for_entry(
+        &mut self,
+        id: &str,
+        started_at: DateTime<Utc>,
+        finished_at: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<()> {
+        let finished_entries = {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            svc.list(EntryFilter {
+                user_id: self.user_id.clone(),
+                include_active: false,
+                ..Default::default()
+            })?
+        };
+
+        // Prior: the finished entry whose finished_at is closest-before (or at) started_at.
+        let new_start = finished_entries
+            .iter()
+            .filter(|e| e.id != id)
+            .filter_map(|e| e.finished_at.filter(|&fat| fat <= started_at))
+            .max();
+
+        // Subsequent: the entry (finished or active) whose started_at is closest-after
+        // (or at) finished_at.  Active entry is checked separately since it isn't in
+        // the finished list.
+        let new_end = finished_at.and_then(|fat| {
+            let from_finished = finished_entries
+                .iter()
+                .filter(|e| e.id != id)
+                .map(|e| e.started_at)
+                .filter(|&sat| sat >= fat)
+                .min();
+            let from_active = self
+                .active_entry
+                .as_ref()
+                .filter(|e| e.id != id)
+                .map(|e| e.started_at)
+                .filter(|&sat| sat >= fat);
+            match (from_finished, from_active) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            }
+        });
+
+        if new_start.is_none() && new_end.is_none() {
+            self.status = Some(("No adjacent entries found.".into(), false));
+            return Ok(());
+        }
+
+        {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            svc.update(
+                id,
+                UpdateEntry {
+                    started_at: new_start,
+                    finished_at: new_end.map(Some),
+                    ..Default::default()
+                },
+            )?;
+        }
+
+        self.refresh()?;
+        self.status = Some(("Gaps filled.".into(), false));
         Ok(())
     }
 
@@ -1758,5 +1842,126 @@ mod tests {
 
         let err = app.merge_with_next().unwrap_err();
         assert!(err.to_string().contains("No subsequent entry"));
+    }
+
+    // ── fill_gaps ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn fill_gaps_extends_both_ends() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(5);
+        let t1 = now - Duration::hours(4);
+        let t2 = now - Duration::hours(3); // gap
+        let t3 = now - Duration::hours(2);
+        let t4 = now - Duration::hours(1); // gap
+        let t5 = now;
+
+        finished(&app, None, t0, t1); // prior
+        let mid = finished(&app, None, t2, t3); // selected (has gap before and after)
+        finished(&app, None, t4, t5); // subsequent
+
+        app.refresh().unwrap();
+        select(&mut app, &mid.id);
+        app.fill_gaps().unwrap();
+
+        let updated = app.entries.iter().find(|e| e.id == mid.id).unwrap();
+        assert_eq!(updated.started_at, t1);
+        assert_eq!(updated.finished_at, Some(t4));
+    }
+
+    #[test]
+    fn fill_gaps_extends_start_only_when_no_subsequent() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1); // gap
+
+        finished(&app, None, t0, t1); // prior
+        let target = finished(&app, None, t2, now);
+
+        app.refresh().unwrap();
+        select(&mut app, &target.id);
+        app.fill_gaps().unwrap();
+
+        let updated = app.entries.iter().find(|e| e.id == target.id).unwrap();
+        assert_eq!(updated.started_at, t1);
+        assert_eq!(updated.finished_at, Some(now));
+    }
+
+    #[test]
+    fn fill_gaps_extends_end_only_when_no_prior() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2); // gap
+        let t2 = now - Duration::hours(1);
+
+        let target = finished(&app, None, t0, t1);
+        finished(&app, None, t2, now); // subsequent
+
+        app.refresh().unwrap();
+        select(&mut app, &target.id);
+        app.fill_gaps().unwrap();
+
+        let updated = app.entries.iter().find(|e| e.id == target.id).unwrap();
+        assert_eq!(updated.started_at, t0);
+        assert_eq!(updated.finished_at, Some(t2));
+    }
+
+    #[test]
+    fn fill_gaps_no_adjacent_entries_leaves_status_message() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let target = finished(&app, None, now - Duration::hours(2), now - Duration::hours(1));
+
+        app.refresh().unwrap();
+        select(&mut app, &target.id);
+        app.fill_gaps().unwrap();
+
+        assert!(app
+            .status
+            .as_ref()
+            .unwrap()
+            .0
+            .contains("No adjacent entries found"));
+    }
+
+    #[test]
+    fn fill_gaps_active_extends_start_to_prior_finished_at() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1); // gap
+
+        finished(&app, None, t0, t1); // prior
+        active(&app, None, t2); // active entry with gap before it
+
+        app.refresh().unwrap();
+        app.fill_gaps_active().unwrap();
+
+        let merged = app.active_entry.as_ref().unwrap();
+        assert_eq!(merged.started_at, t1);
+    }
+
+    #[test]
+    fn fill_gaps_active_uses_active_entry_as_subsequent_for_selected() {
+        let mut app = make_app();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1); // gap before active
+
+        let target = finished(&app, None, t0, t1);
+        active(&app, None, t2); // active entry is the subsequent
+
+        app.refresh().unwrap();
+        select(&mut app, &target.id);
+        app.fill_gaps().unwrap();
+
+        let updated = app.entries.iter().find(|e| e.id == target.id).unwrap();
+        assert_eq!(updated.finished_at, Some(t2));
     }
 }
