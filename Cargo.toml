@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["tmkpr-lib", "tmkpr-cli", "tmkpr-ui"]
+members = ["tmkpr-lib", "tmkpr-cli", "tmkpr-ui", "tmkpr-pomodoro"]
 
 [workspace.package]
 version = "1.0.3"

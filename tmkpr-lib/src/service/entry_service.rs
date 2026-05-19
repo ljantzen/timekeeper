@@ -625,7 +625,7 @@ mod tests {
         let t = Utc::now() - Duration::hours(2);
         let entry = svc(&s).start(None, None, None, vec![], Some(t)).unwrap();
         let elapsed = entry.elapsed().num_seconds();
-        assert!(elapsed >= 7199 && elapsed <= 7201);
+        assert!((7199..=7201).contains(&elapsed));
     }
 
     #[test]
@@ -638,7 +638,7 @@ mod tests {
             .unwrap();
         let stopped = svc(&s).stop(Some(end)).unwrap();
         let dur = stopped.duration().unwrap().num_seconds();
-        assert!(dur >= 3599 && dur <= 3601);
+        assert!((3599..=3601).contains(&dur));
     }
 
     #[test]

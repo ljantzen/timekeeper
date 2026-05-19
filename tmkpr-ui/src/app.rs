@@ -1541,16 +1541,22 @@ mod tests {
         let filter = EntryFilterInput::default();
         assert!(!filter.is_active());
 
-        let mut filter = EntryFilterInput::default();
-        filter.project_id = Some("proj-1".to_string());
+        let filter = EntryFilterInput {
+            project_id: Some("proj-1".to_string()),
+            ..Default::default()
+        };
         assert!(filter.is_active());
 
-        let mut filter = EntryFilterInput::default();
-        filter.from = Some(Utc::now());
+        let filter = EntryFilterInput {
+            from: Some(Utc::now()),
+            ..Default::default()
+        };
         assert!(filter.is_active());
 
-        let mut filter = EntryFilterInput::default();
-        filter.until = Some(Utc::now());
+        let filter = EntryFilterInput {
+            until: Some(Utc::now()),
+            ..Default::default()
+        };
         assert!(filter.is_active());
     }
 
