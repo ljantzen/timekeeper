@@ -2,11 +2,9 @@ use anyhow::Result;
 use chrono::Utc;
 use std::time::{Duration, Instant};
 use tmkpr_lib::{
-    models::project::Project, models::task::Task, service::EntryService, storage::Storage,
+    config::Config, models::project::Project, models::task::Task, service::EntryService,
+    storage::Storage,
 };
-
-const WORK_DURATION: u64 = 25 * 60; // 25 minutes
-const BREAK_DURATION: u64 = 5 * 60; // 5 minutes
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TimerState {
@@ -28,10 +26,12 @@ pub struct App<'a> {
     session_start: Option<Instant>,
     paused_at: Option<Instant>,
     message: Option<String>,
+    work_duration: Duration,
+    break_duration: Duration,
 }
 
 impl<'a> App<'a> {
-    pub fn new(storage: &'a dyn Storage, user_id: &'a str) -> Result<Self> {
+    pub fn new(storage: &'a dyn Storage, user_id: &'a str, config: &Config) -> Result<Self> {
         let projects = storage.list_projects(user_id, false).unwrap_or_default();
         let tasks = if !projects.is_empty() {
             storage
@@ -53,6 +53,8 @@ impl<'a> App<'a> {
             session_start: None,
             paused_at: None,
             message: None,
+            work_duration: Duration::from_secs(config.pomodoro.work_duration_minutes * 60),
+            break_duration: Duration::from_secs(config.pomodoro.break_duration_minutes * 60),
         })
     }
 
@@ -164,14 +166,13 @@ impl<'a> App<'a> {
             if let Some(start) = self.session_start {
                 self.elapsed = start.elapsed();
 
-                let total_work = Duration::from_secs(WORK_DURATION);
-                if self.elapsed > total_work {
+                if self.elapsed > self.work_duration {
                     self.timer_state = TimerState::Break;
-                    self.session_start = Some(Instant::now() - (self.elapsed - total_work));
+                    self.session_start = Some(Instant::now() - (self.elapsed - self.work_duration));
                     self.message = Some("Work session complete! Break time.".to_string());
                 }
 
-                let total_duration = total_work + Duration::from_secs(BREAK_DURATION);
+                let total_duration = self.work_duration + self.break_duration;
                 if self.elapsed > total_duration {
                     self.reset();
                     self.message = Some("Session complete! Ready for the next one.".to_string());
@@ -230,9 +231,9 @@ impl<'a> App<'a> {
 
     pub fn work_duration(&self) -> u64 {
         if self.timer_state == TimerState::Break {
-            BREAK_DURATION
+            self.break_duration.as_secs()
         } else {
-            WORK_DURATION
+            self.work_duration.as_secs()
         }
     }
 

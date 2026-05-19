@@ -16,7 +16,7 @@ use app::App;
 fn main() -> Result<()> {
     // Setup
     let config = Config::load()?;
-    let db_path = config.database.path;
+    let db_path = config.database.path.clone();
     let storage = open_sqlite(&db_path)?;
     let user_id = config.user.user_id.clone();
 
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app_result = run_app(&mut terminal, storage.as_ref(), &user_id);
+    let app_result = run_app(&mut terminal, storage.as_ref(), &user_id, &config);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -40,8 +40,9 @@ fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     storage: &dyn tmkpr_lib::storage::Storage,
     user_id: &str,
+    config: &tmkpr_lib::config::Config,
 ) -> Result<()> {
-    let mut app = App::new(storage, user_id)?;
+    let mut app = App::new(storage, user_id, config)?;
 
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;

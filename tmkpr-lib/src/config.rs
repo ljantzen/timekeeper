@@ -15,6 +15,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub user: UserConfig,
     pub display: DisplayConfig,
+    pub pomodoro: PomodoroConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,6 +35,12 @@ pub struct DisplayConfig {
     pub week_start: WeekdayDef,
     #[serde(default)]
     pub time_format: TimeFormat,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PomodoroConfig {
+    pub work_duration_minutes: u64,
+    pub break_duration_minutes: u64,
 }
 
 /// Serde-compatible wrapper for chrono::Weekday.
@@ -78,6 +85,16 @@ impl Default for Config {
                 week_start: WeekdayDef::Mon,
                 time_format: TimeFormat::H24,
             },
+            pomodoro: PomodoroConfig::default(),
+        }
+    }
+}
+
+impl Default for PomodoroConfig {
+    fn default() -> Self {
+        Self {
+            work_duration_minutes: 25,
+            break_duration_minutes: 5,
         }
     }
 }
