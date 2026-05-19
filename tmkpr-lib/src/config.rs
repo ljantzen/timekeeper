@@ -43,10 +43,13 @@ pub struct PomodoroConfig {
     pub break_duration_minutes: u64,
     pub sessions_before_long_break: u64,
     pub long_break_duration_minutes: u64,
-    pub notify_bell: bool,
     pub notify_desktop: bool,
     pub message_timeout_secs: u64,
     pub auto_start_break: bool,
+    #[serde(default)]
+    pub sound_work_to_break: Option<String>,
+    #[serde(default)]
+    pub sound_break_to_work: Option<String>,
 }
 
 /// Serde-compatible wrapper for chrono::Weekday.
@@ -103,10 +106,11 @@ impl Default for PomodoroConfig {
             break_duration_minutes: 5,
             sessions_before_long_break: 4,
             long_break_duration_minutes: 15,
-            notify_bell: true,
             notify_desktop: false,
             message_timeout_secs: 5,
             auto_start_break: false,
+            sound_work_to_break: None,
+            sound_break_to_work: None,
         }
     }
 }

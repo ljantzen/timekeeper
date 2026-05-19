@@ -9,7 +9,7 @@ A terminal-based Pomodoro timer integrated with the tmkpr time tracking database
 - **Project & Task Selection**: Choose from projects and tasks stored in your tmkpr database
 - **Session Logging**: Automatically log completed work sessions to the database
 - **Configurable Notifications**:
-  - Terminal bell (audible alert)
+  - Audio file playback on session transitions (configurable per transition)
   - System desktop notifications (Linux, macOS, Windows)
   - Auto-clearing status messages
 - **In-App Settings**: Edit all configuration without leaving the terminal
@@ -17,7 +17,25 @@ A terminal-based Pomodoro timer integrated with the tmkpr time tracking database
 
 ## Installation
 
-The pomodoro module is part of the tmkpr workspace. Build it with:
+### System dependencies
+
+Audio playback requires platform audio libraries when building from source.
+
+**Linux** — install ALSA development headers before building:
+
+```bash
+# Fedora / RHEL
+sudo dnf install alsa-lib-devel
+
+# Debian / Ubuntu
+sudo apt install libasound2-dev
+```
+
+**macOS** — CoreAudio is used; no extra packages needed.
+
+**Windows** — WASAPI is used; no extra packages needed.
+
+### Building
 
 ```bash
 cargo build -p tmkpr-pomodoro --release
@@ -100,9 +118,12 @@ long_break_duration_minutes = 15
 sessions_before_long_break = 4
 
 # Notifications
-notify_bell = true                # Audible alert when sessions transition
 notify_desktop = false            # System notifications (opt-in)
 message_timeout_secs = 5          # Auto-clear status messages (0 = never)
+
+# Audio (WAV, MP3, OGG, FLAC supported; omit to disable)
+sound_work_to_break = ""          # Played when a work session ends
+sound_break_to_work = ""          # Played when a break ends
 
 # Break behavior
 auto_start_break = false          # Auto-start break when work ends (true) or pause (false)
@@ -113,15 +134,15 @@ auto_start_break = false          # Auto-start break when work ends (true) or pa
 **Quiet Mode** (no notifications):
 ```toml
 [pomodoro]
-notify_bell = false
 notify_desktop = false
 message_timeout_secs = 0
 ```
 
-**Aggressive Notifications**:
+**Audio + Desktop Notifications**:
 ```toml
 [pomodoro]
-notify_bell = true
+sound_work_to_break = "/home/user/sounds/gong.wav"
+sound_break_to_work = "/home/user/sounds/bell.ogg"
 notify_desktop = true
 message_timeout_secs = 3
 ```
@@ -146,7 +167,6 @@ message_timeout_secs = 3
 ```toml
 [pomodoro]
 auto_start_break = true          # Breaks start automatically
-notify_bell = false              # Silent transitions
 message_timeout_secs = 2
 ```
 
@@ -181,10 +201,11 @@ The timer integrates with the tmkpr SQLite database:
 
 ## Notifications
 
-### Terminal Bell
-- Emits a BEL character (`\x07`) when sessions transition
-- Works in any terminal, enabled by default
-- Toggle with `notify_bell` setting
+### Audio
+- Plays an audio file when sessions transition
+- Configure separate files for work→break and break→work transitions
+- Supports WAV, MP3, OGG Vorbis, and FLAC
+- Omit the setting (or leave it empty) to disable sound for that transition
 
 ### Desktop Notifications
 - Shows system notification when session ends/starts
@@ -229,6 +250,7 @@ RUST_LOG=debug cargo run -p tmkpr-pomodoro
 - **crossterm**: Terminal event handling
 - **chrono**: Time handling
 - **notify-rust**: Cross-platform desktop notifications
+- **rodio**: Audio playback (WAV, MP3, OGG, FLAC via symphonia)
 - **tmkpr-lib**: Shared database and configuration
 
 ## Troubleshooting

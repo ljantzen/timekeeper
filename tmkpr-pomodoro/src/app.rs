@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::io::Write;
 use std::time::{Duration, Instant};
 use tmkpr_lib::{
     config::{Config, PomodoroConfig}, models::project::Project, models::task::Task, service::EntryService,
@@ -12,6 +11,12 @@ pub struct CompletedSession {
     pub task: String,
     pub duration: Duration,
     pub color: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SoundField {
+    WorkToBreak,
+    BreakToWork,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -45,8 +50,9 @@ pub struct App<'a> {
     long_break_duration: Duration,
     sessions_before_long_break: u64,
     work_sessions_completed: u64,
-    notify_bell: bool,
     notify_desktop: bool,
+    sound_work_to_break: Option<String>,
+    sound_break_to_work: Option<String>,
     message_timeout: Duration,
     message_set_at: Option<Instant>,
     auto_start_break: bool,
@@ -54,6 +60,8 @@ pub struct App<'a> {
     config: Config,
     settings_edit: PomodoroConfig,
     settings_cursor: usize,
+    sound_editing: Option<SoundField>,
+    sound_edit_buf: String,
     completed_sessions: Vec<CompletedSession>,
 }
 
@@ -85,8 +93,9 @@ impl<'a> App<'a> {
             long_break_duration: Duration::from_secs(config.pomodoro.long_break_duration_minutes * 60),
             sessions_before_long_break: config.pomodoro.sessions_before_long_break,
             work_sessions_completed: 0,
-            notify_bell: config.pomodoro.notify_bell,
             notify_desktop: config.pomodoro.notify_desktop,
+            sound_work_to_break: config.pomodoro.sound_work_to_break.clone(),
+            sound_break_to_work: config.pomodoro.sound_break_to_work.clone(),
             message_timeout: Duration::from_secs(config.pomodoro.message_timeout_secs),
             message_set_at: None,
             auto_start_break: config.pomodoro.auto_start_break,
@@ -94,6 +103,8 @@ impl<'a> App<'a> {
             settings_edit: config.pomodoro.clone(),
             config,
             settings_cursor: 0,
+            sound_editing: None,
+            sound_edit_buf: String::new(),
             completed_sessions: Vec::new(),
         })
     }
@@ -230,13 +241,12 @@ impl<'a> App<'a> {
         self.paused_at = None;
     }
 
-    fn notify(&mut self, title: &str, body: &str) {
+    fn notify(&mut self, title: &str, body: &str, sound: Option<&str>) {
         self.message = Some(body.to_string());
         self.message_set_at = Some(Instant::now());
 
-        if self.notify_bell {
-            print!("\x07");
-            let _ = std::io::stdout().flush();
+        if let Some(path) = sound {
+            play_sound(path);
         }
 
         if self.notify_desktop {
@@ -246,25 +256,42 @@ impl<'a> App<'a> {
                 .show();
         }
     }
+}
+
+fn play_sound(path: &str) {
+    let path = path.to_string();
+    std::thread::spawn(move || {
+        let Ok((_stream, handle)) = rodio::OutputStream::try_default() else { return };
+        let Ok(sink) = rodio::Sink::try_new(&handle) else { return };
+        let Ok(file) = std::fs::File::open(&path) else { return };
+        let Ok(source) = rodio::Decoder::new(std::io::BufReader::new(file)) else { return };
+        sink.append(source);
+        sink.sleep_until_end();
+    });
+}
+
+impl<'a> App<'a> {
 
     pub fn open_settings(&mut self) {
         if self.timer_state == TimerState::Stopped {
             self.settings_edit = self.config.pomodoro.clone();
             self.settings_cursor = 0;
+            self.sound_editing = None;
+            self.sound_edit_buf = String::new();
             self.screen = Screen::Settings;
         }
     }
 
     pub fn settings_cursor_up(&mut self) {
         if self.settings_cursor == 0 {
-            self.settings_cursor = 7;
+            self.settings_cursor = 8;
         } else {
             self.settings_cursor -= 1;
         }
     }
 
     pub fn settings_cursor_down(&mut self) {
-        if self.settings_cursor == 7 {
+        if self.settings_cursor == 8 {
             self.settings_cursor = 0;
         } else {
             self.settings_cursor += 1;
@@ -290,16 +317,13 @@ impl<'a> App<'a> {
                     (self.settings_edit.long_break_duration_minutes as i64 + delta).max(1) as u64;
             }
             4 if delta != 0 => {
-                self.settings_edit.notify_bell = !self.settings_edit.notify_bell;
-            }
-            5 if delta != 0 => {
                 self.settings_edit.notify_desktop = !self.settings_edit.notify_desktop;
             }
-            6 => {
+            5 => {
                 self.settings_edit.message_timeout_secs =
                     (self.settings_edit.message_timeout_secs as i64 + delta).max(0) as u64;
             }
-            7 if delta != 0 => {
+            6 if delta != 0 => {
                 self.settings_edit.auto_start_break = !self.settings_edit.auto_start_break;
             }
             _ => {}
@@ -314,16 +338,21 @@ impl<'a> App<'a> {
         self.break_duration = Duration::from_secs(self.config.pomodoro.break_duration_minutes * 60);
         self.long_break_duration = Duration::from_secs(self.config.pomodoro.long_break_duration_minutes * 60);
         self.sessions_before_long_break = self.config.pomodoro.sessions_before_long_break;
-        self.notify_bell = self.config.pomodoro.notify_bell;
         self.notify_desktop = self.config.pomodoro.notify_desktop;
         self.message_timeout = Duration::from_secs(self.config.pomodoro.message_timeout_secs);
         self.auto_start_break = self.config.pomodoro.auto_start_break;
+        self.sound_work_to_break = self.config.pomodoro.sound_work_to_break.clone();
+        self.sound_break_to_work = self.config.pomodoro.sound_break_to_work.clone();
 
+        self.sound_editing = None;
+        self.sound_edit_buf = String::new();
         self.screen = Screen::Main;
         Ok(())
     }
 
     pub fn settings_cancel(&mut self) {
+        self.sound_editing = None;
+        self.sound_edit_buf = String::new();
         self.screen = Screen::Main;
     }
 
@@ -333,6 +362,60 @@ impl<'a> App<'a> {
 
     pub fn settings_state(&self) -> (&PomodoroConfig, usize) {
         (&self.settings_edit, self.settings_cursor)
+    }
+
+    pub fn settings_cursor_on_sound_field(&self) -> bool {
+        self.settings_cursor >= 7
+    }
+
+    pub fn is_editing_sound(&self) -> bool {
+        self.sound_editing.is_some()
+    }
+
+    pub fn sound_editing(&self) -> Option<SoundField> {
+        self.sound_editing
+    }
+
+    pub fn sound_edit_buf(&self) -> &str {
+        &self.sound_edit_buf
+    }
+
+    pub fn sound_edit_begin(&mut self) {
+        let current = match self.settings_cursor {
+            7 => self.settings_edit.sound_work_to_break.as_deref().unwrap_or(""),
+            8 => self.settings_edit.sound_break_to_work.as_deref().unwrap_or(""),
+            _ => return,
+        };
+        self.sound_edit_buf = current.to_string();
+        self.sound_editing = Some(match self.settings_cursor {
+            7 => SoundField::WorkToBreak,
+            _ => SoundField::BreakToWork,
+        });
+    }
+
+    pub fn sound_edit_push(&mut self, c: char) {
+        self.sound_edit_buf.push(c);
+    }
+
+    pub fn sound_edit_pop(&mut self) {
+        self.sound_edit_buf.pop();
+    }
+
+    pub fn sound_edit_confirm(&mut self) {
+        let path = self.sound_edit_buf.trim().to_string();
+        let value = if path.is_empty() { None } else { Some(path) };
+        match self.sound_editing {
+            Some(SoundField::WorkToBreak) => self.settings_edit.sound_work_to_break = value,
+            Some(SoundField::BreakToWork) => self.settings_edit.sound_break_to_work = value,
+            None => {}
+        }
+        self.sound_editing = None;
+        self.sound_edit_buf = String::new();
+    }
+
+    pub fn sound_edit_cancel(&mut self) {
+        self.sound_editing = None;
+        self.sound_edit_buf = String::new();
     }
 
     pub fn update(&mut self) {
@@ -375,7 +458,8 @@ impl<'a> App<'a> {
                     } else {
                         "Work session complete! Short break time."
                     };
-                    self.notify("Pomodoro", break_msg);
+                    let sound = self.sound_work_to_break.clone();
+                    self.notify("Pomodoro", break_msg, sound.as_deref());
                 }
 
                 let is_long_break = self.work_sessions_completed > 0
@@ -388,12 +472,14 @@ impl<'a> App<'a> {
                 let total_duration = self.work_duration + current_break_duration;
                 if self.elapsed > total_duration {
                     let is_after_long_break = is_long_break;
+                    let sound = self.sound_break_to_work.clone();
                     self.reset();
-                    if is_after_long_break {
-                        self.notify("Pomodoro", "Long break complete! Ready for the next cycle.");
+                    let msg = if is_after_long_break {
+                        "Long break complete! Ready for the next cycle.".to_string()
                     } else {
-                        self.notify("Pomodoro", "Break complete! Ready for the next work session.");
-                    }
+                        "Break complete! Ready for the next work session.".to_string()
+                    };
+                    self.notify("Pomodoro", &msg, sound.as_deref());
                 }
             }
         }

@@ -1,4 +1,4 @@
-use crate::app::{App, CompletedSession, Screen, TimerState};
+use crate::app::{App, CompletedSession, Screen, SoundField, TimerState};
 
 fn hex_to_rgb(hex: &str) -> Option<Color> {
     let h = hex.trim_start_matches('#');
@@ -236,68 +236,73 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
-    let settings_lines = vec![
+    let (cfg, cursor) = app.settings_state();
+    let editing = app.sound_editing();
+    let buf = app.sound_edit_buf();
+
+    let sel = |text: String, selected: bool| -> Line {
+        if selected {
+            Line::from(Span::styled(
+                text,
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ))
+        } else {
+            Line::from(text)
+        }
+    };
+
+    let sound_line = |label: &str, path: Option<&str>, field: SoundField| -> Line {
+        let is_editing = editing == Some(field);
+        let is_selected = cursor == if field == SoundField::WorkToBreak { 7 } else { 8 };
+        let value = if is_editing {
+            format!("{buf}█")
+        } else {
+            path.unwrap_or("not set").to_string()
+        };
+        let text = format!("  {label:<22} {value}");
+        if is_editing {
+            Line::from(Span::styled(
+                text,
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            ))
+        } else {
+            sel(text, is_selected)
+        }
+    };
+
+    let hint = if editing.is_some() {
+        "  Type path   Backspace: delete   Enter: confirm   Esc: discard"
+    } else {
+        "  ↑↓ navigate   ←→ adjust   Enter: edit/save   Esc: cancel"
+    };
+
+    let lines: Vec<Line> = vec![
         Line::from(""),
-        Line::from(format!(
-            "  Work duration:       ◀  {} min  ▶",
-            app.settings_state().0.work_duration_minutes
+        sel(format!("  Work duration:       ◀  {} min  ▶", cfg.work_duration_minutes), cursor == 0),
+        sel(format!("  Break duration:      ◀  {} min  ▶", cfg.break_duration_minutes), cursor == 1),
+        sel(format!("  Sessions / cycle:    ◀  {}      ▶", cfg.sessions_before_long_break), cursor == 2),
+        sel(format!("  Long break:          ◀  {} min  ▶", cfg.long_break_duration_minutes), cursor == 3),
+        sel(format!("  Desktop notify:         {}", if cfg.notify_desktop { "[✓] On" } else { "[ ] Off" }), cursor == 4),
+        sel(format!("  Message timeout:     ◀  {} sec  ▶", cfg.message_timeout_secs), cursor == 5),
+        sel(format!("  Auto-start break:       {}", if cfg.auto_start_break { "[✓] On" } else { "[ ] Off" }), cursor == 6),
+        Line::from(""),
+        sound_line("Sound (work→break):", cfg.sound_work_to_break.as_deref(), SoundField::WorkToBreak),
+        sound_line("Sound (break→work):", cfg.sound_break_to_work.as_deref(), SoundField::BreakToWork),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Formats: WAV · MP3 · OGG · FLAC",
+            Style::default().fg(Color::DarkGray),
         )),
-        Line::from(format!(
-            "  Break duration:      ◀  {} min  ▶",
-            app.settings_state().0.break_duration_minutes
-        )),
-        Line::from(format!(
-            "  Sessions / cycle:    ◀  {}      ▶",
-            app.settings_state().0.sessions_before_long_break
-        )),
-        Line::from(format!(
-            "  Long break:          ◀  {} min  ▶",
-            app.settings_state().0.long_break_duration_minutes
-        )),
-        Line::from(format!(
-            "  Bell:                   {}",
-            if app.settings_state().0.notify_bell { "[✓] On" } else { "[ ] Off" }
-        )),
-        Line::from(format!(
-            "  Desktop notify:         {}",
-            if app.settings_state().0.notify_desktop { "[✓] On" } else { "[ ] Off" }
-        )),
-        Line::from(format!(
-            "  Message timeout:     ◀  {} sec  ▶",
-            app.settings_state().0.message_timeout_secs
-        )),
-        Line::from(format!(
-            "  Auto-start break:       {}",
-            if app.settings_state().0.auto_start_break { "[✓] On" } else { "[ ] Off" }
+        Line::from(Span::styled(
+            "  Suggested: ~/.config/tmkpr/sounds/",
+            Style::default().fg(Color::DarkGray),
         )),
         Line::from(""),
-        Line::from("  ↑↓ select   ←→ adjust   Enter save   Esc cancel"),
+        Line::from(hint),
     ];
 
-    let mut styled_lines = Vec::new();
-    for (idx, line) in settings_lines.iter().enumerate() {
-        if idx == app.settings_state().1 + 1 && idx > 0 && idx < 10 {
-            styled_lines.push(
-                Line::from(vec![Span::styled(
-                    line.to_string(),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )])
-            );
-        } else {
-            styled_lines.push(line.clone());
-        }
-    }
-
-    let block = Block::default()
-        .title("Settings")
-        .borders(Borders::ALL);
-
-    let paragraph = Paragraph::new(styled_lines)
-        .block(block)
-        .alignment(Alignment::Left);
-
+    let block = Block::default().title("Settings").borders(Borders::ALL);
+    let paragraph = Paragraph::new(lines).block(block).alignment(Alignment::Left);
     f.render_widget(paragraph, area);
 }
 

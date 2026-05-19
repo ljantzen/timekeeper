@@ -12,5 +12,6 @@ ratatui.workspace = true
 serde.workspace = true
 tmkpr-lib.workspace = true
 notify-rust.workspace = true
+rodio.workspace = true
 
 [dev-dependencies]

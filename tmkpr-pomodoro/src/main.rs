@@ -50,15 +50,30 @@ fn run_app(
         if crossterm::event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 match app.screen() {
-                    Screen::Settings => match key.code {
-                        KeyCode::Up => app.settings_cursor_up(),
-                        KeyCode::Down => app.settings_cursor_down(),
-                        KeyCode::Left => app.settings_adjust(-1),
-                        KeyCode::Right => app.settings_adjust(1),
-                        KeyCode::Enter => app.settings_save()?,
-                        KeyCode::Esc => app.settings_cancel(),
-                        _ => {}
-                    },
+                    Screen::Settings => {
+                        if app.is_editing_sound() {
+                            match key.code {
+                                KeyCode::Char(c) => app.sound_edit_push(c),
+                                KeyCode::Backspace => app.sound_edit_pop(),
+                                KeyCode::Enter => app.sound_edit_confirm(),
+                                KeyCode::Esc => app.sound_edit_cancel(),
+                                _ => {}
+                            }
+                        } else {
+                            match key.code {
+                                KeyCode::Up => app.settings_cursor_up(),
+                                KeyCode::Down => app.settings_cursor_down(),
+                                KeyCode::Left => app.settings_adjust(-1),
+                                KeyCode::Right => app.settings_adjust(1),
+                                KeyCode::Enter if app.settings_cursor_on_sound_field() => {
+                                    app.sound_edit_begin();
+                                }
+                                KeyCode::Enter => app.settings_save()?,
+                                KeyCode::Esc => app.settings_cancel(),
+                                _ => {}
+                            }
+                        }
+                    }
                     Screen::Main => match key.code {
                         KeyCode::Char('q') | KeyCode::Esc
                             if app.can_quit() => {
