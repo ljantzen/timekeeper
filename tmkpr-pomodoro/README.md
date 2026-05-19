@@ -70,9 +70,13 @@ The timer follows this pattern (with default durations):
 
 Example: Work → Break → Work → Break → Work → Break → Work → **Long Break** → *(repeat)*
 
-### Manual Break Control
+### Break Transitions
 
-You can start a break at any time with `B` (when timer is stopped). This:
+When a work session completes:
+- **With `auto_start_break = true`**: Break timer starts immediately and continues counting down
+- **With `auto_start_break = false`**: Timer pauses, allowing you to set up before pressing Space to resume
+
+You can also start a break manually at any time with `B` (when timer is stopped). This:
 - Immediately starts a break (short or long, depending on cycle position)
 - Increments the work session counter toward the next long break
 - Useful for taking breaks without doing a work session first
@@ -99,6 +103,9 @@ sessions_before_long_break = 4
 notify_bell = true                # Audible alert when sessions transition
 notify_desktop = false            # System notifications (opt-in)
 message_timeout_secs = 5          # Auto-clear status messages (0 = never)
+
+# Break behavior
+auto_start_break = false          # Auto-start break when work ends (true) or pause (false)
 ```
 
 ### Configuration Examples
@@ -125,6 +132,21 @@ message_timeout_secs = 3
 work_duration_minutes = 1
 break_duration_minutes = 1
 long_break_duration_minutes = 2
+message_timeout_secs = 2
+```
+
+**Pause Between Sessions** (for setup/review):
+```toml
+[pomodoro]
+auto_start_break = false         # Pause when work ends, resume manually
+message_timeout_secs = 3
+```
+
+**Continuous Flow** (minimal interruption):
+```toml
+[pomodoro]
+auto_start_break = true          # Breaks start automatically
+notify_bell = false              # Silent transitions
 message_timeout_secs = 2
 ```
 
