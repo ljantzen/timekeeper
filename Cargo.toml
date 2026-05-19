@@ -23,7 +23,7 @@ comfy-table  = "7"
 crossterm    = "0.28"
 colored      = "3"
 interim      = { version = "0.2", features = ["chrono_0_4"] }
-ratatui      = "0.29"
+ratatui      = "0.30"
 notify-rust  = "4"
 rodio        = { version = "0.17", features = ["symphonia-all"] }
 tmkpr-lib    = { path = "tmkpr-lib" }
