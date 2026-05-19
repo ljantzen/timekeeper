@@ -166,7 +166,7 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
         .and_then(hex_to_rgb)
         .unwrap_or(Color::White);
 
-    let items: Vec<ListItem> = tasks
+    let mut items: Vec<ListItem> = tasks
         .iter()
         .enumerate()
         .map(|(idx, task)| {
@@ -183,8 +183,23 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    if app.is_new_task_editing() {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  + {}█", app.new_task_buf()),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ))));
+    }
+
+    let title = if app.is_new_task_editing() {
+        "Tasks (Enter: save  Esc: cancel)"
+    } else {
+        "Tasks"
+    };
+
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Tasks"))
+        .block(Block::default().borders(Borders::ALL).title(title))
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
@@ -400,7 +415,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 fn draw_help(f: &mut Frame, area: Rect) {
     let help_text = [
         "↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
-        "Space: Pause/Resume  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
+        "Space: Pause/Resume  |  N: New task  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
     ];
 
     let help = Paragraph::new(help_text.join("\n"))

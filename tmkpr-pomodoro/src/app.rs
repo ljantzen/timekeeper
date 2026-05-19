@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use tmkpr_lib::{
     config::{Config, PomodoroConfig},
     models::project::Project,
-    models::task::Task,
+    models::task::{NewTask, Task},
     service::EntryService,
     storage::Storage,
 };
@@ -66,6 +66,8 @@ pub struct App<'a> {
     settings_cursor: usize,
     sound_editing: Option<SoundField>,
     sound_edit_buf: String,
+    new_task_editing: bool,
+    new_task_buf: String,
     completed_sessions: Vec<CompletedSession>,
 }
 
@@ -112,6 +114,8 @@ impl<'a> App<'a> {
             settings_cursor: 0,
             sound_editing: None,
             sound_edit_buf: String::new(),
+            new_task_editing: false,
+            new_task_buf: String::new(),
             completed_sessions: Vec::new(),
         })
     }
@@ -625,6 +629,62 @@ impl<'a> App<'a> {
 
     pub fn completed_sessions(&self) -> &[CompletedSession] {
         &self.completed_sessions
+    }
+
+    pub fn is_new_task_editing(&self) -> bool {
+        self.new_task_editing
+    }
+
+    pub fn new_task_buf(&self) -> &str {
+        &self.new_task_buf
+    }
+
+    pub fn new_task_begin(&mut self) {
+        if self.timer_state == TimerState::Stopped && self.selected_project().is_some() {
+            self.new_task_editing = true;
+            self.new_task_buf = String::new();
+        }
+    }
+
+    pub fn new_task_push(&mut self, c: char) {
+        self.new_task_buf.push(c);
+    }
+
+    pub fn new_task_pop(&mut self) {
+        self.new_task_buf.pop();
+    }
+
+    pub fn new_task_confirm(&mut self) -> Result<()> {
+        let name = self.new_task_buf.trim().to_string();
+        if name.is_empty() {
+            self.new_task_editing = false;
+            self.new_task_buf = String::new();
+            return Ok(());
+        }
+        if let Some(proj) = self.selected_project() {
+            let new_task = NewTask {
+                user_id: self.user_id.to_string(),
+                project_id: proj.id.clone(),
+                name: name.clone(),
+                description: None,
+            };
+            self.storage.create_task(new_task)?;
+            self.refresh_tasks();
+            // select the newly created task (it will be last after refresh)
+            if !self.tasks.is_empty() {
+                if let Some(idx) = self.tasks.iter().position(|t| t.name == name) {
+                    self.selected_task_idx = idx;
+                }
+            }
+        }
+        self.new_task_editing = false;
+        self.new_task_buf = String::new();
+        Ok(())
+    }
+
+    pub fn new_task_cancel(&mut self) {
+        self.new_task_editing = false;
+        self.new_task_buf = String::new();
     }
 }
 

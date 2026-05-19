@@ -74,22 +74,35 @@ fn run_app(
                             }
                         }
                     }
-                    Screen::Main => match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc if app.can_quit() => {
-                            break;
+                    Screen::Main => {
+                        if app.is_new_task_editing() {
+                            match key.code {
+                                KeyCode::Char(c) => app.new_task_push(c),
+                                KeyCode::Backspace => app.new_task_pop(),
+                                KeyCode::Enter => app.new_task_confirm()?,
+                                KeyCode::Esc => app.new_task_cancel(),
+                                _ => {}
+                            }
+                        } else {
+                            match key.code {
+                                KeyCode::Char('q') | KeyCode::Esc if app.can_quit() => {
+                                    break;
+                                }
+                                KeyCode::Char('n') => app.new_task_begin(),
+                                KeyCode::Char('s') => app.open_settings(),
+                                KeyCode::Up => app.previous_project(),
+                                KeyCode::Down => app.next_project(),
+                                KeyCode::Left => app.previous_task(),
+                                KeyCode::Right => app.next_task(),
+                                KeyCode::Enter => app.start_timer()?,
+                                KeyCode::Char('b') => app.start_break()?,
+                                KeyCode::Char(' ') => app.toggle_timer(),
+                                KeyCode::Char('l') => app.log_session()?,
+                                KeyCode::Char('r') => app.reset(),
+                                _ => {}
+                            }
                         }
-                        KeyCode::Char('s') => app.open_settings(),
-                        KeyCode::Up => app.previous_project(),
-                        KeyCode::Down => app.next_project(),
-                        KeyCode::Left => app.previous_task(),
-                        KeyCode::Right => app.next_task(),
-                        KeyCode::Enter => app.start_timer()?,
-                        KeyCode::Char('b') => app.start_break()?,
-                        KeyCode::Char(' ') => app.toggle_timer(),
-                        KeyCode::Char('l') => app.log_session()?,
-                        KeyCode::Char('r') => app.reset(),
-                        _ => {}
-                    },
+                    }
                 }
             }
         }
