@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
+use std::io::Write;
 use std::time::{Duration, Instant};
 use tmkpr_lib::{
     config::Config, models::project::Project, models::task::Task, service::EntryService,
@@ -31,6 +32,10 @@ pub struct App<'a> {
     long_break_duration: Duration,
     sessions_before_long_break: u64,
     work_sessions_completed: u64,
+    notify_bell: bool,
+    notify_desktop: bool,
+    message_timeout: Duration,
+    message_set_at: Option<Instant>,
 }
 
 impl<'a> App<'a> {
@@ -61,6 +66,10 @@ impl<'a> App<'a> {
             long_break_duration: Duration::from_secs(config.pomodoro.long_break_duration_minutes * 60),
             sessions_before_long_break: config.pomodoro.sessions_before_long_break,
             work_sessions_completed: 0,
+            notify_bell: config.pomodoro.notify_bell,
+            notify_desktop: config.pomodoro.notify_desktop,
+            message_timeout: Duration::from_secs(config.pomodoro.message_timeout_secs),
+            message_set_at: None,
         })
     }
 
@@ -167,6 +176,23 @@ impl<'a> App<'a> {
         self.paused_at = None;
     }
 
+    fn notify(&mut self, title: &str, body: &str) {
+        self.message = Some(body.to_string());
+        self.message_set_at = Some(Instant::now());
+
+        if self.notify_bell {
+            print!("\x07");
+            let _ = std::io::stdout().flush();
+        }
+
+        if self.notify_desktop {
+            let _ = notify_rust::Notification::new()
+                .summary(title)
+                .body(body)
+                .show();
+        }
+    }
+
     pub fn update(&mut self) {
         if self.timer_state == TimerState::Running {
             if let Some(start) = self.session_start {
@@ -182,7 +208,7 @@ impl<'a> App<'a> {
                     } else {
                         "Work session complete! Short break time."
                     };
-                    self.message = Some(break_msg.to_string());
+                    self.notify("Pomodoro", break_msg);
                 }
 
                 let is_long_break = self.work_sessions_completed > 0
@@ -197,16 +223,20 @@ impl<'a> App<'a> {
                     let is_after_long_break = is_long_break;
                     self.reset();
                     if is_after_long_break {
-                        self.message = Some("Long break complete! Ready for the next cycle.".to_string());
+                        self.notify("Pomodoro", "Long break complete! Ready for the next cycle.");
                     } else {
-                        self.message = Some("Break complete! Ready for the next work session.".to_string());
+                        self.notify("Pomodoro", "Break complete! Ready for the next work session.");
                     }
                 }
             }
         }
 
-        // Clear message after 3 seconds
-        // (In a real app, track message_time)
+        if let Some(set_at) = self.message_set_at {
+            if !self.message_timeout.is_zero() && set_at.elapsed() > self.message_timeout {
+                self.message = None;
+                self.message_set_at = None;
+            }
+        }
     }
 
     pub fn can_quit(&self) -> bool {
