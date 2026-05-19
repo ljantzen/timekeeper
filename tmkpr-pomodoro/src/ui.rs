@@ -253,7 +253,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 
     let sound_line = |label: &str, path: Option<&str>, field: SoundField| -> Line {
         let is_editing = editing == Some(field);
-        let is_selected = cursor == if field == SoundField::WorkToBreak { 7 } else { 8 };
+        let is_selected = cursor == if field == SoundField::WorkToBreak { 8 } else { 9 };
         let value = if is_editing {
             format!("{buf}█")
         } else {
@@ -282,9 +282,16 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         sel(format!("  Break duration:      ◀  {} min  ▶", cfg.break_duration_minutes), cursor == 1),
         sel(format!("  Sessions / cycle:    ◀  {}      ▶", cfg.sessions_before_long_break), cursor == 2),
         sel(format!("  Long break:          ◀  {} min  ▶", cfg.long_break_duration_minutes), cursor == 3),
-        sel(format!("  Desktop notify:         {}", if cfg.notify_desktop { "[✓] On" } else { "[ ] Off" }), cursor == 4),
-        sel(format!("  Message timeout:     ◀  {} sec  ▶", cfg.message_timeout_secs), cursor == 5),
-        sel(format!("  Auto-start break:       {}", if cfg.auto_start_break { "[✓] On" } else { "[ ] Off" }), cursor == 6),
+        sel(
+            format!(
+                "  Max cycles:          ◀  {}  ▶",
+                if cfg.max_cycles == 0 { "0 (unlimited)".to_string() } else { cfg.max_cycles.to_string() }
+            ),
+            cursor == 4,
+        ),
+        sel(format!("  Desktop notify:         {}", if cfg.notify_desktop { "[✓] On" } else { "[ ] Off" }), cursor == 5),
+        sel(format!("  Message timeout:     ◀  {} sec  ▶", cfg.message_timeout_secs), cursor == 6),
+        sel(format!("  Auto-start break:       {}", if cfg.auto_start_break { "[✓] On" } else { "[ ] Off" }), cursor == 7),
         Line::from(""),
         sound_line("Sound (work→break):", cfg.sound_work_to_break.as_deref(), SoundField::WorkToBreak),
         sound_line("Sound (break→work):", cfg.sound_break_to_work.as_deref(), SoundField::BreakToWork),

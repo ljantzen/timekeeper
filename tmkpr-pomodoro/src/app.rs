@@ -56,6 +56,7 @@ pub struct App<'a> {
     message_timeout: Duration,
     message_set_at: Option<Instant>,
     auto_start_break: bool,
+    max_cycles: u64,
     screen: Screen,
     config: Config,
     settings_edit: PomodoroConfig,
@@ -99,6 +100,7 @@ impl<'a> App<'a> {
             message_timeout: Duration::from_secs(config.pomodoro.message_timeout_secs),
             message_set_at: None,
             auto_start_break: config.pomodoro.auto_start_break,
+            max_cycles: config.pomodoro.max_cycles,
             screen: Screen::Main,
             settings_edit: config.pomodoro.clone(),
             config,
@@ -284,14 +286,14 @@ impl<'a> App<'a> {
 
     pub fn settings_cursor_up(&mut self) {
         if self.settings_cursor == 0 {
-            self.settings_cursor = 8;
+            self.settings_cursor = 9;
         } else {
             self.settings_cursor -= 1;
         }
     }
 
     pub fn settings_cursor_down(&mut self) {
-        if self.settings_cursor == 8 {
+        if self.settings_cursor == 9 {
             self.settings_cursor = 0;
         } else {
             self.settings_cursor += 1;
@@ -316,14 +318,18 @@ impl<'a> App<'a> {
                 self.settings_edit.long_break_duration_minutes =
                     (self.settings_edit.long_break_duration_minutes as i64 + delta).max(1) as u64;
             }
-            4 if delta != 0 => {
+            4 => {
+                self.settings_edit.max_cycles =
+                    (self.settings_edit.max_cycles as i64 + delta).max(0) as u64;
+            }
+            5 if delta != 0 => {
                 self.settings_edit.notify_desktop = !self.settings_edit.notify_desktop;
             }
-            5 => {
+            6 => {
                 self.settings_edit.message_timeout_secs =
                     (self.settings_edit.message_timeout_secs as i64 + delta).max(0) as u64;
             }
-            6 if delta != 0 => {
+            7 if delta != 0 => {
                 self.settings_edit.auto_start_break = !self.settings_edit.auto_start_break;
             }
             _ => {}
@@ -341,6 +347,7 @@ impl<'a> App<'a> {
         self.notify_desktop = self.config.pomodoro.notify_desktop;
         self.message_timeout = Duration::from_secs(self.config.pomodoro.message_timeout_secs);
         self.auto_start_break = self.config.pomodoro.auto_start_break;
+        self.max_cycles = self.config.pomodoro.max_cycles;
         self.sound_work_to_break = self.config.pomodoro.sound_work_to_break.clone();
         self.sound_break_to_work = self.config.pomodoro.sound_break_to_work.clone();
 
@@ -365,7 +372,7 @@ impl<'a> App<'a> {
     }
 
     pub fn settings_cursor_on_sound_field(&self) -> bool {
-        self.settings_cursor >= 7
+        self.settings_cursor >= 8
     }
 
     pub fn is_editing_sound(&self) -> bool {
@@ -382,13 +389,13 @@ impl<'a> App<'a> {
 
     pub fn sound_edit_begin(&mut self) {
         let current = match self.settings_cursor {
-            7 => self.settings_edit.sound_work_to_break.as_deref().unwrap_or(""),
-            8 => self.settings_edit.sound_break_to_work.as_deref().unwrap_or(""),
+            8 => self.settings_edit.sound_work_to_break.as_deref().unwrap_or(""),
+            9 => self.settings_edit.sound_break_to_work.as_deref().unwrap_or(""),
             _ => return,
         };
         self.sound_edit_buf = current.to_string();
         self.sound_editing = Some(match self.settings_cursor {
-            7 => SoundField::WorkToBreak,
+            8 => SoundField::WorkToBreak,
             _ => SoundField::BreakToWork,
         });
     }
@@ -475,7 +482,13 @@ impl<'a> App<'a> {
                     let sound = self.sound_break_to_work.clone();
                     self.reset();
                     let msg = if is_after_long_break {
-                        "Long break complete! Ready for the next cycle.".to_string()
+                        let cycles_done =
+                            self.work_sessions_completed / self.sessions_before_long_break;
+                        if self.max_cycles > 0 && cycles_done >= self.max_cycles {
+                            format!("All {} cycles complete! Great work!", self.max_cycles)
+                        } else {
+                            "Long break complete! Ready for the next cycle.".to_string()
+                        }
                     } else {
                         "Break complete! Ready for the next work session.".to_string()
                     };

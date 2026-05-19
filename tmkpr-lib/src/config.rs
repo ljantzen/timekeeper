@@ -47,6 +47,8 @@ pub struct PomodoroConfig {
     pub message_timeout_secs: u64,
     pub auto_start_break: bool,
     #[serde(default)]
+    pub max_cycles: u64,
+    #[serde(default)]
     pub sound_work_to_break: Option<String>,
     #[serde(default)]
     pub sound_break_to_work: Option<String>,
@@ -109,6 +111,7 @@ impl Default for PomodoroConfig {
             notify_desktop: false,
             message_timeout_secs: 5,
             auto_start_break: false,
+            max_cycles: 0,
             sound_work_to_break: None,
             sound_break_to_work: None,
         }
