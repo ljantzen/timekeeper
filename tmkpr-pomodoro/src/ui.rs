@@ -214,7 +214,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_help(f: &mut Frame, area: Rect) {
-    let help_text = ["↑↓: Select project  |  ←→: Select task  |  Enter: Start timer",
+    let help_text = ["↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
         "Space: Pause/Resume  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit"];
 
     let help = Paragraph::new(help_text.join("\n"))

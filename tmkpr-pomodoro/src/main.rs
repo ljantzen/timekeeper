@@ -70,6 +70,7 @@ fn run_app(
                         KeyCode::Left => app.previous_task(),
                         KeyCode::Right => app.next_task(),
                         KeyCode::Enter => app.start_timer()?,
+                        KeyCode::Char('b') => app.start_break()?,
                         KeyCode::Char(' ') => app.toggle_timer(),
                         KeyCode::Char('l') => app.log_session()?,
                         KeyCode::Char('r') => app.reset(),

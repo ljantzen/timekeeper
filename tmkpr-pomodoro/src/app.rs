@@ -134,6 +134,25 @@ impl<'a> App<'a> {
         }
     }
 
+    pub fn start_break(&mut self) -> Result<()> {
+        if self.timer_state == TimerState::Stopped {
+            self.work_sessions_completed += 1;
+            self.timer_state = TimerState::Break;
+            self.session_start = Some(Instant::now());
+            self.elapsed = Duration::ZERO;
+            let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+            let break_msg = if is_long_break {
+                "Break started! (Long break)"
+            } else {
+                "Break started!"
+            };
+            self.message = Some(break_msg.to_string());
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn toggle_timer(&mut self) {
         match self.timer_state {
             TimerState::Running => {
