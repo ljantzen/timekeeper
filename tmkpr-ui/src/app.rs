@@ -1,9 +1,9 @@
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
+use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
 use tmkpr_lib::{
     models::{
-        comment::{Comment, NewComment},
+        comment::Comment,
         entry::{parse_tags, Entry, EntryFilter, UpdateEntry},
         project::{Project, UpdateProject},
         task::{Task, UpdateTask},
@@ -76,21 +76,28 @@ pub mod form_fields {
     }
 }
 
-fn parse_date_filter(s: &str) -> anyhow::Result<(Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>)> {
+type DateRange = (Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>);
+
+fn parse_date_filter(s: &str) -> anyhow::Result<DateRange> {
     let s = s.trim();
     if s.is_empty() {
         return Ok((None, None));
     }
 
     fn naive_to_utc(naive: chrono::NaiveDateTime) -> chrono::DateTime<Utc> {
-        Local.from_local_datetime(&naive).unwrap().with_timezone(&Utc)
+        Local
+            .from_local_datetime(&naive)
+            .unwrap()
+            .with_timezone(&Utc)
     }
 
     match s {
         "today" => {
             let now = Local::now();
             let from = now.date_naive().and_hms_opt(0, 0, 0).unwrap();
-            let until = (now.date_naive() + Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+            let until = (now.date_naive() + Duration::days(1))
+                .and_hms_opt(0, 0, 0)
+                .unwrap();
             Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
         }
         "yesterday" => {
@@ -126,7 +133,9 @@ fn parse_date_filter(s: &str) -> anyhow::Result<(Option<chrono::DateTime<Utc>>, 
             let from_date = NaiveDate::parse_from_str(parts[0].trim(), "%Y-%m-%d")?;
             let until_date = NaiveDate::parse_from_str(parts[1].trim(), "%Y-%m-%d")?;
             let from = from_date.and_hms_opt(0, 0, 0).unwrap();
-            let until = (until_date + Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+            let until = (until_date + Duration::days(1))
+                .and_hms_opt(0, 0, 0)
+                .unwrap();
             Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
         }
         _ => {
@@ -166,17 +175,9 @@ impl ProjectSort {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ProjectFilter {
     pub hide_archived: bool,
-}
-
-impl Default for ProjectFilter {
-    fn default() -> Self {
-        Self {
-            hide_archived: false,
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -252,40 +253,19 @@ impl EntrySort {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TaskFilter {
     pub project_id: Option<String>,
     pub hide_archived: bool,
 }
 
-impl Default for TaskFilter {
-    fn default() -> Self {
-        Self {
-            project_id: None,
-            hide_archived: false,
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct EntryFilterInput {
     pub project_name: String,
     pub date_str: String,
     pub project_id: Option<String>,
     pub from: Option<chrono::DateTime<chrono::Utc>>,
     pub until: Option<chrono::DateTime<chrono::Utc>>,
-}
-
-impl Default for EntryFilterInput {
-    fn default() -> Self {
-        Self {
-            project_name: String::new(),
-            date_str: String::new(),
-            project_id: None,
-            from: None,
-            until: None,
-        }
-    }
 }
 
 impl EntryFilterInput {
@@ -665,6 +645,7 @@ impl App {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn edit_entry(
         &mut self,
         id: &str,
@@ -750,13 +731,30 @@ impl App {
         if self.entries.is_empty() {
             return Ok(());
         }
-        let entry = self.entries[self.selected].clone();
-        self.fill_gaps_for_entry(&entry.id, entry.started_at, entry.finished_at)
+        let id = self.entries[self.selected].id.clone();
+        let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+        if !svc.fill_gaps(&id)? {
+            self.status = Some(("No adjacent entries found.".into(), false));
+        } else {
+            self.status = Some(("Gaps filled.".into(), false));
+        }
+        self.refresh()?;
+        Ok(())
     }
 
     pub fn fill_gaps_active(&mut self) -> anyhow::Result<()> {
         match self.active_entry.clone() {
-            Some(e) => self.fill_gaps_for_entry(&e.id, e.started_at, None),
+            Some(e) => {
+                let id = e.id.clone();
+                let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+                if !svc.fill_gaps(&id)? {
+                    self.status = Some(("No adjacent entries found.".into(), false));
+                } else {
+                    self.status = Some(("Gaps filled.".into(), false));
+                }
+                self.refresh()?;
+                Ok(())
+            }
             None => {
                 self.status = Some(("No active entry.".into(), true));
                 Ok(())
@@ -764,151 +762,14 @@ impl App {
         }
     }
 
-    fn fill_gaps_for_entry(
-        &mut self,
-        id: &str,
-        started_at: DateTime<Utc>,
-        finished_at: Option<DateTime<Utc>>,
-    ) -> anyhow::Result<()> {
-        let finished_entries = {
-            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.list(EntryFilter {
-                user_id: self.user_id.clone(),
-                include_active: false,
-                ..Default::default()
-            })?
-        };
-
-        // Prior: the finished entry whose finished_at is closest-before (or at) started_at,
-        // but only if it falls on the same local calendar day.  If the selected entry is
-        // the first entry of its day, the start time is left alone.
-        let start_day = started_at.with_timezone(&Local).date_naive();
-        let new_start = finished_entries
-            .iter()
-            .filter(|e| e.id != id)
-            .filter_map(|e| {
-                e.finished_at.filter(|&fat| {
-                    fat <= started_at && fat.with_timezone(&Local).date_naive() == start_day
-                })
-            })
-            .max();
-
-        // Subsequent: the entry (finished or active) whose started_at is closest-after
-        // (or at) finished_at, but only if it falls on the same local calendar day.
-        // If the selected entry is the last entry of its day, the end time is left alone.
-        let new_end = finished_at.and_then(|fat| {
-            let fat_day = fat.with_timezone(&Local).date_naive();
-            let same_day = |sat: DateTime<Utc>| sat.with_timezone(&Local).date_naive() == fat_day;
-            let from_finished = finished_entries
-                .iter()
-                .filter(|e| e.id != id)
-                .map(|e| e.started_at)
-                .filter(|&sat| sat >= fat && same_day(sat))
-                .min();
-            let from_active = self
-                .active_entry
-                .as_ref()
-                .filter(|e| e.id != id)
-                .map(|e| e.started_at)
-                .filter(|&sat| sat >= fat && same_day(sat));
-            match (from_finished, from_active) {
-                (Some(a), Some(b)) => Some(a.min(b)),
-                (a, b) => a.or(b),
-            }
-        });
-
-        if new_start.is_none() && new_end.is_none() {
-            self.status = Some(("No adjacent entries found.".into(), false));
-            return Ok(());
-        }
-
-        {
-            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.update(
-                id,
-                UpdateEntry {
-                    started_at: new_start,
-                    finished_at: new_end.map(Some),
-                    ..Default::default()
-                },
-            )?;
-        }
-
-        self.refresh()?;
-        self.status = Some(("Gaps filled.".into(), false));
-        Ok(())
-    }
-
     pub fn merge_with_next(&mut self) -> anyhow::Result<()> {
         if self.entries.is_empty() {
             return Ok(());
         }
 
-        let first = self.entries[self.selected].clone();
-
-        // Find the chronologically nearest entry after `first` with the same project and task.
-        let second = {
-            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            let mut candidates = svc.list(EntryFilter {
-                user_id: self.user_id.clone(),
-                from: Some(first.started_at),
-                include_active: true,
-                ..Default::default()
-            })?;
-            candidates.retain(|e| {
-                e.id != first.id
-                    && e.project_id == first.project_id
-                    && e.task_id == first.task_id
-                    && e.started_at > first.started_at
-            });
-            candidates.sort_by_key(|e| e.started_at);
-            candidates.into_iter().next()
-        };
-
-        let second = match second {
-            Some(e) => e,
-            None => {
-                return Err(anyhow::anyhow!(
-                    "No subsequent entry with the same project and task found."
-                ));
-            }
-        };
-
-        // Prepend first's note to second's unless they are identical.
-        let merged_note = match (&first.note, &second.note) {
-            (Some(a), Some(b)) if a == b => Some(b.clone()),
-            (Some(a), Some(b)) => Some(format!("{}\n{}", a, b)),
-            (Some(a), None) => Some(a.clone()),
-            (None, note) => note.clone(),
-        };
-
-        // Move comments from first to second before deletion cascades them away.
-        let comments = self.storage.list_comments(&first.id)?;
-        for comment in comments {
-            self.storage.create_comment(NewComment {
-                entry_id: second.id.clone(),
-                body: comment.body,
-            })?;
-        }
-
-        // Update second: adopt first's start time and merged note.
-        {
-            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.update(
-                &second.id,
-                UpdateEntry {
-                    note: Some(merged_note),
-                    started_at: Some(first.started_at),
-                    ..Default::default()
-                },
-            )?;
-        }
-
-        // Delete first; CASCADE removes its (now-moved) comments.
-        {
-            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.delete(&first.id)?;
-        }
+        let id = self.entries[self.selected].id.clone();
+        let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+        svc.merge_into_next(&id)?;
 
         self.refresh()?;
         self.status = Some(("Entries merged.".into(), false));
@@ -1052,10 +913,10 @@ impl App {
                 filtered.sort_by(|a, b| b.name.cmp(&a.name));
             }
             ProjectSort::Created => {
-                filtered.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+                filtered.sort_by_key(|a| a.created_at);
             }
             ProjectSort::CreatedDesc => {
-                filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                filtered.sort_by_key(|b| std::cmp::Reverse(b.created_at));
             }
         }
 
@@ -1072,9 +933,14 @@ impl App {
 
     pub fn open_project_filter_modal(&mut self) {
         self.mode = AppMode::FilterProjects(Form {
-            fields: vec![
-                Field::new("Show archived projects? (y/n)", if self.project_filter.hide_archived { "n" } else { "y" }),
-            ],
+            fields: vec![Field::new(
+                "Show archived projects? (y/n)",
+                if self.project_filter.hide_archived {
+                    "n"
+                } else {
+                    "y"
+                },
+            )],
             focused: 0,
         });
     }
@@ -1100,8 +966,14 @@ impl App {
             let form = Form {
                 fields: vec![
                     Field::new("Name", proj.name.clone()),
-                    Field::new("Description (optional)", proj.description.clone().unwrap_or_default()),
-                    Field::new("Color (optional, e.g. #ff0000)", proj.color.clone().unwrap_or_default()),
+                    Field::new(
+                        "Description (optional)",
+                        proj.description.clone().unwrap_or_default(),
+                    ),
+                    Field::new(
+                        "Color (optional, e.g. #ff0000)",
+                        proj.color.clone().unwrap_or_default(),
+                    ),
                 ],
                 focused: 0,
             };
@@ -1183,10 +1055,7 @@ impl App {
         self.refresh()?;
         let projects = self.apply_project_sort_filter(self.projects.clone());
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited project in list
-        self.mode = AppMode::ManageProjects {
-            projects,
-            selected,
-        };
+        self.mode = AppMode::ManageProjects { projects, selected };
         self.status = Some((format!("Project '{name}' updated."), false));
         Ok(())
     }
@@ -1232,14 +1101,15 @@ impl App {
             }
             TaskSort::Project => {
                 filtered.sort_by(|a, b| {
-                    self.project_name(&a.project_id).cmp(self.project_name(&b.project_id))
+                    self.project_name(&a.project_id)
+                        .cmp(self.project_name(&b.project_id))
                 });
             }
             TaskSort::Created => {
-                filtered.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+                filtered.sort_by_key(|a| a.created_at);
             }
             TaskSort::CreatedDesc => {
-                filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                filtered.sort_by_key(|b| std::cmp::Reverse(b.created_at));
             }
         }
 
@@ -1248,10 +1118,7 @@ impl App {
 
     pub fn open_manage_tasks(&mut self) {
         let tasks = self.apply_task_sort_filter(self.tasks.clone());
-        self.mode = AppMode::ManageTasks {
-            tasks,
-            selected: 0,
-        };
+        self.mode = AppMode::ManageTasks { tasks, selected: 0 };
     }
 
     pub fn open_task_filter_modal(&mut self) {
@@ -1261,14 +1128,25 @@ impl App {
             .project_id
             .as_ref()
             .and_then(|pid| {
-                self.projects.iter().find(|p| &p.id == pid).map(|p| p.name.clone())
+                self.projects
+                    .iter()
+                    .find(|p| &p.id == pid)
+                    .map(|p| p.name.clone())
             })
             .unwrap_or_default();
 
         self.mode = AppMode::FilterTasks(Form {
             fields: vec![
-                Field::new("Filter by project (empty = all)", &project_filter).with_completions(projects),
-                Field::new("Show archived tasks? (y/n)", if self.task_filter.hide_archived { "n" } else { "y" }),
+                Field::new("Filter by project (empty = all)", &project_filter)
+                    .with_completions(projects),
+                Field::new(
+                    "Show archived tasks? (y/n)",
+                    if self.task_filter.hide_archived {
+                        "n"
+                    } else {
+                        "y"
+                    },
+                ),
             ],
             focused: 0,
         });
@@ -1295,7 +1173,10 @@ impl App {
             let form = Form {
                 fields: vec![
                     Field::new("Name", task.name.clone()),
-                    Field::new("Description (optional)", task.description.clone().unwrap_or_default()),
+                    Field::new(
+                        "Description (optional)",
+                        task.description.clone().unwrap_or_default(),
+                    ),
                 ],
                 focused: 0,
             };
@@ -1332,16 +1213,14 @@ impl App {
         self.refresh()?;
         let tasks = self.apply_task_sort_filter(self.tasks.clone());
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited task in list
-        self.mode = AppMode::ManageTasks {
-            tasks,
-            selected,
-        };
+        self.mode = AppMode::ManageTasks { tasks, selected };
         self.status = Some((format!("Task '{name}' updated."), false));
         Ok(())
     }
 
     pub fn delete_selected_task(&mut self) -> anyhow::Result<()> {
-        let (project_name, task_name) = if let AppMode::ManageTasks { tasks, selected } = &self.mode {
+        let (project_name, task_name) = if let AppMode::ManageTasks { tasks, selected } = &self.mode
+        {
             if *selected < tasks.len() {
                 let task = &tasks[*selected];
                 (
@@ -1360,10 +1239,7 @@ impl App {
         self.refresh()?;
         let tasks = self.apply_task_sort_filter(self.tasks.clone());
         let selected = 0; // Reset on delete; could preserve position if list still non-empty
-        self.mode = AppMode::ManageTasks {
-            tasks,
-            selected,
-        };
+        self.mode = AppMode::ManageTasks { tasks, selected };
         self.status = Some((format!("Task '{}' deleted.", task_name), false));
         Ok(())
     }
@@ -1379,10 +1255,11 @@ impl App {
     fn apply_entry_sort(&mut self) {
         match self.entry_sort {
             EntrySort::StartDesc => {
-                self.entries.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+                self.entries
+                    .sort_by_key(|b| std::cmp::Reverse(b.started_at));
             }
             EntrySort::Start => {
-                self.entries.sort_by(|a, b| a.started_at.cmp(&b.started_at));
+                self.entries.sort_by_key(|a| a.started_at);
             }
             EntrySort::DurationDesc => {
                 self.entries.sort_by(|a, b| {
@@ -1399,14 +1276,25 @@ impl App {
                 });
             }
             EntrySort::Project => {
-                let project_map: std::collections::HashMap<&str, &str> = self.projects
+                let project_map: std::collections::HashMap<&str, &str> = self
+                    .projects
                     .iter()
                     .map(|p| (p.id.as_str(), p.name.as_str()))
                     .collect();
                 self.entries.sort_by(|a, b| {
-                    let a_proj = a.project_id.as_deref().and_then(|pid| project_map.get(pid)).copied().unwrap_or("?");
-                    let b_proj = b.project_id.as_deref().and_then(|pid| project_map.get(pid)).copied().unwrap_or("?");
-                    a_proj.cmp(&b_proj)
+                    let a_proj = a
+                        .project_id
+                        .as_deref()
+                        .and_then(|pid| project_map.get(pid))
+                        .copied()
+                        .unwrap_or("?");
+                    let b_proj = b
+                        .project_id
+                        .as_deref()
+                        .and_then(|pid| project_map.get(pid))
+                        .copied()
+                        .unwrap_or("?");
+                    a_proj.cmp(b_proj)
                 });
             }
         }
@@ -1416,8 +1304,12 @@ impl App {
         let projects = self.project_names();
         self.mode = AppMode::Filter(Form {
             fields: vec![
-                Field::new("Project (empty = all)", &self.entry_filter.project_name).with_completions(projects),
-                Field::new("Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD", &self.entry_filter.date_str),
+                Field::new("Project (empty = all)", &self.entry_filter.project_name)
+                    .with_completions(projects),
+                Field::new(
+                    "Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD",
+                    &self.entry_filter.date_str,
+                ),
             ],
             focused: 0,
         });
@@ -1427,7 +1319,12 @@ impl App {
         self.apply_filter_internal(project, date_str, true)
     }
 
-    fn apply_filter_internal(&mut self, project: &str, date_str: &str, show_message: bool) -> anyhow::Result<()> {
+    fn apply_filter_internal(
+        &mut self,
+        project: &str,
+        date_str: &str,
+        show_message: bool,
+    ) -> anyhow::Result<()> {
         self.entry_filter.project_name = project.to_string();
         self.entry_filter.date_str = date_str.to_string();
 
@@ -1453,19 +1350,16 @@ impl App {
     }
 
     pub fn load_ui_state(&mut self) -> anyhow::Result<()> {
-        match UiState::load() {
-            Ok(state) => {
-                if !state.entry_filter_project.is_empty() || !state.entry_filter_date.is_empty() {
-                    self.apply_filter(&state.entry_filter_project, &state.entry_filter_date)?;
-                }
-                if !state.entry_sort.is_empty() {
-                    if let Some(sort) = EntrySort::from_label(&state.entry_sort) {
-                        self.entry_sort = sort;
-                        self.apply_entry_sort();
-                    }
+        if let Ok(state) = UiState::load() {
+            if !state.entry_filter_project.is_empty() || !state.entry_filter_date.is_empty() {
+                self.apply_filter(&state.entry_filter_project, &state.entry_filter_date)?;
+            }
+            if !state.entry_sort.is_empty() {
+                if let Some(sort) = EntrySort::from_label(&state.entry_sort) {
+                    self.entry_sort = sort;
+                    self.apply_entry_sort();
                 }
             }
-            Err(_) => {}
         }
         Ok(())
     }
@@ -1485,6 +1379,7 @@ impl App {
 mod tests {
     use super::*;
     use chrono::DateTime;
+    use tmkpr_lib::models::comment::NewComment;
     use tmkpr_lib::models::entry::NewEntry;
     use tmkpr_lib::models::LOCAL_USER_ID;
     use tmkpr_lib::storage::sqlite::SqliteStorage;
@@ -1811,12 +1706,17 @@ mod tests {
     fn merge_errors_when_no_successor() {
         let mut app = make_app();
         let now = Utc::now();
-        let first = finished(&app, None, now - Duration::hours(2), now - Duration::hours(1));
+        let first = finished(
+            &app,
+            None,
+            now - Duration::hours(2),
+            now - Duration::hours(1),
+        );
         app.refresh().unwrap();
         select(&mut app, &first.id);
 
         let err = app.merge_with_next().unwrap_err();
-        assert!(err.to_string().contains("No subsequent entry"));
+        assert!(err.to_string().contains("no subsequent entry"));
     }
 
     #[test]
@@ -1850,7 +1750,7 @@ mod tests {
         select(&mut app, &first.id);
 
         let err = app.merge_with_next().unwrap_err();
-        assert!(err.to_string().contains("No subsequent entry"));
+        assert!(err.to_string().contains("no subsequent entry"));
     }
 
     // ── fill_gaps ─────────────────────────────────────────────────────────────
@@ -1923,7 +1823,12 @@ mod tests {
     fn fill_gaps_no_adjacent_entries_leaves_status_message() {
         let mut app = make_app();
         let now = Utc::now();
-        let target = finished(&app, None, now - Duration::hours(2), now - Duration::hours(1));
+        let target = finished(
+            &app,
+            None,
+            now - Duration::hours(2),
+            now - Duration::hours(1),
+        );
 
         app.refresh().unwrap();
         select(&mut app, &target.id);
@@ -1974,7 +1879,12 @@ mod tests {
         };
 
         // Prior entry is clearly on the previous day.
-        finished(&app, None, yesterday_17h - Duration::hours(1), yesterday_17h);
+        finished(
+            &app,
+            None,
+            yesterday_17h - Duration::hours(1),
+            yesterday_17h,
+        );
 
         let target_start = today_9am;
         let target_end = today_9am + Duration::hours(1);

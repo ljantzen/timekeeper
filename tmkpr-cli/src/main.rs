@@ -82,6 +82,8 @@ fn run() -> anyhow::Result<()> {
             commands::edit::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
         }
         Commands::Delete(args) => commands::delete::run(args, storage.as_ref(), &user_id)?,
+        Commands::Merge(args) => commands::merge::run(args, storage.as_ref(), &user_id)?,
+        Commands::FillGap(args) => commands::fill_gap::run(args, storage.as_ref(), &user_id)?,
         Commands::Comment(sub) => match sub {
             CommentCommands::Add(args) => commands::comment::add(args, storage.as_ref(), &user_id)?,
             CommentCommands::List(args) => {

@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, AppMode, ModeKind, form_fields};
+use crate::app::{form_fields, App, AppMode, ModeKind};
 use crate::form::FormResult;
 
 pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
@@ -62,15 +62,11 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some(("Not currently tracking.".into(), true));
             }
         }
-        KeyCode::Char('e') => {
-            if !app.entries.is_empty() {
-                app.open_edit_modal();
-            }
+        KeyCode::Char('e') if !app.entries.is_empty() => {
+            app.open_edit_modal();
         }
-        KeyCode::Char('d') => {
-            if !app.entries.is_empty() {
-                app.open_confirm_delete();
-            }
+        KeyCode::Char('d') if !app.entries.is_empty() => {
+            app.open_confirm_delete();
         }
         KeyCode::Char('f') => {
             app.open_filter_modal();
@@ -100,11 +96,9 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             Ok(()) => app.status = Some(("Refreshed.".into(), false)),
             Err(e) => app.status = Some((e.to_string(), true)),
         },
-        KeyCode::Char('g') => {
-            if !app.entries.is_empty() {
-                if let Err(e) = app.fill_gaps() {
-                    app.status = Some((e.to_string(), true));
-                }
+        KeyCode::Char('g') if !app.entries.is_empty() => {
+            if let Err(e) = app.fill_gaps() {
+                app.status = Some((e.to_string(), true));
             }
         }
         KeyCode::Char('G') => {
@@ -112,18 +106,14 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some((e.to_string(), true));
             }
         }
-        KeyCode::Char('m') => {
-            if !app.entries.is_empty() {
-                if let Err(e) = app.merge_with_next() {
-                    app.status = Some((e.to_string(), true));
-                }
+        KeyCode::Char('m') if !app.entries.is_empty() => {
+            if let Err(e) = app.merge_with_next() {
+                app.status = Some((e.to_string(), true));
             }
         }
-        KeyCode::Char('c') => {
-            if !app.entries.is_empty() {
-                if let Err(e) = app.open_comments() {
-                    app.status = Some((e.to_string(), true));
-                }
+        KeyCode::Char('c') if !app.entries.is_empty() => {
+            if let Err(e) = app.open_comments() {
+                app.status = Some((e.to_string(), true));
             }
         }
         KeyCode::Char('C') => {
@@ -181,12 +171,17 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterTasks(form) = old {
-                let project_name = form.fields[form_fields::filter_tasks::PROJECT].value.clone();
-                let show_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED].value.to_lowercase();
+                let project_name = form.fields[form_fields::filter_tasks::PROJECT]
+                    .value
+                    .clone();
+                let show_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED]
+                    .value
+                    .to_lowercase();
 
                 match show_archived.as_str() {
                     "y" | "yes" | "n" | "no" | "" => {
-                        app.task_filter.hide_archived = !matches!(show_archived.as_str(), "y" | "yes");
+                        app.task_filter.hide_archived =
+                            !matches!(show_archived.as_str(), "y" | "yes");
                         app.task_filter.project_id = if project_name.is_empty() {
                             None
                         } else {
@@ -199,7 +194,10 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                         app.open_manage_tasks();
                     }
                     _ => {
-                        app.status = Some(("Invalid input. Please enter 'y', 'n', or leave blank.".into(), true));
+                        app.status = Some((
+                            "Invalid input. Please enter 'y', 'n', or leave blank.".into(),
+                            true,
+                        ));
                         app.open_task_filter_modal();
                     }
                 }
@@ -224,7 +222,9 @@ fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::AddProject(form) = old {
                 let name = form.fields[form_fields::add_project::NAME].value.clone();
-                let description = form.fields[form_fields::add_project::DESCRIPTION].value.clone();
+                let description = form.fields[form_fields::add_project::DESCRIPTION]
+                    .value
+                    .clone();
                 let color = form.fields[form_fields::add_project::COLOR].value.clone();
                 if let Err(e) = app.add_project(&name, &description, &color) {
                     app.status = Some((e.to_string(), true));
@@ -283,14 +283,20 @@ fn handle_filter_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterProjects(form) = old {
-                let show_archived = form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED].value.to_lowercase();
+                let show_archived = form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED]
+                    .value
+                    .to_lowercase();
                 match show_archived.as_str() {
                     "y" | "yes" | "n" | "no" | "" => {
-                        app.project_filter.hide_archived = !matches!(show_archived.as_str(), "y" | "yes");
+                        app.project_filter.hide_archived =
+                            !matches!(show_archived.as_str(), "y" | "yes");
                         app.open_manage_projects();
                     }
                     _ => {
-                        app.status = Some(("Invalid input. Please enter 'y', 'n', or leave blank.".into(), true));
+                        app.status = Some((
+                            "Invalid input. Please enter 'y', 'n', or leave blank.".into(),
+                            true,
+                        ));
                         app.open_project_filter_modal();
                     }
                 }
@@ -318,7 +324,9 @@ fn handle_edit_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::EditProject { project_id, form } = old {
                 let name = form.fields[form_fields::edit_project::NAME].value.clone();
-                let description = form.fields[form_fields::edit_project::DESCRIPTION].value.clone();
+                let description = form.fields[form_fields::edit_project::DESCRIPTION]
+                    .value
+                    .clone();
                 let color = form.fields[form_fields::edit_project::COLOR].value.clone();
                 if let Err(e) = app.submit_edit_project(project_id, &name, &description, &color) {
                     app.status = Some((e.to_string(), true));
@@ -345,7 +353,9 @@ fn handle_add_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             if let AppMode::AddTask(form) = old {
                 let project = form.fields[form_fields::add_task::PROJECT].value.clone();
                 let name = form.fields[form_fields::add_task::NAME].value.clone();
-                let description = form.fields[form_fields::add_task::DESCRIPTION].value.clone();
+                let description = form.fields[form_fields::add_task::DESCRIPTION]
+                    .value
+                    .clone();
                 if let Err(e) = app.add_task(&project, &name, &description) {
                     app.status = Some((e.to_string(), true));
                     app.mode = AppMode::AddTask(form);
@@ -412,7 +422,9 @@ fn handle_edit_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::EditTask { task_id, form } = old {
                 let name = form.fields[form_fields::edit_task::NAME].value.clone();
-                let description = form.fields[form_fields::edit_task::DESCRIPTION].value.clone();
+                let description = form.fields[form_fields::edit_task::DESCRIPTION]
+                    .value
+                    .clone();
                 if let Err(e) = app.submit_edit_task(task_id, &name, &description) {
                     app.status = Some((e.to_string(), true));
                 }

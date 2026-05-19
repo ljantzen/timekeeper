@@ -87,32 +87,26 @@ impl Field {
         match code {
             KeyCode::Char(c) => self.insert(c),
             KeyCode::Backspace => self.delete_back(),
-            KeyCode::Delete => {
-                if self.cursor < self.value.len() {
-                    let ch_len = self.value[self.cursor..]
-                        .chars()
-                        .next()
-                        .map(|c| c.len_utf8())
-                        .unwrap_or(1);
-                    self.value.drain(self.cursor..self.cursor + ch_len);
-                }
+            KeyCode::Delete if self.cursor < self.value.len() => {
+                let ch_len = self.value[self.cursor..]
+                    .chars()
+                    .next()
+                    .map(|c| c.len_utf8())
+                    .unwrap_or(1);
+                self.value.drain(self.cursor..self.cursor + ch_len);
             }
-            KeyCode::Left => {
-                if self.cursor > 0 {
-                    let before = &self.value[..self.cursor];
-                    let ch_len = before.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
-                    self.cursor -= ch_len;
-                }
+            KeyCode::Left if self.cursor > 0 => {
+                let before = &self.value[..self.cursor];
+                let ch_len = before.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                self.cursor -= ch_len;
             }
-            KeyCode::Right => {
-                if self.cursor < self.value.len() {
-                    let ch_len = self.value[self.cursor..]
-                        .chars()
-                        .next()
-                        .map(|c| c.len_utf8())
-                        .unwrap_or(1);
-                    self.cursor += ch_len;
-                }
+            KeyCode::Right if self.cursor < self.value.len() => {
+                let ch_len = self.value[self.cursor..]
+                    .chars()
+                    .next()
+                    .map(|c| c.len_utf8())
+                    .unwrap_or(1);
+                self.cursor += ch_len;
             }
             KeyCode::Home => self.cursor = 0,
             KeyCode::End => self.cursor = self.value.len(),

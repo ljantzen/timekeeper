@@ -215,7 +215,7 @@ mod tests {
         // finished_at should be ~1 hour ago (allow 10s tolerance for test runner lag)
         let age_secs = (Utc::now() - stopped.finished_at.unwrap()).num_seconds();
         assert!(
-            age_secs >= 3590 && age_secs <= 3610,
+            (3590..=3610).contains(&age_secs),
             "finished_at age was {}s, expected ~3600s",
             age_secs
         );

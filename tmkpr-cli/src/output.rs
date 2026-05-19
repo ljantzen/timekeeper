@@ -1076,7 +1076,10 @@ mod tests {
     #[test]
     fn entries_to_csv_empty_has_header_only() {
         let csv = entries_to_csv(&[], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F");
-        assert_eq!(csv.trim(), "id,project,task,note,tags,started,finished,duration_secs");
+        assert_eq!(
+            csv.trim(),
+            "id,project,task,note,tags,started,finished,duration_secs"
+        );
     }
 
     #[test]
@@ -1207,11 +1210,25 @@ mod tests {
 
     #[test]
     fn print_entries_markdown_does_not_panic() {
-        print_entries(&[], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F", "markdown", false);
+        print_entries(
+            &[],
+            &ProjectIndex(vec![]),
+            &TaskIndex(vec![]),
+            "%F",
+            "markdown",
+            false,
+        );
     }
 
     #[test]
     fn print_entries_csv_does_not_panic() {
-        print_entries(&[], &ProjectIndex(vec![]), &TaskIndex(vec![]), "%F", "csv", false);
+        print_entries(
+            &[],
+            &ProjectIndex(vec![]),
+            &TaskIndex(vec![]),
+            "%F",
+            "csv",
+            false,
+        );
     }
 }

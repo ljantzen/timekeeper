@@ -75,6 +75,14 @@ pub enum Commands {
     #[command(aliases = ["d", "rm"])]
     Delete(DeleteArgs),
 
+    /// Merge an entry with the next entry sharing its project and task
+    #[command(alias = "m")]
+    Merge(MergeArgs),
+
+    /// Extend an entry's boundaries to fill time gaps with adjacent entries
+    #[command(alias = "fg")]
+    FillGap(FillGapArgs),
+
     /// Manage comments on time entries
     #[command(subcommand, alias = "c")]
     Comment(CommentCommands),
@@ -385,6 +393,22 @@ pub struct DeleteArgs {
     /// Skip confirmation prompt
     #[arg(long, short = 'y')]
     pub yes: bool,
+}
+
+// ── Merge ──────────────────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct MergeArgs {
+    /// Entry ID or UUID prefix
+    pub id: String,
+}
+
+// ── Fill Gap ───────────────────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct FillGapArgs {
+    /// Entry ID or UUID prefix; omit to use the active entry
+    pub id: Option<String>,
 }
 
 // ── Comment subcommands ───────────────────────────────────────────────────────

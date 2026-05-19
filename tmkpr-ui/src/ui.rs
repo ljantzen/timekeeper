@@ -154,9 +154,18 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
         } else {
             String::new()
         };
-        format!(" Entries ({}) [{}]{} ", app.entries.len(), parts.join(", "), sort_part)
+        format!(
+            " Entries ({}) [{}]{} ",
+            app.entries.len(),
+            parts.join(", "),
+            sort_part
+        )
     } else if app.entry_sort != crate::app::EntrySort::StartDesc {
-        format!(" Entries ({}) [{}] ", app.entries.len(), app.entry_sort.label())
+        format!(
+            " Entries ({}) [{}] ",
+            app.entries.len(),
+            app.entry_sort.label()
+        )
     } else {
         format!(" Entries ({}) ", app.entries.len())
     };
@@ -414,7 +423,13 @@ fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_add_project(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddProject(form) = &app.mode {
-        render_form_modal(frame, area, " Add Project ", layout::ADD_PROJECT_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Add Project ",
+            layout::ADD_PROJECT_WIDTH,
+            form,
+        );
     }
 }
 
@@ -473,7 +488,12 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
         } else {
             ""
         };
-        let title = format!(" Projects ({}){} [{}] ", projects.len(), filter_info, sort_info);
+        let title = format!(
+            " Projects ({}){} [{}] ",
+            projects.len(),
+            filter_info,
+            sort_info
+        );
 
         let items: Vec<ListItem> = projects
             .iter()
@@ -502,7 +522,13 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_edit_project(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditProject { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Project ", layout::EDIT_PROJECT_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Edit Project ",
+            layout::EDIT_PROJECT_WIDTH,
+            form,
+        );
     }
 }
 
@@ -523,7 +549,9 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
                 }
             }
             if app.task_filter.hide_archived {
-                if !info.is_empty() { info.push(' '); }
+                if !info.is_empty() {
+                    info.push(' ');
+                }
                 info.push_str("[active]");
             }
             format!(" {}", info)
@@ -630,48 +658,126 @@ fn render_help(frame: &mut Frame, area: Rect) {
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(Span::styled("Navigation", bold)),
-            Line::from(vec![Span::styled("  j / ↓  ", bold), Span::raw("Next entry")]),
-            Line::from(vec![Span::styled("  k / ↑  ", bold), Span::raw("Previous entry")]),
+            Line::from(vec![
+                Span::styled("  j / ↓  ", bold),
+                Span::raw("Next entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  k / ↑  ", bold),
+                Span::raw("Previous entry"),
+            ]),
             Line::from(""),
             Line::from(Span::styled("Entry actions", bold)),
-            Line::from(vec![Span::styled("  s      ", bold), Span::raw("Start new entry")]),
-            Line::from(vec![Span::styled("  S      ", bold), Span::raw("Start from selected (same project / task / note)")]),
-            Line::from(vec![Span::styled("  x      ", bold), Span::raw("Stop active entry")]),
-            Line::from(vec![Span::styled("  e      ", bold), Span::raw("Edit selected entry")]),
-            Line::from(vec![Span::styled("  d      ", bold), Span::raw("Delete selected entry")]),
-            Line::from(vec![Span::styled("  m      ", bold), Span::raw("Merge selected into next entry with same project/task")]),
-            Line::from(vec![Span::styled("  g      ", bold), Span::raw("Extend selected entry's start/end to same-day neighbours")]),
-            Line::from(vec![Span::styled("  G      ", bold), Span::raw("Extend active entry's start to same-day prior entry")]),
-            Line::from(vec![Span::styled("  c      ", bold), Span::raw("View / add comments on selected entry")]),
-            Line::from(vec![Span::styled("  C      ", bold), Span::raw("View / add comments on active entry")]),
+            Line::from(vec![
+                Span::styled("  s      ", bold),
+                Span::raw("Start new entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  S      ", bold),
+                Span::raw("Start from selected (same project / task / note)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  x      ", bold),
+                Span::raw("Stop active entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  e      ", bold),
+                Span::raw("Edit selected entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  d      ", bold),
+                Span::raw("Delete selected entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  m      ", bold),
+                Span::raw("Merge selected into next entry with same project/task"),
+            ]),
+            Line::from(vec![
+                Span::styled("  g      ", bold),
+                Span::raw("Extend selected entry's start/end to same-day neighbours"),
+            ]),
+            Line::from(vec![
+                Span::styled("  G      ", bold),
+                Span::raw("Extend active entry's start to same-day prior entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  c      ", bold),
+                Span::raw("View / add comments on selected entry"),
+            ]),
+            Line::from(vec![
+                Span::styled("  C      ", bold),
+                Span::raw("View / add comments on active entry"),
+            ]),
             Line::from(vec![Span::styled("  r      ", bold), Span::raw("Refresh")]),
             Line::from(""),
             Line::from(Span::styled("Filtering & sorting", bold)),
-            Line::from(vec![Span::styled("  f      ", bold), Span::raw("Filter by project / date")]),
-            Line::from(vec![Span::styled("  o      ", bold), Span::raw("Cycle sort order")]),
-            Line::from(vec![Span::styled("  T      ", bold), Span::raw("Quick filter: Today")]),
-            Line::from(vec![Span::styled("  Y      ", bold), Span::raw("Quick filter: Yesterday")]),
-            Line::from(vec![Span::styled("  W      ", bold), Span::raw("Quick filter: This week")]),
+            Line::from(vec![
+                Span::styled("  f      ", bold),
+                Span::raw("Filter by project / date"),
+            ]),
+            Line::from(vec![
+                Span::styled("  o      ", bold),
+                Span::raw("Cycle sort order"),
+            ]),
+            Line::from(vec![
+                Span::styled("  T      ", bold),
+                Span::raw("Quick filter: Today"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Y      ", bold),
+                Span::raw("Quick filter: Yesterday"),
+            ]),
+            Line::from(vec![
+                Span::styled("  W      ", bold),
+                Span::raw("Quick filter: This week"),
+            ]),
             Line::from(""),
             Line::from(Span::styled("Projects  [p]", bold)),
-            Line::from(vec![Span::styled("  a      ", bold), Span::raw("Add project")]),
-            Line::from(vec![Span::styled("  e      ", bold), Span::raw("Edit selected project")]),
-            Line::from(vec![Span::styled("  s      ", bold), Span::raw("Cycle sort")]),
+            Line::from(vec![
+                Span::styled("  a      ", bold),
+                Span::raw("Add project"),
+            ]),
+            Line::from(vec![
+                Span::styled("  e      ", bold),
+                Span::raw("Edit selected project"),
+            ]),
+            Line::from(vec![
+                Span::styled("  s      ", bold),
+                Span::raw("Cycle sort"),
+            ]),
             Line::from(vec![Span::styled("  f      ", bold), Span::raw("Filter")]),
             Line::from(""),
             Line::from(Span::styled("Tasks  [t]", bold)),
             Line::from(vec![Span::styled("  a      ", bold), Span::raw("Add task")]),
-            Line::from(vec![Span::styled("  e      ", bold), Span::raw("Edit selected task")]),
-            Line::from(vec![Span::styled("  d      ", bold), Span::raw("Delete selected task")]),
-            Line::from(vec![Span::styled("  s      ", bold), Span::raw("Cycle sort")]),
+            Line::from(vec![
+                Span::styled("  e      ", bold),
+                Span::raw("Edit selected task"),
+            ]),
+            Line::from(vec![
+                Span::styled("  d      ", bold),
+                Span::raw("Delete selected task"),
+            ]),
+            Line::from(vec![
+                Span::styled("  s      ", bold),
+                Span::raw("Cycle sort"),
+            ]),
             Line::from(vec![Span::styled("  f      ", bold), Span::raw("Filter")]),
             Line::from(""),
             Line::from(Span::styled("Comments  [c / C]", bold)),
-            Line::from(vec![Span::styled("  a      ", bold), Span::raw("Add comment")]),
-            Line::from(vec![Span::styled("  d      ", bold), Span::raw("Delete selected comment")]),
+            Line::from(vec![
+                Span::styled("  a      ", bold),
+                Span::raw("Add comment"),
+            ]),
+            Line::from(vec![
+                Span::styled("  d      ", bold),
+                Span::raw("Delete selected comment"),
+            ]),
             Line::from(""),
             Line::from(Span::styled("General", bold)),
-            Line::from(vec![Span::styled("  ?      ", bold), Span::raw("This help screen")]),
+            Line::from(vec![
+                Span::styled("  ?      ", bold),
+                Span::raw("This help screen"),
+            ]),
             Line::from(vec![Span::styled("  q/Esc  ", bold), Span::raw("Quit")]),
             Line::from(""),
             Line::from(Span::styled("Any key to close", dim)),
@@ -748,19 +854,37 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_filter(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::Filter(form) = &app.mode {
-        render_form_modal(frame, area, " Filter Entries ", layout::FILTER_ENTRIES_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Filter Entries ",
+            layout::FILTER_ENTRIES_WIDTH,
+            form,
+        );
     }
 }
 
 fn render_filter_tasks(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::FilterTasks(form) = &app.mode {
-        render_form_modal(frame, area, " Filter Tasks ", layout::FILTER_TASKS_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Filter Tasks ",
+            layout::FILTER_TASKS_WIDTH,
+            form,
+        );
     }
 }
 
 fn render_filter_projects(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::FilterProjects(form) = &app.mode {
-        render_form_modal(frame, area, " Filter Projects ", layout::FILTER_PROJECTS_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Filter Projects ",
+            layout::FILTER_PROJECTS_WIDTH,
+            form,
+        );
     }
 }
 

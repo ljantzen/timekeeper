@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Duration, NaiveDate, Utc, Weekday};
+use chrono::{DateTime, Duration, Local, NaiveDate, Utc, Weekday};
 use serde::Serialize;
 
 use crate::error::{TmkprError, TmkprResult};
+use crate::models::comment::NewComment;
 use crate::models::entry::{Entry, EntryFilter, NewEntry, UpdateEntry, NO_PROJECT, NO_TASK};
 use crate::service::{ProjectService, TaskService};
 use crate::storage::Storage;
@@ -396,6 +397,126 @@ impl<'a> EntryService<'a> {
             total_secs,
             by_project,
         })
+    }
+
+    /// Merge `id_or_prefix` into the chronologically next entry with the same project and task.
+    /// Returns the surviving (merged) entry.
+    pub fn merge_into_next(&self, id_or_prefix: &str) -> TmkprResult<Entry> {
+        let first_id = self.storage.resolve_entry_id(self.user_id, id_or_prefix)?;
+        let first = self.storage.get_entry(&first_id)?;
+
+        // Find next candidate with same project+task
+        let mut candidates = self.storage.list_entries(&EntryFilter {
+            user_id: self.user_id.to_string(),
+            from: Some(first.started_at),
+            include_active: true,
+            ..Default::default()
+        })?;
+        candidates.retain(|e| {
+            e.id != first.id
+                && e.project_id == first.project_id
+                && e.task_id == first.task_id
+                && e.started_at > first.started_at
+        });
+        candidates.sort_by_key(|e| e.started_at);
+        let second = candidates.into_iter().next().ok_or_else(|| {
+            TmkprError::Config(
+                "no subsequent entry with the same project and task found".to_string(),
+            )
+        })?;
+
+        let merged_note = match (&first.note, &second.note) {
+            (Some(a), Some(b)) if a == b => Some(b.clone()),
+            (Some(a), Some(b)) => Some(format!("{}\n{}", a, b)),
+            (Some(a), None) => Some(a.clone()),
+            (None, note) => note.clone(),
+        };
+
+        // Move comments from first to second
+        let comments = self.storage.list_comments(&first.id)?;
+        for comment in comments {
+            self.storage.create_comment(NewComment {
+                entry_id: second.id.clone(),
+                body: comment.body,
+            })?;
+        }
+
+        // Update second and delete first
+        let merged = self.storage.update_entry(
+            &second.id,
+            UpdateEntry {
+                note: Some(merged_note),
+                started_at: Some(first.started_at),
+                ..Default::default()
+            },
+        )?;
+        self.storage.delete_entry(&first.id)?;
+
+        Ok(merged)
+    }
+
+    /// Extend `id_or_prefix`'s start/end to fill gaps with adjacent entries on the same day.
+    /// Returns `true` when at least one bound was adjusted, `false` when no adjacent entries exist.
+    pub fn fill_gaps(&self, id_or_prefix: &str) -> TmkprResult<bool> {
+        let id = self.storage.resolve_entry_id(self.user_id, id_or_prefix)?;
+        let entry = self.storage.get_entry(&id)?;
+
+        let started_at = entry.started_at;
+        let finished_at = entry.finished_at;
+
+        let finished_entries = self.storage.list_entries(&EntryFilter {
+            user_id: self.user_id.to_string(),
+            include_active: false,
+            ..Default::default()
+        })?;
+
+        let start_day = started_at.with_timezone(&Local).date_naive();
+        let new_start = finished_entries
+            .iter()
+            .filter(|e| e.id != id)
+            .filter_map(|e| {
+                e.finished_at.filter(|&fat| {
+                    fat <= started_at && fat.with_timezone(&Local).date_naive() == start_day
+                })
+            })
+            .max();
+
+        let active_entry = self.storage.get_active_entry(self.user_id)?;
+
+        let new_end = finished_at.and_then(|fat| {
+            let fat_day = fat.with_timezone(&Local).date_naive();
+            let same_day = |sat: DateTime<Utc>| sat.with_timezone(&Local).date_naive() == fat_day;
+            let from_finished = finished_entries
+                .iter()
+                .filter(|e| e.id != id)
+                .map(|e| e.started_at)
+                .filter(|&sat| sat >= fat && same_day(sat))
+                .min();
+            let from_active = active_entry
+                .as_ref()
+                .filter(|e| e.id != id)
+                .map(|e| e.started_at)
+                .filter(|&sat| sat >= fat && same_day(sat));
+            match (from_finished, from_active) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            }
+        });
+
+        if new_start.is_none() && new_end.is_none() {
+            return Ok(false);
+        }
+
+        self.storage.update_entry(
+            &id,
+            UpdateEntry {
+                started_at: new_start,
+                finished_at: new_end.map(Some),
+                ..Default::default()
+            },
+        )?;
+
+        Ok(true)
     }
 }
 
@@ -901,5 +1022,188 @@ mod tests {
         assert_eq!(updated.started_at, new_start);
         assert_eq!(updated.finished_at, Some(new_end));
         assert_eq!(updated.tags, vec!["billable"]);
+    }
+
+    #[test]
+    fn merge_into_next_basic() {
+        let s = storage();
+        let (proj, task) = setup(&s);
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let first = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(
+                    ProjectService::new(&s, LOCAL_USER_ID)
+                        .get_by_name(&proj)
+                        .unwrap()
+                        .unwrap()
+                        .id,
+                ),
+                task_id: Some(
+                    s.get_task_by_name(
+                        &ProjectService::new(&s, LOCAL_USER_ID)
+                            .get_by_name(&proj)
+                            .unwrap()
+                            .unwrap()
+                            .id,
+                        &task,
+                    )
+                    .unwrap()
+                    .unwrap()
+                    .id,
+                ),
+                note: Some("first".into()),
+                started_at: t0,
+                finished_at: Some(t1),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let second = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: first.project_id.clone(),
+                task_id: first.task_id.clone(),
+                note: Some("second".into()),
+                started_at: t1,
+                finished_at: Some(t2),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let merged = svc(&s).merge_into_next(&first.id).unwrap();
+        assert_eq!(merged.id, second.id);
+        assert_eq!(merged.started_at, t0);
+        assert_eq!(merged.note.as_deref(), Some("first\nsecond"));
+
+        let remaining = svc(&s)
+            .list(EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, second.id);
+    }
+
+    #[test]
+    fn merge_into_next_no_successor_errors() {
+        let s = storage();
+        let (proj, task) = setup(&s);
+        let now = Utc::now();
+        let t0 = now - Duration::hours(1);
+        let t1 = now;
+
+        let entry = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(
+                    ProjectService::new(&s, LOCAL_USER_ID)
+                        .get_by_name(&proj)
+                        .unwrap()
+                        .unwrap()
+                        .id,
+                ),
+                task_id: Some(
+                    s.get_task_by_name(
+                        &ProjectService::new(&s, LOCAL_USER_ID)
+                            .get_by_name(&proj)
+                            .unwrap()
+                            .unwrap()
+                            .id,
+                        &task,
+                    )
+                    .unwrap()
+                    .unwrap()
+                    .id,
+                ),
+                note: None,
+                started_at: t0,
+                finished_at: Some(t1),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let err = svc(&s).merge_into_next(&entry.id).unwrap_err();
+        assert!(matches!(err, TmkprError::Config(_)));
+    }
+
+    #[test]
+    fn fill_gaps_extends_both() {
+        let s = storage();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+        let t3 = now - Duration::minutes(30);
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: t0,
+            finished_at: Some(t1),
+            tags: vec![],
+        })
+        .unwrap();
+
+        let mid = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: t2,
+                finished_at: Some(t3),
+                tags: vec![],
+            })
+            .unwrap();
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: t3,
+            finished_at: Some(now),
+            tags: vec![],
+        })
+        .unwrap();
+
+        let changed = svc(&s).fill_gaps(&mid.id).unwrap();
+        assert!(changed);
+
+        let updated = svc(&s).get(&mid.id).unwrap();
+        assert_eq!(updated.started_at, t1);
+        assert_eq!(updated.finished_at, Some(t3));
+    }
+
+    #[test]
+    fn fill_gaps_no_adjacent_returns_false() {
+        let s = storage();
+        let now = Utc::now();
+        let t0 = now - Duration::hours(1);
+        let t1 = now;
+
+        let entry = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: t0,
+                finished_at: Some(t1),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let changed = svc(&s).fill_gaps(&entry.id).unwrap();
+        assert!(!changed);
     }
 }
