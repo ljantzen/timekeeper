@@ -41,6 +41,8 @@ pub struct DisplayConfig {
 pub struct PomodoroConfig {
     pub work_duration_minutes: u64,
     pub break_duration_minutes: u64,
+    pub sessions_before_long_break: u64,
+    pub long_break_duration_minutes: u64,
 }
 
 /// Serde-compatible wrapper for chrono::Weekday.
@@ -95,6 +97,8 @@ impl Default for PomodoroConfig {
         Self {
             work_duration_minutes: 25,
             break_duration_minutes: 5,
+            sessions_before_long_break: 4,
+            long_break_duration_minutes: 15,
         }
     }
 }

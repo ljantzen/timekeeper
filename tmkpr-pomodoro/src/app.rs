@@ -28,6 +28,9 @@ pub struct App<'a> {
     message: Option<String>,
     work_duration: Duration,
     break_duration: Duration,
+    long_break_duration: Duration,
+    sessions_before_long_break: u64,
+    work_sessions_completed: u64,
 }
 
 impl<'a> App<'a> {
@@ -55,6 +58,9 @@ impl<'a> App<'a> {
             message: None,
             work_duration: Duration::from_secs(config.pomodoro.work_duration_minutes * 60),
             break_duration: Duration::from_secs(config.pomodoro.break_duration_minutes * 60),
+            long_break_duration: Duration::from_secs(config.pomodoro.long_break_duration_minutes * 60),
+            sessions_before_long_break: config.pomodoro.sessions_before_long_break,
+            work_sessions_completed: 0,
         })
     }
 
@@ -167,15 +173,34 @@ impl<'a> App<'a> {
                 self.elapsed = start.elapsed();
 
                 if self.elapsed > self.work_duration {
+                    self.work_sessions_completed += 1;
+                    let is_long_break = self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
                     self.timer_state = TimerState::Break;
                     self.session_start = Some(Instant::now() - (self.elapsed - self.work_duration));
-                    self.message = Some("Work session complete! Break time.".to_string());
+                    let break_msg = if is_long_break {
+                        "Work session complete! Time for a long break."
+                    } else {
+                        "Work session complete! Short break time."
+                    };
+                    self.message = Some(break_msg.to_string());
                 }
 
-                let total_duration = self.work_duration + self.break_duration;
+                let is_long_break = self.work_sessions_completed > 0
+                    && self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+                let current_break_duration = if is_long_break {
+                    self.long_break_duration
+                } else {
+                    self.break_duration
+                };
+                let total_duration = self.work_duration + current_break_duration;
                 if self.elapsed > total_duration {
+                    let is_after_long_break = is_long_break;
                     self.reset();
-                    self.message = Some("Session complete! Ready for the next one.".to_string());
+                    if is_after_long_break {
+                        self.message = Some("Long break complete! Ready for the next cycle.".to_string());
+                    } else {
+                        self.message = Some("Break complete! Ready for the next work session.".to_string());
+                    }
                 }
             }
         }
@@ -231,7 +256,14 @@ impl<'a> App<'a> {
 
     pub fn work_duration(&self) -> u64 {
         if self.timer_state == TimerState::Break {
-            self.break_duration.as_secs()
+            let is_long_break =
+                self.work_sessions_completed > 0
+                    && self.work_sessions_completed.is_multiple_of(self.sessions_before_long_break);
+            if is_long_break {
+                self.long_break_duration.as_secs()
+            } else {
+                self.break_duration.as_secs()
+            }
         } else {
             self.work_duration.as_secs()
         }
@@ -239,5 +271,13 @@ impl<'a> App<'a> {
 
     pub fn message(&self) -> Option<&str> {
         self.message.as_deref()
+    }
+
+    pub fn sessions_completed(&self) -> u64 {
+        self.work_sessions_completed
+    }
+
+    pub fn sessions_before_long(&self) -> u64 {
+        self.sessions_before_long_break
     }
 }

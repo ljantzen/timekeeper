@@ -55,7 +55,23 @@ fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
         minutes, seconds, total_min, state_label
     );
 
-    let paragraph = Paragraph::new(timer_text)
+    let cycle_info = if app.timer_state() == TimerState::Break {
+        let sessions = app.sessions_completed();
+        let cycle_size = app.sessions_before_long();
+        let current_in_cycle = (sessions % cycle_size) + 1;
+        format!("Session {}/{}", current_in_cycle, cycle_size)
+    } else if app.sessions_completed() > 0 {
+        let sessions = app.sessions_completed();
+        let cycle_size = app.sessions_before_long();
+        let current_in_cycle = (sessions % cycle_size) + 1;
+        format!("Work session {} of {}", current_in_cycle, cycle_size)
+    } else {
+        "Session 1 of X".to_string()
+    };
+
+    let full_text = format!("{}\n{}", timer_text, cycle_info);
+
+    let paragraph = Paragraph::new(full_text)
         .block(Block::default().borders(Borders::ALL).title("Timer"))
         .alignment(Alignment::Center);
 
