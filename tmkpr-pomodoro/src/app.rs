@@ -976,18 +976,17 @@ mod tests {
     // ── task completion ───────────────────────────────────────────────────────
 
     fn seed_project_and_task(s: &dyn Storage) {
-        use tmkpr_lib::models::project::NewProject;
-        use tmkpr_lib::models::task::NewTask;
+        use tmkpr_lib::models::{project::NewProject, task::NewTask, LOCAL_USER_ID};
         let p = s
             .create_project(NewProject {
-                user_id: "local".to_string(),
+                user_id: LOCAL_USER_ID.to_string(),
                 name: "proj".to_string(),
                 description: None,
                 color: None,
             })
             .unwrap();
         s.create_task(NewTask {
-            user_id: "local".to_string(),
+            user_id: LOCAL_USER_ID.to_string(),
             project_id: p.id.clone(),
             name: "task".to_string(),
             description: None,
@@ -997,7 +996,7 @@ mod tests {
 
     fn seed_and_make_app(s: &dyn Storage) -> App<'_> {
         seed_project_and_task(s);
-        make_app(s)
+        App::new(s, tmkpr_lib::models::LOCAL_USER_ID, Config::default()).unwrap()
     }
 
     #[test]

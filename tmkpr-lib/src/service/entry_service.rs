@@ -875,7 +875,6 @@ mod tests {
     #[test]
     fn list_filters_by_time_range() {
         let s = storage();
-        let now = Utc::now();
         let today_midnight = {
             use chrono::{Local, TimeZone};
             let today = chrono::Local::now().date_naive();
@@ -904,8 +903,8 @@ mod tests {
             project_id: None,
             task_id: None,
             note: Some("today".into()),
-            started_at: now - Duration::hours(1),
-            finished_at: Some(now),
+            started_at: today_midnight + Duration::hours(1),
+            finished_at: Some(today_midnight + Duration::hours(2)),
             tags: vec![],
         })
         .unwrap();
