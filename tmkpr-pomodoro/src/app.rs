@@ -3,9 +3,15 @@ use chrono::Utc;
 use std::io::Write;
 use std::time::{Duration, Instant};
 use tmkpr_lib::{
-    config::Config, models::project::Project, models::task::Task, service::EntryService,
+    config::{Config, PomodoroConfig}, models::project::Project, models::task::Task, service::EntryService,
     storage::Storage,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Screen {
+    Main,
+    Settings,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TimerState {
@@ -36,10 +42,14 @@ pub struct App<'a> {
     notify_desktop: bool,
     message_timeout: Duration,
     message_set_at: Option<Instant>,
+    screen: Screen,
+    config: Config,
+    settings_edit: PomodoroConfig,
+    settings_cursor: usize,
 }
 
 impl<'a> App<'a> {
-    pub fn new(storage: &'a dyn Storage, user_id: &'a str, config: &Config) -> Result<Self> {
+    pub fn new(storage: &'a dyn Storage, user_id: &'a str, config: Config) -> Result<Self> {
         let projects = storage.list_projects(user_id, false).unwrap_or_default();
         let tasks = if !projects.is_empty() {
             storage
@@ -70,6 +80,10 @@ impl<'a> App<'a> {
             notify_desktop: config.pomodoro.notify_desktop,
             message_timeout: Duration::from_secs(config.pomodoro.message_timeout_secs),
             message_set_at: None,
+            screen: Screen::Main,
+            settings_edit: config.pomodoro.clone(),
+            config,
+            settings_cursor: 0,
         })
     }
 
@@ -191,6 +205,90 @@ impl<'a> App<'a> {
                 .body(body)
                 .show();
         }
+    }
+
+    pub fn open_settings(&mut self) {
+        if self.timer_state == TimerState::Stopped {
+            self.settings_edit = self.config.pomodoro.clone();
+            self.settings_cursor = 0;
+            self.screen = Screen::Settings;
+        }
+    }
+
+    pub fn settings_cursor_up(&mut self) {
+        if self.settings_cursor == 0 {
+            self.settings_cursor = 6;
+        } else {
+            self.settings_cursor -= 1;
+        }
+    }
+
+    pub fn settings_cursor_down(&mut self) {
+        if self.settings_cursor == 6 {
+            self.settings_cursor = 0;
+        } else {
+            self.settings_cursor += 1;
+        }
+    }
+
+    pub fn settings_adjust(&mut self, delta: i64) {
+        match self.settings_cursor {
+            0 => {
+                self.settings_edit.work_duration_minutes =
+                    (self.settings_edit.work_duration_minutes as i64 + delta).max(1) as u64;
+            }
+            1 => {
+                self.settings_edit.break_duration_minutes =
+                    (self.settings_edit.break_duration_minutes as i64 + delta).max(1) as u64;
+            }
+            2 => {
+                self.settings_edit.sessions_before_long_break =
+                    (self.settings_edit.sessions_before_long_break as i64 + delta).max(1) as u64;
+            }
+            3 => {
+                self.settings_edit.long_break_duration_minutes =
+                    (self.settings_edit.long_break_duration_minutes as i64 + delta).max(1) as u64;
+            }
+            4 if delta != 0 => {
+                self.settings_edit.notify_bell = !self.settings_edit.notify_bell;
+            }
+            5 if delta != 0 => {
+                self.settings_edit.notify_desktop = !self.settings_edit.notify_desktop;
+            }
+            6 => {
+                self.settings_edit.message_timeout_secs =
+                    (self.settings_edit.message_timeout_secs as i64 + delta).max(0) as u64;
+            }
+            _ => {}
+        }
+    }
+
+    pub fn settings_save(&mut self) -> Result<()> {
+        self.config.pomodoro = self.settings_edit.clone();
+        self.config.save()?;
+
+        self.work_duration = Duration::from_secs(self.config.pomodoro.work_duration_minutes * 60);
+        self.break_duration = Duration::from_secs(self.config.pomodoro.break_duration_minutes * 60);
+        self.long_break_duration = Duration::from_secs(self.config.pomodoro.long_break_duration_minutes * 60);
+        self.sessions_before_long_break = self.config.pomodoro.sessions_before_long_break;
+        self.notify_bell = self.config.pomodoro.notify_bell;
+        self.notify_desktop = self.config.pomodoro.notify_desktop;
+        self.message_timeout = Duration::from_secs(self.config.pomodoro.message_timeout_secs);
+
+        self.screen = Screen::Main;
+        Ok(())
+    }
+
+    pub fn settings_cancel(&mut self) {
+        self.screen = Screen::Main;
+    }
+
+    pub fn screen(&self) -> Screen {
+        self.screen
+    }
+
+    pub fn settings_state(&self) -> (&PomodoroConfig, usize) {
+        (&self.settings_edit, self.settings_cursor)
     }
 
     pub fn update(&mut self) {

@@ -1,10 +1,16 @@
-use crate::app::{App, TimerState};
+use crate::app::{App, Screen, TimerState};
 use ratatui::{
     prelude::*,
+    text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
 };
 
 pub fn draw(f: &mut Frame, app: &App) {
+    if app.screen() == Screen::Settings {
+        draw_settings(f, app, f.area());
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -145,9 +151,71 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(paragraph, area);
 }
 
+fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
+    let settings_lines = vec![
+        Line::from(""),
+        Line::from(format!(
+            "  Work duration:       ◀  {} min  ▶",
+            app.settings_state().0.work_duration_minutes
+        )),
+        Line::from(format!(
+            "  Break duration:      ◀  {} min  ▶",
+            app.settings_state().0.break_duration_minutes
+        )),
+        Line::from(format!(
+            "  Sessions / cycle:    ◀  {}      ▶",
+            app.settings_state().0.sessions_before_long_break
+        )),
+        Line::from(format!(
+            "  Long break:          ◀  {} min  ▶",
+            app.settings_state().0.long_break_duration_minutes
+        )),
+        Line::from(format!(
+            "  Bell:                   {}",
+            if app.settings_state().0.notify_bell { "[✓] On" } else { "[ ] Off" }
+        )),
+        Line::from(format!(
+            "  Desktop notify:         {}",
+            if app.settings_state().0.notify_desktop { "[✓] On" } else { "[ ] Off" }
+        )),
+        Line::from(format!(
+            "  Message timeout:     ◀  {} sec  ▶",
+            app.settings_state().0.message_timeout_secs
+        )),
+        Line::from(""),
+        Line::from("  ↑↓ select   ←→ adjust   Enter save   Esc cancel"),
+    ];
+
+    let mut styled_lines = Vec::new();
+    for (idx, line) in settings_lines.iter().enumerate() {
+        if idx == app.settings_state().1 + 1 && idx > 0 && idx < 9 {
+            styled_lines.push(
+                Line::from(vec![Span::styled(
+                    line.to_string(),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )])
+            );
+        } else {
+            styled_lines.push(line.clone());
+        }
+    }
+
+    let block = Block::default()
+        .title("Settings")
+        .borders(Borders::ALL);
+
+    let paragraph = Paragraph::new(styled_lines)
+        .block(block)
+        .alignment(Alignment::Left);
+
+    f.render_widget(paragraph, area);
+}
+
 fn draw_help(f: &mut Frame, area: Rect) {
     let help_text = ["↑↓: Select project  |  ←→: Select task  |  Enter: Start timer",
-        "Space: Pause/Resume  |  L: Log session  |  R: Reset  |  Q: Quit"];
+        "Space: Pause/Resume  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit"];
 
     let help = Paragraph::new(help_text.join("\n"))
         .block(Block::default().borders(Borders::ALL).title("Help"))
