@@ -27,7 +27,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Length(3),
+            Constraint::Length(5),
             Constraint::Min(10),
             Constraint::Length(3),
             Constraint::Length(8),
@@ -92,11 +92,29 @@ fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
         "Session 1 of X".to_string()
     };
 
-    let full_text = format!("{}\n{}", timer_text, cycle_info);
+    let active_line = if app.timer_state() != TimerState::Stopped {
+        match (app.selected_project(), app.selected_task()) {
+            (Some(proj), Some(task)) => {
+                let color = proj.color.as_deref().and_then(hex_to_rgb).unwrap_or(Color::White);
+                Line::from(vec![
+                    Span::styled(proj.name.clone(), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                    Span::raw(" / "),
+                    Span::styled(task.name.clone(), Style::default().fg(color)),
+                ])
+            }
+            _ => Line::from(""),
+        }
+    } else {
+        Line::from("")
+    };
 
-    let paragraph = Paragraph::new(full_text)
-        .block(Block::default().borders(Borders::ALL).title("Timer"))
-        .alignment(Alignment::Center);
+    let paragraph = Paragraph::new(vec![
+        Line::from(timer_text),
+        Line::from(cycle_info),
+        active_line,
+    ])
+    .block(Block::default().borders(Borders::ALL).title("Timer"))
+    .alignment(Alignment::Center);
 
     f.render_widget(paragraph, area);
 }
