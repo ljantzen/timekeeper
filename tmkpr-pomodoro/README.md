@@ -1,6 +1,16 @@
 # tmkpr-pomodoro
 
-A terminal-based Pomodoro timer integrated with the tmkpr time tracking database. Manage work sessions, breaks, and automatically log completed sessions.
+Terminal-based Pomodoro timer integrated with the tmkpr time tracking database. Manage focused work sessions with built-in breaks, automatic logging, and notifications.
+
+**See the [main README](../README.md) for installation, storage, and general configuration details.**
+
+## When to use tmkpr-pomodoro
+
+- **Focused work sessions** — structure your day with timed intervals
+- **Break reminders** — automatic breaks to prevent burnout
+- **Session logging** — automatically record completed Pomodoros to the database
+- **Notifications** — audio and desktop alerts for transitions
+- **Distraction-free** — stay in the terminal, avoid context switching
 
 ## Features
 

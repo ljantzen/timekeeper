@@ -1,16 +1,26 @@
 # tmkpr-ui
 
-Terminal dashboard for tmkpr, built with [ratatui](https://github.com/ratatui/ratatui). See the [top-level README](../README.md) for storage and config details.
+Interactive terminal dashboard for tmkpr time tracking, built with [ratatui](https://github.com/ratatui/ratatui). Perfect for real-time visibility, interactive session management, and an intuitive keyboard-driven workflow.
+
+**See the [main README](../README.md) for installation, storage, and general configuration details.**
+
+## When to use tmkpr-ui
+
+- **Interactive tracking** — start/stop timers with visual feedback
+- **Quick overview** — see active timers, week totals, and recent entries at a glance
+- **Real-time management** — pause, resume, edit, and delete entries on the fly
+- **Visual organization** — manage projects and tasks interactively
+- **Desktop workflow** — full-featured UI without leaving the terminal
 
 ## Launch
 
-```
+```bash
 tmkpr-ui
 ```
 
-Override the database path:
+### Override database path
 
-```
+```bash
 tmkpr-ui --db /path/to/other.db
 TMKPR_DB=/path/to/other.db tmkpr-ui
 ```

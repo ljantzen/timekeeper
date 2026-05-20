@@ -1,6 +1,17 @@
 # tmkpr-cli
 
-Command-line interface for tmkpr. See the [top-level README](../README.md) for storage and config details.
+Full-featured command-line interface for tmkpr time tracking. Use the CLI for scripting, automation, integration with other tools, and fast keyboard-driven workflows.
+
+**See the [main README](../README.md) for installation, storage, and general configuration details.**
+
+## When to use tmkpr-cli
+
+- **Scripting & automation** — pipe commands, integrate with cron jobs, git hooks, etc.
+- **Keyboard workflow** — quick commands without GUI overhead
+- **Data export** — JSON, CSV, Markdown output formats
+- **Structured queries** — precise filtering and reporting
+- **CI/CD integration** — programmatic time logging
+- **Remote access** — works over SSH without X11
 
 ## Quick start
 
