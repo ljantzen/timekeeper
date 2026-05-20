@@ -445,6 +445,20 @@ fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         _ => return Ok(()),
     };
 
+    // Update task completions based on selected project
+    let project_name = if let AppMode::StartModal(form) = &app.mode {
+        form.fields[form_fields::start_modal::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
+    if !project_name.is_empty() {
+        let tasks = app.task_names_for_project(&project_name);
+        if let AppMode::StartModal(form) = &mut app.mode {
+            form.fields[form_fields::start_modal::TASK].completions = tasks;
+        }
+    }
+
     match result {
         FormResult::None => {}
         FormResult::Cancel => {
@@ -471,6 +485,20 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         AppMode::EditModal { form, .. } => form.handle_key(key),
         _ => return Ok(()),
     };
+
+    // Update task completions based on selected project
+    let project_name = if let AppMode::EditModal { form, .. } = &app.mode {
+        form.fields[form_fields::edit_modal::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
+    if !project_name.is_empty() {
+        let tasks = app.task_names_for_project(&project_name);
+        if let AppMode::EditModal { form, .. } = &mut app.mode {
+            form.fields[form_fields::edit_modal::TASK].completions = tasks;
+        }
+    }
 
     match result {
         FormResult::None => {}

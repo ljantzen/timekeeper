@@ -462,6 +462,24 @@ impl App {
             .collect()
     }
 
+    pub fn task_names_for_project(&self, project_name: &str) -> Vec<String> {
+        let project_id = self
+            .projects
+            .iter()
+            .find(|p| p.name == project_name)
+            .map(|p| p.id.as_str());
+
+        if let Some(pid) = project_id {
+            self.tasks
+                .iter()
+                .filter(|t| t.project_id == pid && !t.completed)
+                .map(|t| t.name.clone())
+                .collect()
+        } else {
+            vec![]
+        }
+    }
+
     pub fn project_name<'a>(&'a self, id: &str) -> &'a str {
         self.projects
             .iter()
