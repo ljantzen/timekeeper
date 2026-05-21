@@ -20,7 +20,7 @@ rusqlite     = { version = "0.39", features = ["bundled", "chrono"] }
 clap         = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4", features = ["unstable-dynamic"] }
 comfy-table  = "7"
-crossterm    = "0.28"
+crossterm    = "0.29"
 colored      = "3"
 interim      = { version = "0.2", features = ["chrono_0_4"] }
 ratatui      = "0.30"
