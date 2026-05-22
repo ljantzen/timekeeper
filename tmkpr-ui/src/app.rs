@@ -2143,6 +2143,10 @@ mod tests {
             .unwrap();
         app.refresh().unwrap();
         app.open_manage_tasks();
+        // Show completed tasks to test toggling them back
+        app.task_filter.hide_completed = false;
+        let tasks = app.apply_task_sort_filter(app.tasks.clone());
+        app.mode = AppMode::ManageTasks { tasks, selected: 0 };
         app.toggle_complete_selected_task().unwrap();
         assert!(!app.storage.get_task(&tid).unwrap().completed);
         assert_eq!(app.status.as_ref().unwrap().0, "Task reactivated.");
