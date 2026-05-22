@@ -77,6 +77,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::Comments => render_comments(frame, app, area),
         ModeKind::AddComment => render_add_comment(frame, app, area),
         ModeKind::EditComment => render_edit_comment(frame, app, area),
+        ModeKind::ConfirmCreate => render_confirm_create(frame, app, area),
+        ModeKind::ConfirmDeleteProject => render_confirm_delete_project(frame, app, area),
         ModeKind::Help => render_help(frame, area),
         ModeKind::Normal => {}
     }
@@ -474,7 +476,7 @@ fn render_list_panel(
 
     frame.render_widget(
         Paragraph::new(Span::styled(
-            "[a] add  [e] edit  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
+            "[a] add  [e] edit  [d] delete  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
             Style::default().fg(Color::DarkGray),
         )),
         chunks[1],
@@ -647,6 +649,69 @@ fn render_confirm_delete(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(""),
                 Line::from(Span::styled(
                     "[y] Yes  [n/Esc] No",
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ]),
+            inner,
+        );
+    }
+}
+
+fn render_confirm_delete_project(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::ConfirmDeleteProject { name, .. } = &app.mode {
+        let popup_area = centered_rect(50, 25, area);
+        frame.render_widget(Clear, popup_area);
+        let block = Block::default()
+            .title(" Delete Project ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red));
+        let inner = block.inner(popup_area);
+        frame.render_widget(block, popup_area);
+        frame.render_widget(
+            Paragraph::new(vec![
+                Line::from(format!("Permanently delete \"{}\"?", name)),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "[y] Yes  [n/Esc] No",
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ]),
+            inner,
+        );
+    }
+}
+
+fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::ConfirmCreate {
+        project,
+        task,
+        create_project,
+        create_task,
+        ..
+    } = &app.mode
+    {
+        let popup_area = centered_rect(60, 25, area);
+        frame.render_widget(Clear, popup_area);
+        let block = Block::default()
+            .title(" Create? ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Yellow));
+        let inner = block.inner(popup_area);
+        frame.render_widget(block, popup_area);
+
+        let msg = match (*create_project, *create_task) {
+            (true, true) => format!("Project \"{project}\" and task \"{task}\" not found."),
+            (true, false) => format!("Project \"{project}\" not found."),
+            (false, true) => format!("Task \"{task}\" not found in project \"{project}\"."),
+            (false, false) => String::new(),
+        };
+
+        frame.render_widget(
+            Paragraph::new(vec![
+                Line::from(msg),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "[y] Create and start  [n/Esc] Cancel",
                     Style::default().fg(Color::DarkGray),
                 )),
             ]),

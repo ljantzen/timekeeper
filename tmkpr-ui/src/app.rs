@@ -336,6 +336,18 @@ pub enum AppMode {
         comment_id: String,
         form: Form,
     },
+    ConfirmCreate {
+        project: String,
+        task: String,
+        note: String,
+        tags: String,
+        create_project: bool,
+        create_task: bool,
+    },
+    ConfirmDeleteProject {
+        id: String,
+        name: String,
+    },
     Help,
 }
 
@@ -357,6 +369,8 @@ pub enum ModeKind {
     Comments,
     AddComment,
     EditComment,
+    ConfirmCreate,
+    ConfirmDeleteProject,
     Help,
 }
 
@@ -379,6 +393,8 @@ impl AppMode {
             AppMode::Comments { .. } => ModeKind::Comments,
             AppMode::AddComment { .. } => ModeKind::AddComment,
             AppMode::EditComment { .. } => ModeKind::EditComment,
+            AppMode::ConfirmCreate { .. } => ModeKind::ConfirmCreate,
+            AppMode::ConfirmDeleteProject { .. } => ModeKind::ConfirmDeleteProject,
             AppMode::Help => ModeKind::Help,
         }
     }
@@ -662,19 +678,6 @@ impl App {
             Some(project)
         };
         let task_opt = if task.is_empty() { None } else { Some(task) };
-
-        // Auto-create task if specified and doesn't exist
-        if let (Some(proj_name), Some(task_name)) = (project_opt, task_opt) {
-            let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
-            let proj = svc.resolve(proj_name)?;
-
-            let task_svc = TaskService::new(self.storage.as_ref(), &self.user_id);
-            if task_svc.resolve(&proj.id, task_name).is_err() {
-                // Task doesn't exist, create it
-                task_svc.add(proj_name, task_name, None)?;
-            }
-        }
-
         let note_opt = if note.is_empty() {
             None
         } else {
@@ -688,6 +691,26 @@ impl App {
         self.refresh()?;
         self.status = Some(("Started.".into(), false));
         Ok(())
+    }
+
+    pub fn create_missing_and_start(
+        &mut self,
+        project: &str,
+        task: &str,
+        note: &str,
+        tags_str: &str,
+        create_project: bool,
+        create_task: bool,
+    ) -> anyhow::Result<()> {
+        if create_project && !project.is_empty() {
+            let proj_svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
+            proj_svc.add(project, None, None)?;
+        }
+        if create_task && !task.is_empty() && !project.is_empty() {
+            let task_svc = TaskService::new(self.storage.as_ref(), &self.user_id);
+            task_svc.add(project, task, None)?;
+        }
+        self.start_entry(project, task, note, tags_str)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -963,7 +986,11 @@ impl App {
         Ok(())
     }
 
-    pub fn refresh_comments_mode(&mut self, entry_id: String, selected: usize) -> anyhow::Result<()> {
+    pub fn refresh_comments_mode(
+        &mut self,
+        entry_id: String,
+        selected: usize,
+    ) -> anyhow::Result<()> {
         let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
         let comments = svc.list(Some(&entry_id))?;
         let selected = selected.min(comments.len().saturating_sub(1));
@@ -1017,6 +1044,56 @@ impl App {
             projects,
             selected: 0,
         };
+    }
+
+    pub fn open_confirm_delete_project(&mut self) -> anyhow::Result<()> {
+        let (id, name) = if let AppMode::ManageProjects { projects, selected } = &self.mode {
+            if projects.is_empty() {
+                return Ok(());
+            }
+            let p = &projects[*selected];
+            (p.id.clone(), p.name.clone())
+        } else {
+            return Ok(());
+        };
+
+        let tasks = self.storage.list_tasks(&id, true)?;
+        if !tasks.is_empty() {
+            self.status = Some((
+                format!(
+                    "Cannot delete '{}': it has tasks. Delete or move them first.",
+                    name
+                ),
+                true,
+            ));
+            return Ok(());
+        }
+
+        let entries = self.storage.list_entries(&EntryFilter {
+            user_id: self.user_id.clone(),
+            project_id: Some(id.clone()),
+            include_active: true,
+            ..Default::default()
+        })?;
+        if !entries.is_empty() {
+            self.status = Some((format!("Cannot delete '{}': it has entries.", name), true));
+            return Ok(());
+        }
+
+        self.mode = AppMode::ConfirmDeleteProject { id, name };
+        Ok(())
+    }
+
+    pub fn delete_project(&mut self, id: &str, name: &str) -> anyhow::Result<()> {
+        self.storage.delete_project(id)?;
+        self.refresh()?;
+        let projects = self.apply_project_sort_filter(self.projects.clone());
+        self.mode = AppMode::ManageProjects {
+            projects,
+            selected: 0,
+        };
+        self.status = Some((format!("Project '{name}' deleted."), false));
+        Ok(())
     }
 
     pub fn open_project_filter_modal(&mut self) {

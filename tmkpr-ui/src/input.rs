@@ -26,6 +26,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::Comments => handle_comments(app, key),
         ModeKind::AddComment => handle_add_comment(app, key),
         ModeKind::EditComment => handle_edit_comment(app, key),
+        ModeKind::ConfirmCreate => handle_confirm_create(app, key),
+        ModeKind::ConfirmDeleteProject => handle_confirm_delete_project(app, key),
         ModeKind::Help => {
             app.mode = AppMode::Normal;
             Ok(())
@@ -183,8 +185,9 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .to_lowercase();
 
                 match (show_archived.as_str(), show_completed.as_str()) {
-                    (a, c) if (matches!(a, "y" | "yes" | "n" | "no" | ""))
-                        && (matches!(c, "y" | "yes" | "n" | "no" | "")) =>
+                    (a, c)
+                        if (matches!(a, "y" | "yes" | "n" | "no" | ""))
+                            && (matches!(c, "y" | "yes" | "n" | "no" | "")) =>
                     {
                         app.task_filter.hide_archived =
                             !matches!(show_archived.as_str(), "y" | "yes");
@@ -272,7 +275,29 @@ fn handle_manage_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('f') => {
             app.open_project_filter_modal();
         }
+        KeyCode::Char('d') => {
+            if let Err(e) = app.open_confirm_delete_project() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
         _ => {}
+    }
+    Ok(())
+}
+
+fn handle_confirm_delete_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::ConfirmDeleteProject { id, name } = old {
+                if let Err(e) = app.delete_project(&id, &name) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+        _ => {
+            app.open_manage_projects();
+        }
     }
     Ok(())
 }
@@ -479,10 +504,61 @@ fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let task = form.fields[form_fields::start_modal::TASK].value.clone();
                 let note = form.fields[form_fields::start_modal::NOTE].value.clone();
                 let tags = form.fields[form_fields::start_modal::TAGS].value.clone();
-                if let Err(e) = app.start_entry(&project, &task, &note, &tags) {
+
+                let create_project = !project.is_empty()
+                    && !app
+                        .projects
+                        .iter()
+                        .any(|p| p.name == project && !p.archived);
+                let create_task = !task.is_empty()
+                    && !project.is_empty()
+                    && (create_project || !app.task_names_for_project(&project).contains(&task));
+
+                if create_project || create_task {
+                    app.mode = AppMode::ConfirmCreate {
+                        project,
+                        task,
+                        note,
+                        tags,
+                        create_project,
+                        create_task,
+                    };
+                } else if let Err(e) = app.start_entry(&project, &task, &note, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+fn handle_confirm_create(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::ConfirmCreate {
+                project,
+                task,
+                note,
+                tags,
+                create_project,
+                create_task,
+            } = old
+            {
+                if let Err(e) = app.create_missing_and_start(
+                    &project,
+                    &task,
+                    &note,
+                    &tags,
+                    create_project,
+                    create_task,
+                ) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+        _ => {
+            app.mode = AppMode::Normal;
         }
     }
     Ok(())
@@ -638,10 +714,8 @@ fn handle_edit_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let body = form.fields[form_fields::edit_comment::BODY].value.clone();
                 if let Err(e) = app.submit_edit_comment(comment_id, body) {
                     app.status = Some((e.to_string(), true));
-                } else {
-                    if let Err(e) = app.refresh_comments_mode(entry_id, 0) {
-                        app.status = Some((e.to_string(), true));
-                    }
+                } else if let Err(e) = app.refresh_comments_mode(entry_id, 0) {
+                    app.status = Some((e.to_string(), true));
                 }
             }
         }
