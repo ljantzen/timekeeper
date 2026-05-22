@@ -76,6 +76,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::FilterTasks => render_filter_tasks(frame, app, area),
         ModeKind::Comments => render_comments(frame, app, area),
         ModeKind::AddComment => render_add_comment(frame, app, area),
+        ModeKind::EditComment => render_edit_comment(frame, app, area),
         ModeKind::Help => render_help(frame, area),
         ModeKind::Normal => {}
     }
@@ -854,7 +855,7 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
 
     frame.render_widget(
         Paragraph::new(Span::styled(
-            "[a] add  [d] delete  [j/k] navigate  [Esc] close",
+            "[a] add  [e] edit  [d] delete  [j/k] navigate  [Esc] close",
             Style::default().fg(Color::DarkGray),
         )),
         chunks[1],
@@ -901,6 +902,14 @@ fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddComment { entry_id, form } = &app.mode {
         let display = app.entry_display(entry_id);
         let title = format!(" Add Comment: {display} ");
+        render_form_modal(frame, area, &title, 35, form);
+    }
+}
+
+fn render_edit_comment(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::EditComment { entry_id, form, .. } = &app.mode {
+        let display = app.entry_display(entry_id);
+        let title = format!(" Edit Comment: {display} ");
         render_form_modal(frame, area, &title, 35, form);
     }
 }

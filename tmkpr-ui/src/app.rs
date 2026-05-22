@@ -74,6 +74,10 @@ pub mod form_fields {
     pub mod add_comment {
         pub const BODY: usize = 0;
     }
+
+    pub mod edit_comment {
+        pub const BODY: usize = 0;
+    }
 }
 
 type DateRange = (Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>);
@@ -315,6 +319,11 @@ pub enum AppMode {
         entry_id: String,
         form: Form,
     },
+    EditComment {
+        entry_id: String,
+        comment_id: String,
+        form: Form,
+    },
     Help,
 }
 
@@ -335,6 +344,7 @@ pub enum ModeKind {
     FilterTasks,
     Comments,
     AddComment,
+    EditComment,
     Help,
 }
 
@@ -356,6 +366,7 @@ impl AppMode {
             AppMode::FilterTasks(_) => ModeKind::FilterTasks,
             AppMode::Comments { .. } => ModeKind::Comments,
             AppMode::AddComment { .. } => ModeKind::AddComment,
+            AppMode::EditComment { .. } => ModeKind::EditComment,
             AppMode::Help => ModeKind::Help,
         }
     }
@@ -897,7 +908,50 @@ impl App {
         Ok(())
     }
 
-    fn refresh_comments_mode(&mut self, entry_id: String, selected: usize) -> anyhow::Result<()> {
+    pub fn open_edit_comment(&mut self) -> anyhow::Result<()> {
+        if let AppMode::Comments {
+            entry_id,
+            comments,
+            selected,
+        } = &self.mode
+        {
+            if comments.is_empty() {
+                return Ok(());
+            }
+            let comment = &comments[*selected];
+            self.mode = AppMode::EditComment {
+                entry_id: entry_id.clone(),
+                comment_id: comment.id.clone(),
+                form: Form {
+                    fields: vec![Field::new("Comment", &comment.body)],
+                    focused: 0,
+                },
+            };
+        }
+        Ok(())
+    }
+
+    pub fn submit_edit_comment(&mut self, comment_id: String, body: String) -> anyhow::Result<()> {
+        if body.is_empty() {
+            return Err(anyhow::anyhow!("Comment cannot be empty"));
+        }
+        {
+            let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
+            svc.edit(&comment_id, body)?;
+        }
+        self.status = Some(("Comment updated.".into(), false));
+        Ok(())
+    }
+
+    pub fn cancel_edit_comment(&mut self) -> anyhow::Result<()> {
+        if let AppMode::EditComment { entry_id, .. } = &self.mode {
+            let entry_id = entry_id.clone();
+            self.refresh_comments_mode(entry_id, 0)?;
+        }
+        Ok(())
+    }
+
+    pub fn refresh_comments_mode(&mut self, entry_id: String, selected: usize) -> anyhow::Result<()> {
         let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
         let comments = svc.list(Some(&entry_id))?;
         let selected = selected.min(comments.len().saturating_sub(1));

@@ -25,6 +25,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::FilterTasks => handle_filter_tasks(app, key),
         ModeKind::Comments => handle_comments(app, key),
         ModeKind::AddComment => handle_add_comment(app, key),
+        ModeKind::EditComment => handle_edit_comment(app, key),
         ModeKind::Help => {
             app.mode = AppMode::Normal;
             Ok(())
@@ -563,6 +564,11 @@ fn handle_comments(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('a') => {
             app.open_add_comment();
         }
+        KeyCode::Char('e') => {
+            if let Err(e) = app.open_edit_comment() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
         KeyCode::Char('d') => {
             if let Err(e) = app.delete_selected_comment() {
                 app.status = Some((e.to_string(), true));
@@ -593,6 +599,42 @@ fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let body = form.fields[form_fields::add_comment::BODY].value.clone();
                 if let Err(e) = app.submit_add_comment(entry_id, body) {
                     app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_edit_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::EditComment { form, .. } => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            if let Err(e) = app.cancel_edit_comment() {
+                app.mode = AppMode::Normal;
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::EditComment {
+                entry_id,
+                comment_id,
+                form,
+            } = old
+            {
+                let body = form.fields[form_fields::edit_comment::BODY].value.clone();
+                if let Err(e) = app.submit_edit_comment(comment_id, body) {
+                    app.status = Some((e.to_string(), true));
+                } else {
+                    if let Err(e) = app.refresh_comments_mode(entry_id, 0) {
+                        app.status = Some((e.to_string(), true));
+                    }
                 }
             }
         }
