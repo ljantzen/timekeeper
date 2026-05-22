@@ -178,11 +178,18 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let show_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED]
                     .value
                     .to_lowercase();
+                let show_completed = form.fields[form_fields::filter_tasks::SHOW_COMPLETED]
+                    .value
+                    .to_lowercase();
 
-                match show_archived.as_str() {
-                    "y" | "yes" | "n" | "no" | "" => {
+                match (show_archived.as_str(), show_completed.as_str()) {
+                    (a, c) if (matches!(a, "y" | "yes" | "n" | "no" | ""))
+                        && (matches!(c, "y" | "yes" | "n" | "no" | "")) =>
+                    {
                         app.task_filter.hide_archived =
                             !matches!(show_archived.as_str(), "y" | "yes");
+                        app.task_filter.hide_completed =
+                            !matches!(show_completed.as_str(), "y" | "yes");
                         app.task_filter.project_id = if project_name.is_empty() {
                             None
                         } else {

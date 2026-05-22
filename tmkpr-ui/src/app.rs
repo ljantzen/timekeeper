@@ -65,6 +65,7 @@ pub mod form_fields {
     pub mod filter_tasks {
         pub const PROJECT: usize = 0;
         pub const INCLUDE_ARCHIVED: usize = 1;
+        pub const SHOW_COMPLETED: usize = 2;
     }
 
     pub mod filter_projects {
@@ -257,10 +258,21 @@ impl EntrySort {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct TaskFilter {
     pub project_id: Option<String>,
     pub hide_archived: bool,
+    pub hide_completed: bool,
+}
+
+impl Default for TaskFilter {
+    fn default() -> Self {
+        Self {
+            project_id: None,
+            hide_archived: true,
+            hide_completed: true,
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -1168,6 +1180,10 @@ impl App {
             filtered.retain(|t| !t.archived);
         }
 
+        if self.task_filter.hide_completed {
+            filtered.retain(|t| !t.completed);
+        }
+
         match self.task_sort {
             TaskSort::Name => {
                 filtered.sort_by(|a, b| a.name.cmp(&b.name));
@@ -1218,6 +1234,14 @@ impl App {
                 Field::new(
                     "Show archived tasks? (y/n)",
                     if self.task_filter.hide_archived {
+                        "n"
+                    } else {
+                        "y"
+                    },
+                ),
+                Field::new(
+                    "Show completed tasks? (y/n)",
+                    if self.task_filter.hide_completed {
                         "n"
                     } else {
                         "y"
