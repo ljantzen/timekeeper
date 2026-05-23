@@ -98,7 +98,13 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, mut app: App) -> a
         if let Some(path) = app.pending_open.take() {
             let editor = std::env::var("EDITOR")
                 .or_else(|_| std::env::var("VISUAL"))
-                .unwrap_or_else(|_| "vi".to_string());
+                .unwrap_or_else(|_| {
+                    if cfg!(windows) {
+                        "notepad.exe".to_string()
+                    } else {
+                        "vi".to_string()
+                    }
+                });
             disable_raw_mode()?;
             execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
             std::process::Command::new(&editor).arg(&path).status()?;
