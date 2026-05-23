@@ -10,7 +10,7 @@ A comprehensive, fast, and offline time tracker written in Rust. Track time agai
 - **Reporting**: View summaries by project, daily reports, weekly breakdowns, and ISO week reports
 - **Comments**: Attach free-form notes to any entry for context
 - **Tagging**: Organize entries with custom tags
-- **Data Portability**: Export to JSON, CSV, or Markdown formats
+- **Data Portability**: Import and export entries in CSV or JSON format
 - **Fast & Responsive**: Built in Rust for speed and reliability
 - **Offline-First**: Works completely offline, syncs to local SQLite database
 - **No Cloud Required**: Your time data stays on your machine
