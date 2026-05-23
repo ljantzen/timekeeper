@@ -64,22 +64,37 @@ pub(super) fn parse_duration(s: &str) -> Result<Duration> {
         bail!("empty duration");
     }
     let parts: Vec<&str> = s.splitn(3, ':').collect();
-    if parts.len() >= 2 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit() || c == '.')) {
+    if parts.len() >= 2
+        && parts
+            .iter()
+            .all(|p| p.chars().all(|c| c.is_ascii_digit() || c == '.'))
+    {
         let h: i64 = parts[0].parse().context("hours in duration")?;
         let m: i64 = parts[1].parse().context("minutes in duration")?;
         let sec: i64 = if parts.len() == 3 {
-            parts[2].split('.').next().unwrap_or("0").parse().context("seconds in duration")?
+            parts[2]
+                .split('.')
+                .next()
+                .unwrap_or("0")
+                .parse()
+                .context("seconds in duration")?
         } else {
             0
         };
         return Ok(Duration::seconds(h * 3600 + m * 60 + sec));
     }
-    let lower = s.to_lowercase()
-        .replace("hours", "h").replace("hour", "h")
-        .replace("minutes", "m").replace("minute", "m")
-        .replace("mins", "m").replace("min", "m")
-        .replace("seconds", "s").replace("second", "s")
-        .replace("secs", "s").replace("sec", "s");
+    let lower = s
+        .to_lowercase()
+        .replace("hours", "h")
+        .replace("hour", "h")
+        .replace("minutes", "m")
+        .replace("minute", "m")
+        .replace("mins", "m")
+        .replace("min", "m")
+        .replace("seconds", "s")
+        .replace("second", "s")
+        .replace("secs", "s")
+        .replace("sec", "s");
     let mut total_secs: i64 = 0;
     let mut buf = String::new();
     let mut found_unit = false;
@@ -122,6 +137,7 @@ pub(super) fn parse_duration(s: &str) -> Result<Duration> {
 // project_cache: name → (id, is_new_this_run)
 // task_cache:    (project_id, task_name) → id
 // Returns (projects_created, tasks_created).
+#[allow(clippy::too_many_arguments)]
 fn upsert_and_insert(
     project_name: &str,
     task_name: &str,
@@ -258,17 +274,17 @@ fn print_summary(entries: u32, projects: u32, tasks: u32, skipped: u32, dry_run:
 // ── CSV path ──────────────────────────────────────────────────────────────────
 
 struct Cols {
-    project:    Option<usize>,
-    task:       Option<usize>,
-    start:      Option<usize>,
+    project: Option<usize>,
+    task: Option<usize>,
+    start: Option<usize>,
     start_date: Option<usize>,
     start_time: Option<usize>,
-    end:        Option<usize>,
-    end_date:   Option<usize>,
-    end_time:   Option<usize>,
-    duration:   Option<usize>,
-    note:       Option<usize>,
-    tags:       Option<usize>,
+    end: Option<usize>,
+    end_date: Option<usize>,
+    end_time: Option<usize>,
+    duration: Option<usize>,
+    note: Option<usize>,
+    tags: Option<usize>,
 }
 
 fn normalize(s: &str) -> String {
@@ -277,10 +293,17 @@ fn normalize(s: &str) -> String {
 
 fn map_columns(headers: &csv::StringRecord) -> Result<Cols> {
     let mut cols = Cols {
-        project: None, task: None,
-        start: None, start_date: None, start_time: None,
-        end: None, end_date: None, end_time: None,
-        duration: None, note: None, tags: None,
+        project: None,
+        task: None,
+        start: None,
+        start_date: None,
+        start_time: None,
+        end: None,
+        end_date: None,
+        end_time: None,
+        duration: None,
+        note: None,
+        tags: None,
     };
     for (i, h) in headers.iter().enumerate() {
         match normalize(h).as_str() {
@@ -316,7 +339,11 @@ fn parse_row_datetime(
 ) -> Result<Option<DateTime<Utc>>> {
     if let Some(i) = combined {
         let s = record.get(i).unwrap_or("").trim();
-        return if s.is_empty() { Ok(None) } else { Ok(Some(parse_datetime(s)?)) };
+        return if s.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(parse_datetime(s)?))
+        };
     }
     if let Some(di) = date_col {
         let ds = record.get(di).unwrap_or("").trim();
@@ -324,7 +351,11 @@ fn parse_row_datetime(
             return Ok(None);
         }
         let ts = time_col.and_then(|ti| record.get(ti)).unwrap_or("").trim();
-        let s = if ts.is_empty() { ds.to_string() } else { format!("{ds} {ts}") };
+        let s = if ts.is_empty() {
+            ds.to_string()
+        } else {
+            format!("{ds} {ts}")
+        };
         return Ok(Some(parse_datetime(&s)?));
     }
     Ok(None)
@@ -344,8 +375,8 @@ fn process_csv_row(
         .ok_or_else(|| anyhow::anyhow!("missing start time"))?;
 
     let end = {
-        let from_col = parse_row_datetime(record, cols.end, cols.end_date, cols.end_time)
-            .context("end")?;
+        let from_col =
+            parse_row_datetime(record, cols.end, cols.end_date, cols.end_time).context("end")?;
         if from_col.is_some() {
             from_col
         } else if let Some(di) = cols.duration {
@@ -364,14 +395,20 @@ fn process_csv_row(
         }
     };
 
-    let project_name = cols.project.and_then(|i| record.get(i)).unwrap_or("").trim();
+    let project_name = cols
+        .project
+        .and_then(|i| record.get(i))
+        .unwrap_or("")
+        .trim();
     let task_name = cols.task.and_then(|i| record.get(i)).unwrap_or("").trim();
-    let note = cols.note
+    let note = cols
+        .note
         .and_then(|i| record.get(i))
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
-    let tags: Vec<String> = cols.tags
+    let tags: Vec<String> = cols
+        .tags
         .and_then(|i| record.get(i))
         .map(|s| {
             s.split(',')
@@ -383,8 +420,17 @@ fn process_csv_row(
         .unwrap_or_default();
 
     upsert_and_insert(
-        project_name, task_name, start, end, note, tags,
-        storage, user_id, project_cache, task_cache, dry_run,
+        project_name,
+        task_name,
+        start,
+        end,
+        note,
+        tags,
+        storage,
+        user_id,
+        project_cache,
+        task_cache,
+        dry_run,
     )
 }
 
@@ -428,10 +474,19 @@ fn run_csv(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()
             }
         };
         match process_csv_row(
-            &record, &cols, storage, user_id,
-            &mut project_cache, &mut task_cache, args.dry_run,
+            &record,
+            &cols,
+            storage,
+            user_id,
+            &mut project_cache,
+            &mut task_cache,
+            args.dry_run,
         ) {
-            Ok((p, t)) => { entries += 1; projects += p; tasks += t; }
+            Ok((p, t)) => {
+                entries += 1;
+                projects += p;
+                tasks += t;
+            }
             Err(e) => {
                 if args.skip_errors {
                     eprintln!("row {row_num}: {e:#}");
@@ -492,7 +547,13 @@ struct JsonEntry {
     task: Option<String>,
     #[serde(default, alias = "started_at", alias = "start_datetime")]
     start: Option<String>,
-    #[serde(default, alias = "finished_at", alias = "end_datetime", alias = "finish", alias = "stop")]
+    #[serde(
+        default,
+        alias = "finished_at",
+        alias = "end_datetime",
+        alias = "finish",
+        alias = "stop"
+    )]
     end: Option<String>,
     #[serde(default, alias = "description", alias = "comment", alias = "notes")]
     note: Option<String>,
@@ -510,7 +571,9 @@ fn process_json_entry(
     task_cache: &mut HashMap<(String, String), String>,
     dry_run: bool,
 ) -> Result<(u32, u32)> {
-    let start_str = entry.start.as_deref()
+    let start_str = entry
+        .start
+        .as_deref()
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow::anyhow!("missing 'start' field"))?;
     let start = parse_datetime(start_str).context("start")?;
@@ -531,12 +594,25 @@ fn process_json_entry(
 
     let project_name = entry.project.as_deref().unwrap_or("").trim();
     let task_name = entry.task.as_deref().unwrap_or("").trim();
-    let note = entry.note.as_deref().filter(|s| !s.is_empty()).map(|s| s.to_string());
+    let note = entry
+        .note
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
     let tags = entry.tags.0.clone();
 
     upsert_and_insert(
-        project_name, task_name, start, end, note, tags,
-        storage, user_id, project_cache, task_cache, dry_run,
+        project_name,
+        task_name,
+        start,
+        end,
+        note,
+        tags,
+        storage,
+        user_id,
+        project_cache,
+        task_cache,
+        dry_run,
     )
 }
 
@@ -552,7 +628,11 @@ fn run_json(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<(
         std::fs::read_to_string(path)
             .with_context(|| format!("cannot read '{}'", path.display()))?
     };
-    let source = args.file.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "<stdin>".into());
+    let source = args
+        .file
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "<stdin>".into());
     let json_entries: Vec<JsonEntry> = serde_json::from_str(&content)
         .with_context(|| format!("cannot parse JSON from '{source}'"))?;
 
@@ -563,10 +643,18 @@ fn run_json(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<(
     for (i, entry) in json_entries.iter().enumerate() {
         let idx = i + 1;
         match process_json_entry(
-            entry, storage, user_id,
-            &mut project_cache, &mut task_cache, args.dry_run,
+            entry,
+            storage,
+            user_id,
+            &mut project_cache,
+            &mut task_cache,
+            args.dry_run,
         ) {
-            Ok((p, t)) => { entries += 1; projects += p; tasks += t; }
+            Ok((p, t)) => {
+                entries += 1;
+                projects += p;
+                tasks += t;
+            }
             Err(e) => {
                 if args.skip_errors {
                     eprintln!("entry {idx}: {e:#}");
@@ -586,7 +674,9 @@ fn run_json(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<(
 
 pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str, format: &str) -> Result<()> {
     let is_json = format == "json"
-        || args.file.as_ref()
+        || args
+            .file
+            .as_ref()
             .and_then(|p| p.extension())
             .and_then(|e| e.to_str())
             .map(|e| e.eq_ignore_ascii_case("json"))
@@ -596,5 +686,402 @@ pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str, format: &str)
         run_json(&args, storage, user_id)
     } else {
         run_csv(&args, storage, user_id)
+    }
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use chrono::Utc;
+    use tmkpr_lib::models::LOCAL_USER_ID;
+    use tmkpr_lib::service::EntryService;
+    use tmkpr_lib::storage::sqlite::SqliteStorage;
+    use tmkpr_lib::storage::Storage;
+
+    use super::*;
+    use crate::cli::ImportArgs;
+
+    fn mem() -> SqliteStorage {
+        SqliteStorage::open_in_memory().unwrap()
+    }
+
+    // Write content to a named temp file with the given extension and run import.
+    fn csv_run(
+        content: &str,
+        skip_errors: bool,
+        dry_run: bool,
+        storage: &dyn Storage,
+    ) -> Result<()> {
+        let mut f = tempfile::Builder::new().suffix(".csv").tempfile().unwrap();
+        f.write_all(content.as_bytes()).unwrap();
+        f.flush().unwrap();
+        let args = ImportArgs {
+            file: Some(f.path().to_path_buf()),
+            skip_errors,
+            dry_run,
+        };
+        let result = run(args, storage, LOCAL_USER_ID, "csv");
+        drop(f);
+        result
+    }
+
+    fn json_run(content: &str, skip_errors: bool, storage: &dyn Storage) -> Result<()> {
+        let mut f = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+        f.write_all(content.as_bytes()).unwrap();
+        f.flush().unwrap();
+        let args = ImportArgs {
+            file: Some(f.path().to_path_buf()),
+            skip_errors,
+            dry_run: false,
+        };
+        let result = run(args, storage, LOCAL_USER_ID, "csv"); // format auto-detected from .json ext
+        drop(f);
+        result
+    }
+
+    fn entry_count(storage: &dyn Storage) -> usize {
+        EntryService::new(storage, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: true,
+                ..Default::default()
+            })
+            .unwrap()
+            .len()
+    }
+
+    // ── parse_datetime ────────────────────────────────────────────────────────
+
+    #[test]
+    fn datetime_rfc3339_with_tz() {
+        let dt = parse_datetime("2024-01-15T09:00:00+00:00").unwrap();
+        assert_eq!(dt, Utc.with_ymd_and_hms(2024, 1, 15, 9, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn datetime_naive_ymd_hms() {
+        // Just check it parses without error; exact value is timezone-dependent.
+        parse_datetime("2024-01-15 09:00:00").unwrap();
+    }
+
+    #[test]
+    fn datetime_naive_ymd_hm() {
+        parse_datetime("2024-01-15 09:00").unwrap();
+    }
+
+    #[test]
+    fn datetime_date_only_midnight() {
+        parse_datetime("2024-01-15").unwrap();
+    }
+
+    #[test]
+    fn datetime_european_dot_format() {
+        parse_datetime("15.01.2024 09:00").unwrap();
+    }
+
+    #[test]
+    fn datetime_invalid_errors() {
+        assert!(parse_datetime("not a date").is_err());
+        assert!(parse_datetime("").is_err());
+    }
+
+    // ── parse_duration ────────────────────────────────────────────────────────
+
+    #[test]
+    fn duration_hms() {
+        assert_eq!(parse_duration("1:30:00").unwrap().num_seconds(), 5400);
+    }
+
+    #[test]
+    fn duration_hm() {
+        assert_eq!(parse_duration("1:30").unwrap().num_seconds(), 5400);
+    }
+
+    #[test]
+    fn duration_natural_h_m() {
+        assert_eq!(parse_duration("1h30m").unwrap().num_seconds(), 5400);
+        assert_eq!(parse_duration("1h 30m").unwrap().num_seconds(), 5400);
+    }
+
+    #[test]
+    fn duration_minutes_only() {
+        assert_eq!(parse_duration("45m").unwrap().num_seconds(), 2700);
+        assert_eq!(parse_duration("45min").unwrap().num_seconds(), 2700);
+    }
+
+    #[test]
+    fn duration_empty_errors() {
+        assert!(parse_duration("").is_err());
+    }
+
+    #[test]
+    fn duration_garbage_errors() {
+        assert!(parse_duration("xyz").is_err());
+    }
+
+    // ── CSV imports ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn csv_basic_entry_imported() {
+        let s = mem();
+        csv_run(
+            "project,task,start,end,note,tags\n\
+             Website,Frontend,2024-01-15 09:00,2024-01-15 10:30,Login page,\"dev,ui\"\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap();
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].note.as_deref(), Some("Login page"));
+        assert_eq!(entries[0].tags, vec!["dev", "ui"]);
+    }
+
+    #[test]
+    fn csv_creates_project_and_task() {
+        let s = mem();
+        csv_run(
+            "project,task,start,end\n\
+             NewProj,NewTask,2024-01-15 09:00,2024-01-15 10:00\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap();
+        assert!(s
+            .get_project_by_name(LOCAL_USER_ID, "NewProj")
+            .unwrap()
+            .is_some());
+        let proj = s
+            .get_project_by_name(LOCAL_USER_ID, "NewProj")
+            .unwrap()
+            .unwrap();
+        assert!(s.get_task_by_name(&proj.id, "NewTask").unwrap().is_some());
+    }
+
+    #[test]
+    fn csv_reuses_existing_project_no_duplicate() {
+        let s = mem();
+        let csv = "project,task,start,end\n\
+                   Proj,,2024-01-15 09:00,2024-01-15 10:00\n\
+                   Proj,,2024-01-15 11:00,2024-01-15 12:00\n";
+        csv_run(csv, false, false, &s).unwrap();
+        assert_eq!(s.list_projects(LOCAL_USER_ID, false).unwrap().len(), 1);
+        assert_eq!(entry_count(&s), 2);
+    }
+
+    #[test]
+    fn csv_duration_column() {
+        let s = mem();
+        csv_run(
+            "project,start,duration\n\
+             Proj,2024-01-15 09:00,1:30:00\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap();
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        let dur = entries[0].finished_at.unwrap() - entries[0].started_at;
+        assert_eq!(dur.num_seconds(), 5400);
+    }
+
+    #[test]
+    fn csv_split_start_date_and_time() {
+        let s = mem();
+        csv_run(
+            "start_date,start_time,end\n\
+             2024-01-15,09:00,2024-01-15 10:00\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap();
+        assert_eq!(entry_count(&s), 1);
+    }
+
+    #[test]
+    fn csv_active_entry_no_end() {
+        let s = mem();
+        csv_run(
+            "start,note\n\
+             2024-01-15 09:00,Running\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap();
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: true,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].finished_at.is_none());
+    }
+
+    #[test]
+    fn csv_start_after_end_errors() {
+        let s = mem();
+        let err = csv_run(
+            "start,end\n\
+             2024-01-15 10:00,2024-01-15 09:00\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err:#}").contains("start must be before end"),
+            "{err:#}"
+        );
+        assert_eq!(entry_count(&s), 0);
+    }
+
+    #[test]
+    fn csv_task_without_project_errors() {
+        let s = mem();
+        let err = csv_run(
+            "task,start,end\n\
+             Orphan,2024-01-15 09:00,2024-01-15 10:00\n",
+            false,
+            false,
+            &s,
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("project"), "{err:#}");
+    }
+
+    #[test]
+    fn csv_skip_errors_continues_past_bad_rows() {
+        let s = mem();
+        csv_run(
+            "start,end,note\n\
+             2024-01-15 09:00,2024-01-15 10:00,Good 1\n\
+             bad-date,2024-01-15 11:00,Bad row\n\
+             2024-01-15 11:00,2024-01-15 12:00,Good 2\n",
+            true,
+            false,
+            &s,
+        )
+        .unwrap();
+        assert_eq!(entry_count(&s), 2);
+    }
+
+    #[test]
+    fn csv_dry_run_does_not_write() {
+        let s = mem();
+        csv_run(
+            "project,start,end\n\
+             Proj,2024-01-15 09:00,2024-01-15 10:00\n",
+            false,
+            true,
+            &s,
+        )
+        .unwrap();
+        assert_eq!(entry_count(&s), 0);
+        assert!(s.list_projects(LOCAL_USER_ID, false).unwrap().is_empty());
+    }
+
+    // ── JSON imports ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn json_basic_entry_imported() {
+        let s = mem();
+        json_run(
+            r#"[{"project":"P","task":"T","start":"2024-01-15 09:00","end":"2024-01-15 10:00","note":"hi"}]"#,
+            false, &s,
+        ).unwrap();
+        assert_eq!(entry_count(&s), 1);
+        assert!(s.get_project_by_name(LOCAL_USER_ID, "P").unwrap().is_some());
+    }
+
+    #[test]
+    fn json_tags_as_array() {
+        let s = mem();
+        json_run(
+            r#"[{"start":"2024-01-15 09:00","end":"2024-01-15 10:00","tags":["dev","ui"]}]"#,
+            false,
+            &s,
+        )
+        .unwrap();
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries[0].tags, vec!["dev", "ui"]);
+    }
+
+    #[test]
+    fn json_tags_as_comma_string() {
+        let s = mem();
+        json_run(
+            r#"[{"start":"2024-01-15 09:00","end":"2024-01-15 10:00","tags":"dev,ui"}]"#,
+            false,
+            &s,
+        )
+        .unwrap();
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries[0].tags, vec!["dev", "ui"]);
+    }
+
+    #[test]
+    fn json_missing_start_errors() {
+        let s = mem();
+        let err = json_run(
+            r#"[{"end":"2024-01-15 10:00","note":"no start"}]"#,
+            false,
+            &s,
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("start"), "{err:#}");
+    }
+
+    #[test]
+    fn json_format_flag_selects_json_parser() {
+        // Same content but file has .csv extension; --format json must select JSON path.
+        let s = mem();
+        let mut f = tempfile::Builder::new().suffix(".csv").tempfile().unwrap();
+        f.write_all(
+            br#"[{"start":"2024-01-15 09:00","end":"2024-01-15 10:00","note":"flag test"}]"#,
+        )
+        .unwrap();
+        f.flush().unwrap();
+        let args = ImportArgs {
+            file: Some(f.path().to_path_buf()),
+            skip_errors: false,
+            dry_run: false,
+        };
+        run(args, &s, LOCAL_USER_ID, "json").unwrap();
+        drop(f);
+        assert_eq!(entry_count(&s), 1);
     }
 }

@@ -9,6 +9,9 @@ license.workspace    = true
 name = "tmkpr"
 path = "src/main.rs"
 
+[dev-dependencies]
+tempfile = "3"
+
 [dependencies]
 tmkpr-lib    = { workspace = true }
 csv          = { workspace = true }
