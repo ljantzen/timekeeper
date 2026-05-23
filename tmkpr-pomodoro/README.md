@@ -59,6 +59,13 @@ The binary will be at `target/release/tmkpr-pomodoro`.
 
 ```bash
 tmkpr-pomodoro
+
+# Override database
+TMKPR_DB=/path/to/other.db tmkpr-pomodoro
+
+# Override theme
+tmkpr-pomodoro --theme nord
+TMKPR_THEME=catppuccin_mocha tmkpr-pomodoro
 ```
 
 ### Keyboard Controls
@@ -72,6 +79,7 @@ tmkpr-pomodoro
 | `Enter` | Start work session |
 | `B` | Start break (short or long) |
 | `Space` | Pause / Resume |
+| `C` | Toggle selected task complete / reactivate |
 | `L` | Log current session to database |
 | `R` | Reset timer |
 | `S` | Open settings |
@@ -137,6 +145,9 @@ sound_break_to_work = ""          # Played when a break ends
 
 # Break behavior
 auto_start_break = false          # Auto-start break when work ends (true) or pause (false)
+
+# Cycle limit (0 = unlimited)
+max_cycles = 0                    # Stop automatically after this many work sessions
 ```
 
 ### Configuration Examples

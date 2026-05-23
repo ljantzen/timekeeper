@@ -18,11 +18,16 @@ Interactive terminal dashboard for tmkpr time tracking, built with [ratatui](htt
 tmkpr-ui
 ```
 
-### Override database path
+### Overrides
 
 ```bash
+# Database
 tmkpr-ui --db /path/to/other.db
 TMKPR_DB=/path/to/other.db tmkpr-ui
+
+# Theme
+tmkpr-ui --theme catppuccin_mocha
+TMKPR_THEME=dracula tmkpr-ui
 ```
 
 ## Layout
@@ -43,15 +48,65 @@ The dashboard shows:
 | `j` / `↓` | Select next entry |
 | `k` / `↑` | Select previous entry |
 | `s` | Start tracking (opens form) |
+| `S` | Start tracking pre-filled from selected entry |
 | `x` | Stop active entry |
 | `e` | Edit selected entry |
 | `d` | Delete selected entry (prompts for confirmation) |
-| `p` | Add a new project |
-| `t` | Add a new task |
+| `c` | Open comments for selected entry |
+| `C` | Open comments for active entry |
+| `m` | Merge selected entry with the next one |
+| `g` | Fill time gaps around the selected entry |
+| `G` | Fill time gaps around the active entry |
+| `f` | Open filter |
+| `T` | Filter to today |
+| `Y` | Filter to yesterday |
+| `W` | Filter to this week |
+| `o` | Cycle entry sort order |
+| `p` | Manage projects |
+| `t` | Manage tasks |
 | `r` | Refresh data |
+| `:` | Enter command mode |
 | `?` | Show help |
 | `q` / `Esc` | Quit |
 | `Ctrl-c` | Quit |
+
+### Manage projects
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Select next project |
+| `k` / `↑` | Select previous project |
+| `a` | Add a new project |
+| `e` | Edit selected project |
+| `d` | Delete selected project |
+| `s` | Cycle sort order |
+| `f` | Filter projects |
+| `q` / `Esc` | Return to main view |
+
+### Manage tasks
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Select next task |
+| `k` / `↑` | Select previous task |
+| `a` | Add a new task |
+| `e` | Edit selected task |
+| `d` | Delete selected task |
+| `c` | Toggle task complete / reactivate |
+| `s` | Cycle sort order |
+| `f` | Filter tasks |
+| `q` / `Esc` | Return to main view |
+
+### Comments panel
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Select next comment |
+| `k` / `↑` | Select previous comment |
+| `a` | Add a new comment |
+| `e` | Edit selected comment |
+| `d` | Delete selected comment |
+| `q` / `Esc` | Return to main view |
 
 ### Forms (start, edit, add project, add task)
 
@@ -72,3 +127,19 @@ Project and task fields show a dropdown of matching names as you type. Use `↓`
 |-----|--------|
 | `y` / `Enter` | Confirm delete |
 | Any other key | Cancel |
+
+## Command mode
+
+Press `:` to open the command bar. Use `Tab` / `↓` and `Shift-Tab` / `↑` to cycle through completions, `Enter` to execute, `Esc` to cancel.
+
+| Command | Action |
+|---------|--------|
+| `theme <name>` | Switch colour theme (live preview while cycling) |
+| `set date-format <preset>` | Change date display format |
+| `set week-start <day>` | Set first day of the week (e.g. `mon`, `sun`) |
+| `config-open` | Open `config.toml` in `$EDITOR` |
+| `config-reload` | Reload config from disk |
+| `config-write` | Persist current theme and display settings to config |
+| `quit` | Quit |
+
+Theme and display changes take effect immediately but are only written to disk with `:config-write`.
