@@ -9,7 +9,252 @@ use tmkpr_lib::storage::Storage;
 
 use crate::cli::ImportArgs;
 
-// ── Column index mapping ──────────────────────────────────────────────────────
+// ── Datetime parsing (shared) ─────────────────────────────────────────────────
+
+pub(super) fn parse_datetime(s: &str) -> Result<DateTime<Utc>> {
+    let s = s.trim();
+    for fmt in &[
+        "%Y-%m-%dT%H:%M:%S%.f%z",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%d %H:%M:%S%z",
+    ] {
+        if let Ok(dt) = DateTime::parse_from_str(s, fmt) {
+            return Ok(dt.with_timezone(&Utc));
+        }
+    }
+    for fmt in &[
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%d.%m.%Y %H:%M:%S",
+        "%d.%m.%Y %H:%M",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%Y %H:%M",
+    ] {
+        if let Ok(ndt) = NaiveDateTime::parse_from_str(s, fmt) {
+            return Local
+                .from_local_datetime(&ndt)
+                .single()
+                .map(|dt| dt.with_timezone(&Utc))
+                .ok_or_else(|| anyhow::anyhow!("ambiguous local time (DST transition): {s}"));
+        }
+    }
+    for fmt in &["%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y"] {
+        if let Ok(nd) = NaiveDate::parse_from_str(s, fmt) {
+            if let Some(ndt) = nd.and_hms_opt(0, 0, 0) {
+                return Local
+                    .from_local_datetime(&ndt)
+                    .single()
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .ok_or_else(|| anyhow::anyhow!("ambiguous local time: {s}"));
+            }
+        }
+    }
+    bail!("unrecognised datetime: {:?}", s)
+}
+
+// ── Duration parsing (shared) ─────────────────────────────────────────────────
+
+pub(super) fn parse_duration(s: &str) -> Result<Duration> {
+    let s = s.trim();
+    if s.is_empty() {
+        bail!("empty duration");
+    }
+    let parts: Vec<&str> = s.splitn(3, ':').collect();
+    if parts.len() >= 2 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit() || c == '.')) {
+        let h: i64 = parts[0].parse().context("hours in duration")?;
+        let m: i64 = parts[1].parse().context("minutes in duration")?;
+        let sec: i64 = if parts.len() == 3 {
+            parts[2].split('.').next().unwrap_or("0").parse().context("seconds in duration")?
+        } else {
+            0
+        };
+        return Ok(Duration::seconds(h * 3600 + m * 60 + sec));
+    }
+    let lower = s.to_lowercase()
+        .replace("hours", "h").replace("hour", "h")
+        .replace("minutes", "m").replace("minute", "m")
+        .replace("mins", "m").replace("min", "m")
+        .replace("seconds", "s").replace("second", "s")
+        .replace("secs", "s").replace("sec", "s");
+    let mut total_secs: i64 = 0;
+    let mut buf = String::new();
+    let mut found_unit = false;
+    for ch in lower.chars() {
+        match ch {
+            '0'..='9' | '.' => buf.push(ch),
+            'h' => {
+                let v: f64 = buf.trim().parse().context("hours value in duration")?;
+                total_secs += (v * 3600.0) as i64;
+                buf.clear();
+                found_unit = true;
+            }
+            'm' => {
+                let v: f64 = buf.trim().parse().context("minutes value in duration")?;
+                total_secs += (v * 60.0) as i64;
+                buf.clear();
+                found_unit = true;
+            }
+            's' => {
+                let v: f64 = buf.trim().parse().context("seconds value in duration")?;
+                total_secs += v as i64;
+                buf.clear();
+                found_unit = true;
+            }
+            ' ' | '_' => {}
+            _ => bail!("unexpected character '{ch}' in duration: {s:?}"),
+        }
+    }
+    if found_unit {
+        return Ok(Duration::seconds(total_secs));
+    }
+    if let Ok(secs) = s.parse::<f64>() {
+        return Ok(Duration::seconds(secs as i64));
+    }
+    bail!("cannot parse duration: {s:?}")
+}
+
+// ── Shared upsert + insert ────────────────────────────────────────────────────
+
+// project_cache: name → (id, is_new_this_run)
+// task_cache:    (project_id, task_name) → id
+// Returns (projects_created, tasks_created).
+fn upsert_and_insert(
+    project_name: &str,
+    task_name: &str,
+    start: DateTime<Utc>,
+    end: Option<DateTime<Utc>>,
+    note: Option<String>,
+    tags: Vec<String>,
+    storage: &dyn Storage,
+    user_id: &str,
+    project_cache: &mut HashMap<String, (String, bool)>,
+    task_cache: &mut HashMap<(String, String), String>,
+    dry_run: bool,
+) -> Result<(u32, u32)> {
+    if let Some(e) = end {
+        if start >= e {
+            bail!("start must be before end");
+        }
+    }
+
+    // ── Project ───────────────────────────────────────────────────────────────
+    let (project_id, projects_created, project_is_new) = if project_name.is_empty() {
+        (None, 0u32, false)
+    } else {
+        match project_cache.get(project_name) {
+            Some((id, is_new)) => (Some(id.clone()), 0, *is_new),
+            None => {
+                let (id, created, is_new) =
+                    match storage.get_project_by_name(user_id, project_name)? {
+                        Some(p) => (p.id, 0, false),
+                        None => {
+                            let new_id = if dry_run {
+                                format!("__dry__{project_name}")
+                            } else {
+                                storage
+                                    .create_project(NewProject {
+                                        user_id: user_id.to_string(),
+                                        name: project_name.to_string(),
+                                        description: None,
+                                        color: None,
+                                    })?
+                                    .id
+                            };
+                            (new_id, 1, true)
+                        }
+                    };
+                project_cache.insert(project_name.to_string(), (id.clone(), is_new));
+                (Some(id), created, is_new)
+            }
+        }
+    };
+
+    // ── Task ──────────────────────────────────────────────────────────────────
+    let (task_id, tasks_created) = if task_name.is_empty() {
+        (None, 0u32)
+    } else if let Some(pid) = &project_id {
+        let cache_key = (pid.clone(), task_name.to_string());
+        match task_cache.get(&cache_key) {
+            Some(id) => (Some(id.clone()), 0),
+            None => {
+                let (id, created) = if project_is_new {
+                    // Project was just created — no tasks can pre-exist under it
+                    let new_id = if dry_run {
+                        format!("__dry_task__{task_name}")
+                    } else {
+                        storage
+                            .create_task(NewTask {
+                                user_id: user_id.to_string(),
+                                project_id: pid.clone(),
+                                name: task_name.to_string(),
+                                description: None,
+                            })?
+                            .id
+                    };
+                    (new_id, 1)
+                } else {
+                    match storage.get_task_by_name(pid, task_name)? {
+                        Some(t) => (t.id, 0),
+                        None => {
+                            let new_id = if dry_run {
+                                format!("__dry_task__{task_name}")
+                            } else {
+                                storage
+                                    .create_task(NewTask {
+                                        user_id: user_id.to_string(),
+                                        project_id: pid.clone(),
+                                        name: task_name.to_string(),
+                                        description: None,
+                                    })?
+                                    .id
+                            };
+                            (new_id, 1)
+                        }
+                    }
+                };
+                task_cache.insert(cache_key, id.clone());
+                (Some(id), created)
+            }
+        }
+    } else {
+        bail!("task '{task_name}' requires a project");
+    };
+
+    // ── Entry ─────────────────────────────────────────────────────────────────
+    if !dry_run {
+        storage.create_entry(NewEntry {
+            user_id: user_id.to_string(),
+            project_id,
+            task_id,
+            note,
+            started_at: start,
+            finished_at: end,
+            tags,
+        })?;
+    }
+
+    Ok((projects_created, tasks_created))
+}
+
+// ── Shared summary printer ────────────────────────────────────────────────────
+
+fn print_summary(entries: u32, projects: u32, tasks: u32, skipped: u32, dry_run: bool) {
+    let word = if entries == 1 { "entry" } else { "entries" };
+    if dry_run {
+        println!(
+            "[dry run] {entries} {word} to import: {projects} project(s) and {tasks} task(s) to create ({skipped} would be skipped)"
+        );
+    } else {
+        println!(
+            "Imported {entries} {word}: {projects} project(s) and {tasks} task(s) created ({skipped} skipped)."
+        );
+    }
+}
+
+// ── CSV path ──────────────────────────────────────────────────────────────────
 
 struct Cols {
     project:    Option<usize>,
@@ -62,55 +307,6 @@ fn map_columns(headers: &csv::StringRecord) -> Result<Cols> {
     Ok(cols)
 }
 
-// ── Datetime parsing ──────────────────────────────────────────────────────────
-
-fn parse_datetime(s: &str) -> Result<DateTime<Utc>> {
-    let s = s.trim();
-    // Timezone-aware formats → convert to UTC directly
-    for fmt in &[
-        "%Y-%m-%dT%H:%M:%S%.f%z",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d %H:%M:%S%z",
-    ] {
-        if let Ok(dt) = DateTime::parse_from_str(s, fmt) {
-            return Ok(dt.with_timezone(&Utc));
-        }
-    }
-    // Naive datetime formats → interpret as local time → UTC
-    for fmt in &[
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%d.%m.%Y %H:%M:%S",
-        "%d.%m.%Y %H:%M",
-        "%d/%m/%Y %H:%M:%S",
-        "%d/%m/%Y %H:%M",
-        "%m/%d/%Y %H:%M:%S",
-        "%m/%d/%Y %H:%M",
-    ] {
-        if let Ok(ndt) = NaiveDateTime::parse_from_str(s, fmt) {
-            return Local
-                .from_local_datetime(&ndt)
-                .single()
-                .map(|dt| dt.with_timezone(&Utc))
-                .ok_or_else(|| anyhow::anyhow!("ambiguous local time (DST transition): {s}"));
-        }
-    }
-    // Date-only formats → local midnight → UTC
-    for fmt in &["%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y"] {
-        if let Ok(nd) = NaiveDate::parse_from_str(s, fmt) {
-            if let Some(ndt) = nd.and_hms_opt(0, 0, 0) {
-                return Local
-                    .from_local_datetime(&ndt)
-                    .single()
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .ok_or_else(|| anyhow::anyhow!("ambiguous local time: {s}"));
-            }
-        }
-    }
-    bail!("unrecognised datetime: {:?}", s)
-}
-
 fn parse_row_datetime(
     record: &csv::StringRecord,
     combined: Option<usize>,
@@ -127,93 +323,13 @@ fn parse_row_datetime(
             return Ok(None);
         }
         let ts = time_col.and_then(|ti| record.get(ti)).unwrap_or("").trim();
-        let combined_str = if ts.is_empty() {
-            ds.to_string()
-        } else {
-            format!("{ds} {ts}")
-        };
-        return Ok(Some(parse_datetime(&combined_str)?));
+        let s = if ts.is_empty() { ds.to_string() } else { format!("{ds} {ts}") };
+        return Ok(Some(parse_datetime(&s)?));
     }
     Ok(None)
 }
 
-// ── Duration parsing ──────────────────────────────────────────────────────────
-
-fn parse_duration(s: &str) -> Result<Duration> {
-    let s = s.trim();
-    if s.is_empty() {
-        bail!("empty duration");
-    }
-
-    // H:MM:SS or H:MM  (all segments must be digits or a dot for fractional seconds)
-    let parts: Vec<&str> = s.splitn(3, ':').collect();
-    if parts.len() >= 2 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit() || c == '.')) {
-        let h: i64 = parts[0].parse().context("hours in duration")?;
-        let m: i64 = parts[1].parse().context("minutes in duration")?;
-        let sec: i64 = if parts.len() == 3 {
-            // drop fractional part
-            parts[2].split('.').next().unwrap_or("0").parse().context("seconds in duration")?
-        } else {
-            0
-        };
-        return Ok(Duration::seconds(h * 3600 + m * 60 + sec));
-    }
-
-    // Natural: 1h30m, 1h, 30m, 30min, 1h 30min, 2h 15m 30s, …
-    let lower = s.to_lowercase()
-        .replace("hours", "h").replace("hour", "h")
-        .replace("minutes", "m").replace("minute", "m")
-        .replace("mins", "m").replace("min", "m")
-        .replace("seconds", "s").replace("second", "s")
-        .replace("secs", "s").replace("sec", "s");
-
-    let mut total_secs: i64 = 0;
-    let mut buf = String::new();
-    let mut found_unit = false;
-
-    for ch in lower.chars() {
-        match ch {
-            '0'..='9' | '.' => buf.push(ch),
-            'h' => {
-                let v: f64 = buf.trim().parse().context("hours value in duration")?;
-                total_secs += (v * 3600.0) as i64;
-                buf.clear();
-                found_unit = true;
-            }
-            'm' => {
-                let v: f64 = buf.trim().parse().context("minutes value in duration")?;
-                total_secs += (v * 60.0) as i64;
-                buf.clear();
-                found_unit = true;
-            }
-            's' => {
-                let v: f64 = buf.trim().parse().context("seconds value in duration")?;
-                total_secs += v as i64;
-                buf.clear();
-                found_unit = true;
-            }
-            ' ' | '_' => {}
-            _ => bail!("unexpected character '{ch}' in duration: {s:?}"),
-        }
-    }
-
-    if found_unit {
-        return Ok(Duration::seconds(total_secs));
-    }
-
-    // Plain number → treat as seconds
-    if let Ok(secs) = s.parse::<f64>() {
-        return Ok(Duration::seconds(secs as i64));
-    }
-
-    bail!("cannot parse duration: {s:?}")
-}
-
-// ── Row processing ────────────────────────────────────────────────────────────
-
-// project_cache: name → (id, is_new_this_run)
-// task_cache:    (project_id, task_name) → id
-fn process_row(
+fn process_csv_row(
     record: &csv::StringRecord,
     cols: &Cols,
     storage: &dyn Storage,
@@ -222,12 +338,10 @@ fn process_row(
     task_cache: &mut HashMap<(String, String), String>,
     dry_run: bool,
 ) -> Result<(u32, u32)> {
-    // ── Start time ────────────────────────────────────────────────────────────
     let start = parse_row_datetime(record, cols.start, cols.start_date, cols.start_time)
         .context("start")?
         .ok_or_else(|| anyhow::anyhow!("missing start time"))?;
 
-    // ── End time (from end column or duration) ────────────────────────────────
     let end = {
         let from_col = parse_row_datetime(record, cols.end, cols.end_date, cols.end_time)
             .context("end")?;
@@ -249,97 +363,13 @@ fn process_row(
         }
     };
 
-    if let Some(e) = end {
-        if start >= e {
-            bail!("start must be before end");
-        }
-    }
-
-    // ── Project upsert ────────────────────────────────────────────────────────
     let project_name = cols.project.and_then(|i| record.get(i)).unwrap_or("").trim();
-    let (project_id, projects_created, project_is_new) = if project_name.is_empty() {
-        (None, 0u32, false)
-    } else {
-        match project_cache.get(project_name) {
-            Some((id, is_new)) => (Some(id.clone()), 0, *is_new),
-            None => {
-                let (id, created, is_new) = match storage.get_project_by_name(user_id, project_name)? {
-                    Some(p) => (p.id, 0, false),
-                    None => {
-                        let new_id = if dry_run {
-                            format!("__dry__{project_name}")
-                        } else {
-                            storage.create_project(NewProject {
-                                user_id: user_id.to_string(),
-                                name: project_name.to_string(),
-                                description: None,
-                                color: None,
-                            })?.id
-                        };
-                        (new_id, 1, true)
-                    }
-                };
-                project_cache.insert(project_name.to_string(), (id.clone(), is_new));
-                (Some(id), created, is_new)
-            }
-        }
-    };
-
-    // ── Task upsert ───────────────────────────────────────────────────────────
     let task_name = cols.task.and_then(|i| record.get(i)).unwrap_or("").trim();
-    let (task_id, tasks_created) = if task_name.is_empty() {
-        (None, 0u32)
-    } else if let Some(pid) = &project_id {
-        let cache_key = (pid.clone(), task_name.to_string());
-        match task_cache.get(&cache_key) {
-            Some(id) => (Some(id.clone()), 0),
-            None => {
-                // If the project is new this run, no existing tasks can exist under it
-                let (id, created) = if project_is_new {
-                    let new_id = if dry_run {
-                        format!("__dry_task__{task_name}")
-                    } else {
-                        storage.create_task(NewTask {
-                            user_id: user_id.to_string(),
-                            project_id: pid.clone(),
-                            name: task_name.to_string(),
-                            description: None,
-                        })?.id
-                    };
-                    (new_id, 1)
-                } else {
-                    match storage.get_task_by_name(pid, task_name)? {
-                        Some(t) => (t.id, 0),
-                        None => {
-                            let new_id = if dry_run {
-                                format!("__dry_task__{task_name}")
-                            } else {
-                                storage.create_task(NewTask {
-                                    user_id: user_id.to_string(),
-                                    project_id: pid.clone(),
-                                    name: task_name.to_string(),
-                                    description: None,
-                                })?.id
-                            };
-                            (new_id, 1)
-                        }
-                    }
-                };
-                task_cache.insert(cache_key, id.clone());
-                (Some(id), created)
-            }
-        }
-    } else {
-        bail!("task '{task_name}' requires a project column");
-    };
-
-    // ── Note and tags ─────────────────────────────────────────────────────────
     let note = cols.note
         .and_then(|i| record.get(i))
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
-
     let tags: Vec<String> = cols.tags
         .and_then(|i| record.get(i))
         .map(|s| {
@@ -351,25 +381,13 @@ fn process_row(
         })
         .unwrap_or_default();
 
-    // ── Write ─────────────────────────────────────────────────────────────────
-    if !dry_run {
-        storage.create_entry(NewEntry {
-            user_id: user_id.to_string(),
-            project_id,
-            task_id,
-            note,
-            started_at: start,
-            finished_at: end,
-            tags,
-        })?;
-    }
-
-    Ok((projects_created, tasks_created))
+    upsert_and_insert(
+        project_name, task_name, start, end, note, tags,
+        storage, user_id, project_cache, task_cache, dry_run,
+    )
 }
 
-// ── Public entry point ────────────────────────────────────────────────────────
-
-pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+fn run_csv(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let mut rdr = csv::Reader::from_path(&args.file)
         .with_context(|| format!("cannot open '{}'", args.file.display()))?;
 
@@ -378,14 +396,10 @@ pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()>
 
     let mut project_cache: HashMap<String, (String, bool)> = HashMap::new();
     let mut task_cache: HashMap<(String, String), String> = HashMap::new();
-
-    let mut entries: u32 = 0;
-    let mut projects: u32 = 0;
-    let mut tasks: u32 = 0;
-    let mut skipped: u32 = 0;
+    let (mut entries, mut projects, mut tasks, mut skipped) = (0u32, 0u32, 0u32, 0u32);
 
     for (i, result) in rdr.records().enumerate() {
-        let row_num = i + 2; // row 1 is the header
+        let row_num = i + 2;
         let record = match result {
             Ok(r) => r,
             Err(e) => {
@@ -397,21 +411,11 @@ pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()>
                 return Err(anyhow::Error::from(e)).context(format!("row {row_num}"));
             }
         };
-
-        match process_row(
-            &record,
-            &cols,
-            storage,
-            user_id,
-            &mut project_cache,
-            &mut task_cache,
-            args.dry_run,
+        match process_csv_row(
+            &record, &cols, storage, user_id,
+            &mut project_cache, &mut task_cache, args.dry_run,
         ) {
-            Ok((p, t)) => {
-                entries += 1;
-                projects += p;
-                tasks += t;
-            }
+            Ok((p, t)) => { entries += 1; projects += p; tasks += t; }
             Err(e) => {
                 if args.skip_errors {
                     eprintln!("row {row_num}: {e:#}");
@@ -423,16 +427,146 @@ pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()>
         }
     }
 
-    let word = if entries == 1 { "entry" } else { "entries" };
-    if args.dry_run {
-        println!(
-            "[dry run] {entries} {word} to import: {projects} project(s) and {tasks} task(s) to create ({skipped} row(s) would be skipped)"
-        );
-    } else {
-        println!(
-            "Imported {entries} {word}: {projects} project(s) and {tasks} task(s) created ({skipped} row(s) skipped)."
-        );
+    print_summary(entries, projects, tasks, skipped, args.dry_run);
+    Ok(())
+}
+
+// ── JSON path ─────────────────────────────────────────────────────────────────
+
+// Accepts tags as either a JSON array or a comma-separated string.
+#[derive(Debug, Default)]
+struct Tags(Vec<String>);
+
+impl<'de> serde::Deserialize<'de> for Tags {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Tags;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a string or array of strings")
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Tags, E> {
+                Ok(Tags(
+                    v.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect(),
+                ))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Tags, A::Error> {
+                let mut tags = Vec::new();
+                while let Some(s) = seq.next_element::<String>()? {
+                    let t = s.trim().to_string();
+                    if !t.is_empty() {
+                        tags.push(t);
+                    }
+                }
+                Ok(Tags(tags))
+            }
+        }
+        d.deserialize_any(V)
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct JsonEntry {
+    #[serde(default, alias = "project_name", alias = "client")]
+    project: Option<String>,
+    #[serde(default, alias = "task_name", alias = "activity")]
+    task: Option<String>,
+    #[serde(default, alias = "started_at", alias = "start_datetime")]
+    start: Option<String>,
+    #[serde(default, alias = "finished_at", alias = "end_datetime", alias = "finish", alias = "stop")]
+    end: Option<String>,
+    #[serde(default, alias = "description", alias = "comment", alias = "notes")]
+    note: Option<String>,
+    #[serde(default)]
+    tags: Tags,
+    #[serde(default, alias = "time_spent", alias = "time")]
+    duration: Option<String>,
+}
+
+fn process_json_entry(
+    entry: &JsonEntry,
+    storage: &dyn Storage,
+    user_id: &str,
+    project_cache: &mut HashMap<String, (String, bool)>,
+    task_cache: &mut HashMap<(String, String), String>,
+    dry_run: bool,
+) -> Result<(u32, u32)> {
+    let start_str = entry.start.as_deref()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("missing 'start' field"))?;
+    let start = parse_datetime(start_str).context("start")?;
+
+    let end = match entry.end.as_deref().filter(|s| !s.is_empty()) {
+        Some(s) => Some(parse_datetime(s).context("end")?),
+        None => match entry.duration.as_deref().filter(|s| !s.is_empty()) {
+            Some(d) => {
+                let dur = parse_duration(d).context("duration")?;
+                if dur <= Duration::zero() {
+                    bail!("duration must be positive");
+                }
+                Some(start + dur)
+            }
+            None => None,
+        },
+    };
+
+    let project_name = entry.project.as_deref().unwrap_or("").trim();
+    let task_name = entry.task.as_deref().unwrap_or("").trim();
+    let note = entry.note.as_deref().filter(|s| !s.is_empty()).map(|s| s.to_string());
+    let tags = entry.tags.0.clone();
+
+    upsert_and_insert(
+        project_name, task_name, start, end, note, tags,
+        storage, user_id, project_cache, task_cache, dry_run,
+    )
+}
+
+fn run_json(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+    let content = std::fs::read_to_string(&args.file)
+        .with_context(|| format!("cannot read '{}'", args.file.display()))?;
+    let json_entries: Vec<JsonEntry> = serde_json::from_str(&content)
+        .with_context(|| format!("cannot parse JSON from '{}'", args.file.display()))?;
+
+    let mut project_cache: HashMap<String, (String, bool)> = HashMap::new();
+    let mut task_cache: HashMap<(String, String), String> = HashMap::new();
+    let (mut entries, mut projects, mut tasks, mut skipped) = (0u32, 0u32, 0u32, 0u32);
+
+    for (i, entry) in json_entries.iter().enumerate() {
+        let idx = i + 1;
+        match process_json_entry(
+            entry, storage, user_id,
+            &mut project_cache, &mut task_cache, args.dry_run,
+        ) {
+            Ok((p, t)) => { entries += 1; projects += p; tasks += t; }
+            Err(e) => {
+                if args.skip_errors {
+                    eprintln!("entry {idx}: {e:#}");
+                    skipped += 1;
+                } else {
+                    return Err(e).context(format!("entry {idx}"));
+                }
+            }
+        }
     }
 
+    print_summary(entries, projects, tasks, skipped, args.dry_run);
     Ok(())
+}
+
+// ── Public entry point ────────────────────────────────────────────────────────
+
+pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+    let is_json = args.file.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+
+    if is_json {
+        run_json(&args, storage, user_id)
+    } else {
+        run_csv(&args, storage, user_id)
+    }
 }
