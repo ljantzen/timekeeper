@@ -20,8 +20,32 @@ fn main() {
     }
 }
 
+fn launch(binary: &str, db: Option<&std::path::Path>, extra: &[String]) -> anyhow::Result<()> {
+    let mut cmd = std::process::Command::new(binary);
+    if let Some(path) = db {
+        cmd.arg("--db").arg(path);
+    }
+    cmd.args(extra);
+    let status = cmd.status().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            anyhow::anyhow!("'{binary}' not found — is it installed? (`cargo install --path {}`)", binary.replace('-', "/"))
+        } else {
+            anyhow::anyhow!("failed to launch '{binary}': {e}")
+        }
+    })?;
+    std::process::exit(status.code().unwrap_or(1));
+}
+
 fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
+
+    // Handle launch subcommands before opening the database.
+    let db_override = cli.db.as_deref();
+    match &cli.command {
+        Some(Commands::Ui(args)) => return launch("tmkpr-ui", db_override, &args.args),
+        Some(Commands::Pomodoro(args)) => return launch("tmkpr-pomodoro", db_override, &args.args),
+        _ => {}
+    }
 
     let config = Config::load()?;
     let color = !cli.no_color && config.display.color;
@@ -105,6 +129,8 @@ fn run() -> anyhow::Result<()> {
         Commands::Export(args) => {
             commands::export::run(args, storage.as_ref(), &user_id, time_fmt, format)?
         }
+        // Already handled above before storage is opened.
+        Commands::Ui(_) | Commands::Pomodoro(_) => unreachable!(),
     }
 
     Ok(())

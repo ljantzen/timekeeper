@@ -95,6 +95,14 @@ pub enum Commands {
 
     /// Export time entries to a CSV file
     Export(ExportArgs),
+
+    /// Launch the tmkpr-ui terminal dashboard
+    #[command(alias = "u")]
+    Ui(LaunchArgs),
+
+    /// Launch the tmkpr-pomodoro timer
+    #[command(aliases = ["pomo", "p25"])]
+    Pomodoro(LaunchArgs),
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────
@@ -592,4 +600,13 @@ pub struct ExportArgs {
     /// Exclude the currently active (unfinished) entry
     #[arg(long)]
     pub no_active: bool,
+}
+
+// ── Launch (ui / pomodoro) ────────────────────────────────────────────────────
+
+#[derive(Args)]
+pub struct LaunchArgs {
+    /// Extra arguments passed directly to the launched binary
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub args: Vec<String>,
 }
