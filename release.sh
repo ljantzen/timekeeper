@@ -158,8 +158,8 @@ validate_tag() {
         return 1
     fi
 
-    # Check if tag commit is on the current branch
-    if ! git merge-base --is-ancestor "$tag_commit" "$expected_branch"; then
+    # Check if tag commit is reachable from the remote branch
+    if ! git merge-base --is-ancestor "$tag_commit" "origin/$expected_branch"; then
         print_error "Tag $tag does not point to a commit on branch $expected_branch"
         return 1
     fi
