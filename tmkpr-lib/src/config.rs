@@ -33,6 +33,8 @@ pub struct ThemeConfig {
     pub warning: String,
     #[serde(default)]
     pub selection: String,
+    #[serde(default)]
+    pub border: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

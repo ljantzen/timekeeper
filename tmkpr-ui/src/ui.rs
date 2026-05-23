@@ -96,7 +96,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 fn render_active(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" Active Entry ")
-        .borders(Borders::ALL);
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.border));
 
     let line = match &app.active_entry {
         Some(entry) => {
@@ -181,7 +182,10 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         format!(" Entries ({}) ", app.entries.len())
     };
-    let block = Block::default().title(title).borders(Borders::ALL);
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.border));
 
     let items: Vec<ListItem> = app
         .entries
@@ -263,7 +267,10 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
     let now = Local::now();
     let week_num = now.iso_week().week();
     let title = format!(" Week W{week_num:02} ");
-    let block = Block::default().title(title).borders(Borders::ALL);
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -437,6 +444,7 @@ fn render_form_modal(
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border))
         .style(Style::default().bg(theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
@@ -578,6 +586,7 @@ fn render_list_panel(
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border))
         .style(Style::default().bg(theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
@@ -730,6 +739,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(title.as_str())
             .borders(Borders::ALL)
+            .border_style(Style::default().fg(app.theme.border))
             .style(Style::default().bg(app.theme.bg));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
@@ -876,6 +886,7 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
     let block = Block::default()
         .title(" Help ")
         .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border))
         .style(Style::default().bg(theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
@@ -1033,6 +1044,7 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
         .title(title)
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(app.theme.border))
         .style(Style::default().bg(app.theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);

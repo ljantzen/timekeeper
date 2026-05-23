@@ -63,7 +63,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_status(f, app, chunks[2]);
 
     // Help text
-    draw_help(f, chunks[3]);
+    draw_help(f, app, chunks[3]);
 }
 
 fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
@@ -129,7 +129,12 @@ fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
         Line::from(cycle_info),
         active_line,
     ])
-    .block(Block::default().borders(Borders::ALL).title("Timer"))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(app.theme().border))
+            .title("Timer"),
+    )
     .alignment(Alignment::Center);
 
     f.render_widget(paragraph, area);
@@ -160,7 +165,12 @@ fn draw_projects(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Projects"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme().border))
+                .title("Projects"),
+        )
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
@@ -215,7 +225,12 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme().border))
+                .title(title),
+        )
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
@@ -252,7 +267,12 @@ fn draw_sessions(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Completed"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme().border))
+                .title("Completed"),
+        )
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
@@ -271,7 +291,12 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let paragraph = Paragraph::new(status_text)
-        .block(Block::default().borders(Borders::ALL).title("Status"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme().border))
+                .title("Status"),
+        )
         .alignment(Alignment::Center);
 
     f.render_widget(paragraph, area);
@@ -418,21 +443,29 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         Line::from(hint),
     ];
 
-    let block = Block::default().title("Settings").borders(Borders::ALL);
+    let block = Block::default()
+        .title("Settings")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme().border));
     let paragraph = Paragraph::new(lines)
         .block(block)
         .alignment(Alignment::Left);
     f.render_widget(paragraph, area);
 }
 
-fn draw_help(f: &mut Frame, area: Rect) {
+fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     let help_text = [
         "↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
         "Space: Pause/Resume  |  C: Complete task  |  N: New task  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
     ];
 
     let help = Paragraph::new(help_text.join("\n"))
-        .block(Block::default().borders(Borders::ALL).title("Help"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme().border))
+                .title("Help"),
+        )
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
 

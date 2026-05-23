@@ -20,6 +20,8 @@ pub struct Theme {
     pub warning: Color,
     /// Background highlight for the selected list row.
     pub selection: Color,
+    /// Panel and modal border color.
+    pub border: Color,
 }
 
 fn parse_hex(s: &str) -> Option<Color> {
@@ -68,6 +70,7 @@ impl Theme {
                 error: parse_hex(&cfg.error).unwrap_or(fb.error),
                 warning: parse_hex(&cfg.warning).unwrap_or(fb.warning),
                 selection: parse_hex(&cfg.selection).unwrap_or(fb.selection),
+                border: parse_hex(&cfg.border).unwrap_or(fb.border),
             };
         }
         Self::from_name(name)
@@ -104,6 +107,7 @@ impl Theme {
             error: Color::Red,
             warning: Color::Yellow,
             selection: Color::Rgb(0x3a, 0x3a, 0x3a),
+            border: Color::DarkGray,
         }
     }
 
@@ -117,6 +121,7 @@ impl Theme {
             error: Color::Rgb(0xeb, 0x6f, 0x92),
             warning: Color::Rgb(0xf6, 0xc1, 0x77),
             selection: Color::Rgb(0x26, 0x23, 0x3a),
+            border: Color::Rgb(0x40, 0x3d, 0x52),
         }
     }
 
@@ -130,6 +135,7 @@ impl Theme {
             error: Color::Rgb(0xf3, 0x8b, 0xa8),
             warning: Color::Rgb(0xf9, 0xe2, 0xaf),
             selection: Color::Rgb(0x31, 0x32, 0x44),
+            border: Color::Rgb(0x45, 0x47, 0x5a),
         }
     }
 
@@ -143,6 +149,7 @@ impl Theme {
             error: Color::Rgb(0xed, 0x87, 0x96),
             warning: Color::Rgb(0xee, 0xd4, 0x9f),
             selection: Color::Rgb(0x36, 0x3a, 0x4f),
+            border: Color::Rgb(0x49, 0x4d, 0x64),
         }
     }
 
@@ -156,6 +163,7 @@ impl Theme {
             error: Color::Rgb(0xe7, 0x82, 0x84),
             warning: Color::Rgb(0xe5, 0xc8, 0x90),
             selection: Color::Rgb(0x41, 0x45, 0x59),
+            border: Color::Rgb(0x51, 0x57, 0x6d),
         }
     }
 
@@ -169,6 +177,7 @@ impl Theme {
             error: Color::Rgb(0xbf, 0x61, 0x6a),
             warning: Color::Rgb(0xd0, 0x87, 0x70),
             selection: Color::Rgb(0x3b, 0x42, 0x52),
+            border: Color::Rgb(0x4c, 0x56, 0x6a),
         }
     }
 
@@ -182,6 +191,7 @@ impl Theme {
             error: Color::Rgb(0xfb, 0x49, 0x34),
             warning: Color::Rgb(0xfa, 0xbd, 0x2f),
             selection: Color::Rgb(0x3c, 0x38, 0x36),
+            border: Color::Rgb(0x50, 0x49, 0x45),
         }
     }
 
@@ -195,6 +205,7 @@ impl Theme {
             error: Color::Rgb(0xf9, 0x26, 0x72),
             warning: Color::Rgb(0xe6, 0xdb, 0x74),
             selection: Color::Rgb(0x38, 0x38, 0x30),
+            border: Color::Rgb(0x49, 0x48, 0x3e),
         }
     }
 
@@ -208,6 +219,7 @@ impl Theme {
             error: Color::Rgb(0xff, 0x55, 0x55),
             warning: Color::Rgb(0xff, 0xb8, 0x6c),
             selection: Color::Rgb(0x44, 0x47, 0x5a),
+            border: Color::Rgb(0x44, 0x47, 0x5a),
         }
     }
 
@@ -221,6 +233,7 @@ impl Theme {
             error: Color::Rgb(0xf7, 0x76, 0x8e),
             warning: Color::Rgb(0xe0, 0xaf, 0x68),
             selection: Color::Rgb(0x28, 0x34, 0x57),
+            border: Color::Rgb(0x29, 0x2e, 0x42),
         }
     }
 
@@ -234,6 +247,7 @@ impl Theme {
             error: Color::Rgb(0xe0, 0x6c, 0x75),
             warning: Color::Rgb(0xe5, 0xc0, 0x7b),
             selection: Color::Rgb(0x3e, 0x44, 0x52),
+            border: Color::Rgb(0x3e, 0x44, 0x52),
         }
     }
 
@@ -247,6 +261,7 @@ impl Theme {
             error: Color::Rgb(0xdc, 0x32, 0x2f),
             warning: Color::Rgb(0xb5, 0x89, 0x00),
             selection: Color::Rgb(0x07, 0x36, 0x42),
+            border: Color::Rgb(0x07, 0x36, 0x42),
         }
     }
 
@@ -260,6 +275,7 @@ impl Theme {
             error: Color::Rgb(0xff, 0x7b, 0x72),
             warning: Color::Rgb(0xe3, 0xb3, 0x41),
             selection: Color::Rgb(0x16, 0x1b, 0x22),
+            border: Color::Rgb(0x30, 0x36, 0x3d),
         }
     }
 
@@ -273,6 +289,7 @@ impl Theme {
             error: Color::Rgb(0xc3, 0x40, 0x43),
             warning: Color::Rgb(0xdc, 0xa5, 0x61),
             selection: Color::Rgb(0x2a, 0x2a, 0x37),
+            border: Color::Rgb(0x36, 0x36, 0x46),
         }
     }
 
@@ -286,6 +303,7 @@ impl Theme {
             error: Color::Rgb(0xe6, 0x7e, 0x80),
             warning: Color::Rgb(0xdb, 0xbc, 0x7f),
             selection: Color::Rgb(0x37, 0x41, 0x45),
+            border: Color::Rgb(0x4a, 0x55, 0x5b),
         }
     }
 
@@ -299,6 +317,7 @@ impl Theme {
             error: Color::Rgb(0xf0, 0x71, 0x78),
             warning: Color::Rgb(0xe6, 0xb4, 0x50),
             selection: Color::Rgb(0x0d, 0x10, 0x17),
+            border: Color::Rgb(0x1a, 0x1f, 0x29),
         }
     }
 }
