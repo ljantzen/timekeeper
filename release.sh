@@ -65,7 +65,7 @@ validate_version() {
     return 0
 }
 
-# Update version in Cargo.toml
+# Update version in Cargo.toml (workspace package version + tmkpr-lib dep version)
 update_version() {
     local new_version=$1
     local current_version=$(get_version)
@@ -76,7 +76,18 @@ update_version() {
     fi
 
     print_info "Updating version from $current_version to $new_version in Cargo.toml..."
+
+    # Update [workspace.package] version
     sed -i "s/^version = \"$current_version\"/version = \"$new_version\"/" Cargo.toml
+
+    # Update or add the version field in the tmkpr-lib workspace dependency so that
+    # the binary crates can resolve it on crates.io after tmkpr-lib is published.
+    if grep -q 'tmkpr-lib.*version' Cargo.toml; then
+        sed -i "s|tmkpr-lib\(.*\)version = \"[^\"]*\"|tmkpr-lib\1version = \"$new_version\"|" Cargo.toml
+    else
+        sed -i "s|tmkpr-lib\(.*\){ path = \"tmkpr-lib\" }|tmkpr-lib\1{ path = \"tmkpr-lib\", version = \"$new_version\" }|" Cargo.toml
+    fi
+
     print_success "Version updated to $new_version"
 }
 
@@ -123,11 +134,11 @@ tag_exists_on_origin() {
     git ls-remote --tags origin | grep -E "refs/tags/$tag$" >/dev/null 2>&1
 }
 
-# Check if version is published on crates.io
+# Check if a specific crate version is published on crates.io
 is_published_on_crates() {
-    local version=$1
-    # Query crates.io API to check if the version exists
-    curl -s "https://crates.io/api/v1/crates/$REPO_NAME/versions" | \
+    local crate=$1
+    local version=$2
+    curl -s "https://crates.io/api/v1/crates/$crate/versions" | \
         jq -e ".versions[] | select(.num == \"$version\")" >/dev/null 2>&1
 }
 
@@ -262,24 +273,30 @@ wait_for_workflow() {
     fi
 }
 
-# Publish to crates.io
+# Publish to crates.io in dependency order
 publish_to_crates() {
     local version=$1
+    local crates=("tmkpr-lib" "tmkpr-cli" "tmkpr-ui" "tmkpr-pomodoro")
 
-    if is_published_on_crates "$version"; then
-        print_success "Version $version is already published on crates.io, skipping publication"
-        return 0
-    fi
+    for crate in "${crates[@]}"; do
+        if is_published_on_crates "$crate" "$version"; then
+            print_success "$crate v$version already published, skipping"
+            continue
+        fi
 
-    print_info "Publishing to crates.io..."
+        print_info "Publishing $crate v$version..."
+        if ! cargo publish -p "$crate"; then
+            print_error "Failed to publish $crate"
+            return 1
+        fi
+        print_success "Published $crate v$version"
 
-    # Use --allow-dirty to allow Cargo.lock changes from the build
-    if ! cargo publish --allow-dirty; then
-        print_error "Failed to publish to crates.io"
-        return 1
-    fi
-
-    print_success "Published to crates.io"
+        # Give crates.io index time to update before publishing dependents
+        if [ "$crate" = "tmkpr-lib" ]; then
+            print_info "Waiting 30s for crates.io index to update..."
+            sleep 30
+        fi
+    done
 }
 
 # Increment patch version
