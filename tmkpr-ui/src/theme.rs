@@ -52,6 +52,7 @@ impl Theme {
             "github_light",
             "gruvbox_dark",
             "gruvbox_light",
+            "cobalt",
             "high_contrast",
             "kanagawa",
             "monokai",
@@ -105,6 +106,7 @@ impl Theme {
             "kanagawa" => Self::kanagawa(),
             "everforest" => Self::everforest(),
             "ayu_dark" => Self::ayu_dark(),
+            "cobalt" => Self::cobalt(),
             "high_contrast" => Self::high_contrast(),
             _ => Self::default_theme(),
         }
@@ -407,6 +409,21 @@ impl Theme {
             warning: Color::Rgb(0xe6, 0xb4, 0x50),
             selection: Color::Rgb(0x0d, 0x10, 0x17),
             border: Color::Rgb(0x1a, 0x1f, 0x29),
+        }
+    }
+
+    /// Cobalt — bright blue background with yellow text
+    fn cobalt() -> Self {
+        Self {
+            bg: Color::Rgb(0x00, 0x33, 0xff),
+            fg: Some(Color::Rgb(0xff, 0xff, 0x00)),
+            active: Color::Rgb(0x00, 0xff, 0x88),
+            accent: Color::Rgb(0xff, 0xff, 0xff),
+            dim: Color::Rgb(0xaa, 0xbb, 0xff),
+            error: Color::Rgb(0xff, 0x44, 0x44),
+            warning: Color::Rgb(0xff, 0x88, 0x00),
+            selection: Color::Rgb(0x00, 0x00, 0xbb),
+            border: Color::Rgb(0x44, 0x66, 0xff),
         }
     }
 
