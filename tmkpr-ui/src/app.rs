@@ -87,7 +87,19 @@ pub mod form_fields {
 
 type DateRange = (Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>);
 
-fn parse_date_filter(s: &str) -> anyhow::Result<DateRange> {
+fn weekday_to_def(w: chrono::Weekday) -> tmkpr_lib::config::WeekdayDef {
+    match w {
+        chrono::Weekday::Mon => tmkpr_lib::config::WeekdayDef::Mon,
+        chrono::Weekday::Tue => tmkpr_lib::config::WeekdayDef::Tue,
+        chrono::Weekday::Wed => tmkpr_lib::config::WeekdayDef::Wed,
+        chrono::Weekday::Thu => tmkpr_lib::config::WeekdayDef::Thu,
+        chrono::Weekday::Fri => tmkpr_lib::config::WeekdayDef::Fri,
+        chrono::Weekday::Sat => tmkpr_lib::config::WeekdayDef::Sat,
+        chrono::Weekday::Sun => tmkpr_lib::config::WeekdayDef::Sun,
+    }
+}
+
+fn parse_date_filter(s: &str, week_start: chrono::Weekday) -> anyhow::Result<DateRange> {
     let s = s.trim();
     if s.is_empty() {
         return Ok((None, None));
@@ -119,16 +131,10 @@ fn parse_date_filter(s: &str) -> anyhow::Result<DateRange> {
         "this week" => {
             let now = Local::now();
             let weekday = now.date_naive().weekday();
-            let days_since_monday = match weekday {
-                chrono::Weekday::Mon => 0,
-                chrono::Weekday::Tue => 1,
-                chrono::Weekday::Wed => 2,
-                chrono::Weekday::Thu => 3,
-                chrono::Weekday::Fri => 4,
-                chrono::Weekday::Sat => 5,
-                chrono::Weekday::Sun => 6,
-            };
-            let week_start = now.date_naive() - Duration::days(days_since_monday as i64);
+            let start_num = week_start.num_days_from_monday();
+            let current_num = weekday.num_days_from_monday();
+            let days_since_start = (current_num + 7 - start_num) % 7;
+            let week_start = now.date_naive() - Duration::days(days_since_start as i64);
             let week_end = week_start + Duration::days(7);
             let from = week_start.and_hms_opt(0, 0, 0).unwrap();
             let until = week_end.and_hms_opt(0, 0, 0).unwrap();
@@ -433,16 +439,29 @@ pub struct App {
     pub task_sort: TaskSort,
     pub task_filter: TaskFilter,
     pub theme: Theme,
+    pub theme_name: String,
     pub themes: HashMap<String, ThemeConfig>,
     pub pending_open: Option<std::path::PathBuf>,
+    pub date_format: String,
+    pub week_start: chrono::Weekday,
 }
+
+/// Display name → chrono format string pairs for the `:set date-format` command.
+const DATE_FORMAT_PRESETS: &[(&str, &str)] = &[
+    ("YYYY-MM-DD HH:MM", "%Y-%m-%d %H:%M"),
+    ("DD-MM-YYYY HH:MM", "%d-%m-%Y %H:%M"),
+    ("MM-DD-YYYY HH:MM", "%m-%d-%Y %H:%M"),
+];
 
 impl App {
     pub fn new(
         storage: Box<dyn Storage>,
         user_id: String,
+        theme_name: String,
         theme: Theme,
         themes: HashMap<String, ThemeConfig>,
+        date_format: String,
+        week_start: chrono::Weekday,
     ) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
@@ -467,8 +486,11 @@ impl App {
             task_sort: TaskSort::Name,
             task_filter: TaskFilter::default(),
             theme,
+            theme_name,
             themes,
             pending_open: None,
+            date_format,
+            week_start,
         }
     }
 
@@ -527,14 +549,43 @@ impl App {
                     .filter(|n| n.to_lowercase().contains(&filter))
                     .collect()
             }
+        } else if trimmed == "set date-format" || trimmed.starts_with("set date-format ") {
+            // "set date-format <variant>" — complete format presets.
+            DATE_FORMAT_PRESETS
+                .iter()
+                .map(|(display, _)| display.to_string())
+                .collect()
+        } else if trimmed == "set" || trimmed.starts_with("set ") {
+            // "set" or "set <setting>" — complete setting names.
+            let filter = trimmed
+                .strip_prefix("set")
+                .unwrap_or("")
+                .trim_start()
+                .to_lowercase();
+            let opts = ["date-format", "week-start"];
+            if filter.is_empty() {
+                opts.iter().map(|s| s.to_string()).collect()
+            } else {
+                opts.iter()
+                    .filter(|s| s.contains(filter.as_str()))
+                    .map(|s| s.to_string())
+                    .collect()
+            }
         } else if !trimmed.contains(' ') {
             // No space yet — complete command names.
             let prefix = trimmed.to_lowercase();
-            ["config-open", "config-reload", "quit", "theme"]
-                .iter()
-                .filter(|c| c.starts_with(prefix.as_str()))
-                .map(|c| c.to_string())
-                .collect()
+            [
+                "config-open",
+                "config-reload",
+                "config-write",
+                "quit",
+                "set",
+                "theme",
+            ]
+            .iter()
+            .filter(|c| c.starts_with(prefix.as_str()))
+            .map(|c| c.to_string())
+            .collect()
         } else {
             vec![]
         };
@@ -561,11 +612,20 @@ impl App {
             return;
         }
 
-        // Are we completing a theme name or a command name?
+        // Identify which prefix level we're completing.
         let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, .. } if {
             let t = buf.trim();
             t == "theme" || t.starts_with("theme ")
         });
+        let is_set_date_format = matches!(&self.mode, AppMode::Command { buf, .. } if {
+            let t = buf.trim();
+            t == "set date-format" || t.starts_with("set date-format ")
+        });
+        let is_set_cmd = !is_set_date_format
+            && matches!(&self.mode, AppMode::Command { buf, .. } if {
+                let t = buf.trim();
+                t == "set" || t.starts_with("set ")
+            });
 
         // Save original theme on the first tab in theme-arg mode.
         if is_theme_arg {
@@ -624,6 +684,10 @@ impl App {
             *completion_idx = Some(next_idx);
             if is_theme_arg {
                 *buf = format!("theme {next_name}");
+            } else if is_set_date_format {
+                *buf = format!("set date-format {next_name}");
+            } else if is_set_cmd {
+                *buf = format!("set {next_name}");
             } else {
                 *buf = next_name.clone();
             }
@@ -673,19 +737,41 @@ impl App {
                 } else {
                     let themes = self.themes.clone();
                     self.theme = crate::theme::Theme::resolve(arg, &themes);
-                    self.status = Some((format!("Theme set to '{arg}'."), false));
+                    self.theme_name = arg.to_string();
+                    self.status = Some((
+                        format!("Theme set to '{arg}'. Run :config-write to save."),
+                        false,
+                    ));
                 }
             }
             "config-reload" => match tmkpr_lib::config::Config::load() {
                 Ok(cfg) => {
-                    let theme_name = cfg.display.theme.clone();
+                    let name = cfg.display.theme.clone();
                     self.themes = cfg.themes.clone();
                     let themes = self.themes.clone();
-                    self.theme = crate::theme::Theme::resolve(&theme_name, &themes);
+                    self.theme = crate::theme::Theme::resolve(&name, &themes);
+                    self.theme_name = name;
+                    self.date_format = cfg.display.date_format.clone();
+                    self.week_start = chrono::Weekday::from(cfg.display.week_start);
                     self.status = Some(("Config reloaded.".into(), false));
                 }
                 Err(e) => {
                     self.status = Some((format!("Config reload failed: {e}"), true));
+                }
+            },
+            "config-write" => match tmkpr_lib::config::Config::load() {
+                Ok(mut cfg) => {
+                    cfg.display.theme = self.theme_name.clone();
+                    cfg.display.date_format = self.date_format.clone();
+                    cfg.display.week_start = weekday_to_def(self.week_start);
+                    if let Err(e) = cfg.save() {
+                        self.status = Some((format!("Write failed: {e}"), true));
+                    } else {
+                        self.status = Some(("Config written.".into(), false));
+                    }
+                }
+                Err(e) => {
+                    self.status = Some((format!("Config write failed: {e}"), true));
                 }
             },
             "config-open" => match tmkpr_lib::config::config_path() {
@@ -696,6 +782,72 @@ impl App {
                     self.status = Some((format!("Cannot resolve config path: {e}"), true));
                 }
             },
+            "set" => {
+                let (setting, value) = match arg.split_once(' ') {
+                    Some((s, v)) => (s, v.trim()),
+                    None => (arg, ""),
+                };
+                match setting {
+                    "date-format" => {
+                        let chrono_fmt = DATE_FORMAT_PRESETS
+                            .iter()
+                            .find(|(display, _)| *display == value)
+                            .map(|(_, fmt)| *fmt);
+                        match chrono_fmt {
+                            None => {
+                                self.status = Some((
+                                    "Use Tab to pick: YYYY-MM-DD HH:MM, DD-MM-YYYY HH:MM, MM-DD-YYYY HH:MM".into(),
+                                    true,
+                                ));
+                            }
+                            Some(fmt) => {
+                                self.date_format = fmt.to_string();
+                                self.status = Some((
+                                    format!(
+                                        "date-format set to '{value}'. Run :config-write to save."
+                                    ),
+                                    false,
+                                ));
+                            }
+                        }
+                    }
+                    "week-start" => {
+                        let weekday = match value.to_lowercase().as_str() {
+                            "mon" | "monday" => Some(chrono::Weekday::Mon),
+                            "tue" | "tuesday" => Some(chrono::Weekday::Tue),
+                            "wed" | "wednesday" => Some(chrono::Weekday::Wed),
+                            "thu" | "thursday" => Some(chrono::Weekday::Thu),
+                            "fri" | "friday" => Some(chrono::Weekday::Fri),
+                            "sat" | "saturday" => Some(chrono::Weekday::Sat),
+                            "sun" | "sunday" => Some(chrono::Weekday::Sun),
+                            _ => None,
+                        };
+                        match weekday {
+                            None => {
+                                self.status = Some((
+                                    "Usage: set week-start <mon|tue|wed|thu|fri|sat|sun>".into(),
+                                    true,
+                                ));
+                            }
+                            Some(w) => {
+                                self.week_start = w;
+                                self.status = Some((
+                                    format!(
+                                        "week-start set to '{value}'. Run :config-write to save."
+                                    ),
+                                    false,
+                                ));
+                            }
+                        }
+                    }
+                    _ => {
+                        self.status = Some((
+                            "Unknown setting. Available: date-format, week-start".into(),
+                            true,
+                        ));
+                    }
+                }
+            }
             "" => {}
             other => {
                 self.status = Some((format!("Unknown command: '{other}'"), true));
@@ -770,6 +922,10 @@ impl App {
         self.projects.iter().map(|p| p.name.clone()).collect()
     }
 
+    fn project_colors(&self) -> Vec<Option<String>> {
+        self.projects.iter().map(|p| p.color.clone()).collect()
+    }
+
     fn task_names(&self) -> Vec<String> {
         self.tasks
             .iter()
@@ -778,18 +934,40 @@ impl App {
             .collect()
     }
 
-    pub fn task_names_for_project(&self, project_name: &str) -> Vec<String> {
-        let project_id = self
-            .projects
+    fn task_colors_all(&self) -> Vec<Option<String>> {
+        self.tasks
             .iter()
-            .find(|p| p.name == project_name)
-            .map(|p| p.id.as_str());
+            .filter(|t| !t.completed)
+            .map(|t| {
+                self.projects
+                    .iter()
+                    .find(|p| p.id == t.project_id)
+                    .and_then(|p| p.color.clone())
+            })
+            .collect()
+    }
 
-        if let Some(pid) = project_id {
+    pub fn task_names_for_project(&self, project_name: &str) -> Vec<String> {
+        let project = self.projects.iter().find(|p| p.name == project_name);
+        if let Some(proj) = project {
             self.tasks
                 .iter()
-                .filter(|t| t.project_id == pid && !t.completed)
+                .filter(|t| t.project_id == proj.id && !t.completed)
                 .map(|t| t.name.clone())
+                .collect()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn task_colors_for_project(&self, project_name: &str) -> Vec<Option<String>> {
+        let project = self.projects.iter().find(|p| p.name == project_name);
+        if let Some(proj) = project {
+            let color = proj.color.clone();
+            self.tasks
+                .iter()
+                .filter(|t| t.project_id == proj.id && !t.completed)
+                .map(|_| color.clone())
                 .collect()
         } else {
             vec![]
@@ -828,11 +1006,17 @@ impl App {
 
     pub fn open_start_modal(&mut self) {
         let projects = self.project_names();
+        let project_colors = self.project_colors();
         let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
         self.mode = AppMode::StartModal(Form {
             fields: vec![
-                Field::new("Project", "").with_completions(projects),
-                Field::new("Task", "").with_completions(tasks),
+                Field::new("Project", "")
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
+                Field::new("Task", "")
+                    .with_completions(tasks)
+                    .with_completion_colors(task_colors),
                 Field::new("Note", ""),
                 Field::new("Tags (comma-separated)", ""),
             ],
@@ -846,7 +1030,9 @@ impl App {
         }
         let entry = &self.entries[self.selected];
         let projects = self.project_names();
+        let project_colors = self.project_colors();
         let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
         let project_val = entry
             .project_id
             .as_deref()
@@ -860,8 +1046,12 @@ impl App {
         let note_val = entry.note.clone().unwrap_or_default();
         self.mode = AppMode::StartModal(Form {
             fields: vec![
-                Field::new("Project", &project_val).with_completions(projects),
-                Field::new("Task", &task_val).with_completions(tasks),
+                Field::new("Project", &project_val)
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
+                Field::new("Task", &task_val)
+                    .with_completions(tasks)
+                    .with_completion_colors(task_colors),
                 Field::new("Note", &note_val),
                 Field::new("Tags (comma-separated)", ""),
             ],
@@ -895,13 +1085,19 @@ impl App {
 
         let tags_val = entry.tags.join(", ");
         let projects = self.project_names();
+        let project_colors = self.project_colors();
         let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
         self.mode = AppMode::EditModal {
             id,
             form: Form {
                 fields: vec![
-                    Field::new("Project", project_val).with_completions(projects),
-                    Field::new("Task", task_val).with_completions(tasks),
+                    Field::new("Project", project_val)
+                        .with_completions(projects)
+                        .with_completion_colors(project_colors),
+                    Field::new("Task", task_val)
+                        .with_completions(tasks)
+                        .with_completion_colors(task_colors),
                     Field::new("Note", note_val),
                     Field::new("Start", start_val),
                     Field::new("End (blank = active)", end_val),
@@ -1429,9 +1625,12 @@ impl App {
 
     pub fn open_add_task_modal(&mut self) {
         let projects = self.project_names();
+        let project_colors = self.project_colors();
         self.mode = AppMode::AddTask(Form {
             fields: vec![
-                Field::new("Project", "").with_completions(projects),
+                Field::new("Project", "")
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
                 Field::new("Name", ""),
                 Field::new("Description (optional)", ""),
             ],
@@ -1569,6 +1768,7 @@ impl App {
 
     pub fn open_task_filter_modal(&mut self) {
         let projects = self.project_names();
+        let project_colors = self.project_colors();
         let project_filter = self
             .task_filter
             .project_id
@@ -1584,7 +1784,8 @@ impl App {
         self.mode = AppMode::FilterTasks(Form {
             fields: vec![
                 Field::new("Filter by project (empty = all)", &project_filter)
-                    .with_completions(projects),
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
                 Field::new(
                     "Show archived tasks? (y/n)",
                     if self.task_filter.hide_archived {
@@ -1790,10 +1991,12 @@ impl App {
 
     pub fn open_filter_modal(&mut self) {
         let projects = self.project_names();
+        let project_colors = self.project_colors();
         self.mode = AppMode::Filter(Form {
             fields: vec![
                 Field::new("Project (empty = all)", &self.entry_filter.project_name)
-                    .with_completions(projects),
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
                 Field::new(
                     "Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD",
                     &self.entry_filter.date_str,
@@ -1824,7 +2027,7 @@ impl App {
             self.entry_filter.project_id = Some(proj.id);
         }
 
-        let (from, until) = parse_date_filter(date_str)?;
+        let (from, until) = parse_date_filter(date_str, self.week_start)?;
         self.entry_filter.from = from;
         self.entry_filter.until = until;
 
@@ -1877,8 +2080,11 @@ mod tests {
         App::new(
             Box::new(storage),
             LOCAL_USER_ID.to_string(),
+            "default".to_string(),
             crate::theme::Theme::from_name("default"),
             HashMap::new(),
+            "%H:%M".to_string(),
+            chrono::Weekday::Mon,
         )
     }
 
@@ -1921,21 +2127,21 @@ mod tests {
 
     #[test]
     fn parse_date_filter_empty_returns_none() {
-        let (from, until) = parse_date_filter("").unwrap();
+        let (from, until) = parse_date_filter("", chrono::Weekday::Mon).unwrap();
         assert!(from.is_none());
         assert!(until.is_none());
     }
 
     #[test]
     fn parse_date_filter_whitespace_returns_none() {
-        let (from, until) = parse_date_filter("   ").unwrap();
+        let (from, until) = parse_date_filter("   ", chrono::Weekday::Mon).unwrap();
         assert!(from.is_none());
         assert!(until.is_none());
     }
 
     #[test]
     fn parse_date_filter_today() {
-        let (from, until) = parse_date_filter("today").unwrap();
+        let (from, until) = parse_date_filter("today", chrono::Weekday::Mon).unwrap();
         assert!(from.is_some());
         assert!(until.is_some());
         let from = from.unwrap();
@@ -1947,7 +2153,7 @@ mod tests {
 
     #[test]
     fn parse_date_filter_yesterday() {
-        let (from, until) = parse_date_filter("yesterday").unwrap();
+        let (from, until) = parse_date_filter("yesterday", chrono::Weekday::Mon).unwrap();
         assert!(from.is_some());
         assert!(until.is_some());
         let from = from.unwrap();
@@ -1959,7 +2165,7 @@ mod tests {
 
     #[test]
     fn parse_date_filter_this_week() {
-        let (from, until) = parse_date_filter("this week").unwrap();
+        let (from, until) = parse_date_filter("this week", chrono::Weekday::Mon).unwrap();
         assert!(from.is_some());
         assert!(until.is_some());
         let from = from.unwrap();
@@ -1971,7 +2177,7 @@ mod tests {
 
     #[test]
     fn parse_date_filter_specific_date() {
-        let (from, until) = parse_date_filter("2024-05-15").unwrap();
+        let (from, until) = parse_date_filter("2024-05-15", chrono::Weekday::Mon).unwrap();
         assert!(from.is_some());
         assert!(until.is_some());
         let from = from.unwrap();
@@ -1983,7 +2189,8 @@ mod tests {
 
     #[test]
     fn parse_date_filter_date_range() {
-        let (from, until) = parse_date_filter("2024-05-15..2024-05-18").unwrap();
+        let (from, until) =
+            parse_date_filter("2024-05-15..2024-05-18", chrono::Weekday::Mon).unwrap();
         assert!(from.is_some());
         assert!(until.is_some());
         let from = from.unwrap();
@@ -1995,7 +2202,7 @@ mod tests {
 
     #[test]
     fn parse_date_filter_invalid_date_fails() {
-        let result = parse_date_filter("invalid-date");
+        let result = parse_date_filter("invalid-date", chrono::Weekday::Mon);
         assert!(result.is_err());
     }
 

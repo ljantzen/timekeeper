@@ -14,7 +14,6 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::collections::HashMap;
 use tmkpr_lib::{config::Config, storage::open_sqlite};
 
 use app::App;
@@ -58,8 +57,16 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let themes = config.themes.clone();
-    let result = run_app(&mut terminal, storage, user_id, theme, themes);
+    let app = App::new(
+        storage,
+        user_id,
+        theme_name.to_string(),
+        theme,
+        config.themes.clone(),
+        config.display.date_format.clone(),
+        chrono::Weekday::from(config.display.week_start),
+    );
+    let result = run_app(&mut terminal, app);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -68,14 +75,7 @@ fn main() -> anyhow::Result<()> {
     result
 }
 
-fn run_app(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    storage: Box<dyn tmkpr_lib::storage::Storage>,
-    user_id: String,
-    theme: Theme,
-    themes: HashMap<String, tmkpr_lib::config::ThemeConfig>,
-) -> anyhow::Result<()> {
-    let mut app = App::new(storage, user_id, theme, themes);
+fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, mut app: App) -> anyhow::Result<()> {
     app.refresh()?;
     app.load_ui_state()?;
     app.status = None;
@@ -107,9 +107,12 @@ fn run_app(
             terminal.clear()?;
             // Auto-reload config after editing
             if let Ok(cfg) = tmkpr_lib::config::Config::load() {
-                let theme_name = cfg.display.theme.clone();
+                let name = cfg.display.theme.clone();
                 app.themes = cfg.themes.clone();
-                app.theme = Theme::resolve(&theme_name, &app.themes);
+                app.theme = Theme::resolve(&name, &app.themes);
+                app.theme_name = name;
+                app.date_format = cfg.display.date_format.clone();
+                app.week_start = chrono::Weekday::from(cfg.display.week_start);
             }
             app.status = Some(("Config reloaded.".into(), false));
         }

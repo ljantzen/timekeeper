@@ -10,6 +10,7 @@ pub struct Field {
     pub value: String,
     pub cursor: usize,
     pub completions: Vec<String>,
+    pub completion_colors: Vec<Option<String>>,
     pub ac_index: Option<usize>,
 }
 
@@ -28,6 +29,7 @@ impl Field {
             value,
             cursor,
             completions: vec![],
+            completion_colors: vec![],
             ac_index: None,
         }
     }
@@ -37,15 +39,24 @@ impl Field {
         self
     }
 
-    pub fn suggestions(&self) -> Vec<&str> {
+    pub fn with_completion_colors(mut self, colors: Vec<Option<String>>) -> Self {
+        self.completion_colors = colors;
+        self
+    }
+
+    pub fn suggestions_colored(&self) -> Vec<(&str, Option<&str>)> {
         if self.completions.is_empty() {
             return vec![];
         }
         let query = self.value.to_lowercase();
         self.completions
             .iter()
-            .filter(|c| query.is_empty() || c.to_lowercase().contains(&query))
-            .map(|s| s.as_str())
+            .enumerate()
+            .filter(|(_, c)| query.is_empty() || c.to_lowercase().contains(&query))
+            .map(|(i, s)| {
+                let color = self.completion_colors.get(i).and_then(|c| c.as_deref());
+                (s.as_str(), color)
+            })
             .collect()
     }
 

@@ -187,15 +187,20 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
         .entries
         .iter()
         .map(|entry| {
-            let start = entry
-                .started_at
-                .with_timezone(&Local)
-                .format("%H:%M")
-                .to_string();
-            let end = entry
-                .finished_at
-                .map(|t| t.with_timezone(&Local).format("%H:%M").to_string())
-                .unwrap_or_else(|| "     ".to_string());
+            let fmt = &app.date_format;
+            let start_local = entry.started_at.with_timezone(&Local);
+            let start = start_local.format(fmt).to_string();
+            let end = match entry.finished_at {
+                None => "     ".to_string(),
+                Some(t) => {
+                    let end_local = t.with_timezone(&Local);
+                    if end_local.date_naive() == start_local.date_naive() {
+                        end_local.format("%H:%M").to_string()
+                    } else {
+                        end_local.format(fmt).to_string()
+                    }
+                }
+            };
 
             let secs = entry.elapsed().num_seconds();
             let dur = if secs >= 3600 {
@@ -212,7 +217,7 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
 
             let dim = Style::default().fg(app.theme.dim);
             let mut spans: Vec<Span> = vec![
-                Span::styled(format!("{start}-{end}  {dur:<8}"), dim),
+                Span::styled(format!("{start} – {end}  {dur:<8}"), dim),
                 Span::styled(comment_indicator, dim),
             ];
 
@@ -354,10 +359,19 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             let b = app.command_buf().trim();
             let title = if b == "theme" || b.starts_with("theme ") {
                 "Themes"
+            } else if b == "set date-format" || b.starts_with("set date-format ") {
+                "Date Format"
+            } else if b == "set" || b.starts_with("set ") {
+                "Settings"
             } else {
                 "Commands"
             };
-            let list = List::new(items).block(Block::default().borders(Borders::ALL).title(title));
+            let list = List::new(items).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+                    .style(Style::default().bg(app.theme.bg)),
+            );
             frame.render_widget(Clear, popup_area);
             frame.render_widget(list, popup_area);
         }
@@ -420,7 +434,10 @@ fn render_form_modal(
     let popup_area = centered_rect(layout::FILTER_ENTRIES_WIDTH, percent_y, area);
     frame.render_widget(Clear, popup_area);
 
-    let block = Block::default().title(title).borders(Borders::ALL);
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .style(Style::default().bg(theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
 
@@ -462,7 +479,7 @@ fn render_form_modal(
     // Second pass: render autocomplete dropdown on top of all fields so it
     // isn't covered by subsequent field widgets.
     let focused_field = &form.fields[form.focused];
-    let suggestions = focused_field.suggestions();
+    let suggestions = focused_field.suggestions_colored();
     if !suggestions.is_empty() {
         let max_show: u16 = 6;
         let shown = (suggestions.len() as u16).min(max_show);
@@ -474,12 +491,22 @@ fn render_form_modal(
             height: shown + 2,
         };
         frame.render_widget(Clear, dropdown);
-        let items: Vec<ListItem> = suggestions.iter().map(|s| ListItem::new(*s)).collect();
+        let items: Vec<ListItem> = suggestions
+            .iter()
+            .map(|(name, color)| {
+                let style = color
+                    .and_then(parse_hex_color)
+                    .map(|c| Style::default().fg(c))
+                    .unwrap_or_default();
+                ListItem::new(Line::from(Span::styled(*name, style)))
+            })
+            .collect();
         let list = List::new(items)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.accent)),
+                    .border_style(Style::default().fg(theme.accent))
+                    .style(Style::default().bg(theme.bg)),
             )
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
         let mut ac_state = ListState::default();
@@ -535,7 +562,10 @@ fn render_list_panel(
     let popup_area = centered_rect(layout::MODAL_WIDTH, layout::MODAL_HEIGHT, area);
     frame.render_widget(Clear, popup_area);
 
-    let block = Block::default().title(title).borders(Borders::ALL);
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .style(Style::default().bg(theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
 
@@ -684,7 +714,10 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
         let popup_area = centered_rect(layout::MODAL_WIDTH, layout::MODAL_HEIGHT, area);
         frame.render_widget(Clear, popup_area);
 
-        let block = Block::default().title(title.as_str()).borders(Borders::ALL);
+        let block = Block::default()
+            .title(title.as_str())
+            .borders(Borders::ALL)
+            .style(Style::default().bg(app.theme.bg));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
 
@@ -741,7 +774,8 @@ fn render_confirm_delete(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(" Confirm Delete ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(app.theme.error));
+            .border_style(Style::default().fg(app.theme.error))
+            .style(Style::default().bg(app.theme.bg));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
         frame.render_widget(
@@ -765,7 +799,8 @@ fn render_confirm_delete_project(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(" Delete Project ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(app.theme.error));
+            .border_style(Style::default().fg(app.theme.error))
+            .style(Style::default().bg(app.theme.bg));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
         frame.render_widget(
@@ -796,7 +831,8 @@ fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(" Create? ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(app.theme.warning));
+            .border_style(Style::default().fg(app.theme.warning))
+            .style(Style::default().bg(app.theme.bg));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
 
@@ -824,7 +860,10 @@ fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
 fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
     let popup_area = centered_rect(layout::ADD_PROJECT_WIDTH, 80, area);
     frame.render_widget(Clear, popup_area);
-    let block = Block::default().title(" Help ").borders(Borders::ALL);
+    let block = Block::default()
+        .title(" Help ")
+        .borders(Borders::ALL)
+        .style(Style::default().bg(theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
 
@@ -980,7 +1019,8 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_type(BorderType::Rounded);
+        .border_type(BorderType::Rounded)
+        .style(Style::default().bg(app.theme.bg));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
 

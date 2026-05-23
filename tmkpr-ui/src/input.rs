@@ -519,8 +519,10 @@ fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 
     if !project_name.is_empty() {
         let tasks = app.task_names_for_project(&project_name);
+        let task_colors = app.task_colors_for_project(&project_name);
         if let AppMode::StartModal(form) = &mut app.mode {
             form.fields[form_fields::start_modal::TASK].completions = tasks;
+            form.fields[form_fields::start_modal::TASK].completion_colors = task_colors;
         }
     }
 
@@ -611,8 +613,10 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 
     if !project_name.is_empty() {
         let tasks = app.task_names_for_project(&project_name);
+        let task_colors = app.task_colors_for_project(&project_name);
         if let AppMode::EditModal { form, .. } = &mut app.mode {
             form.fields[form_fields::edit_modal::TASK].completions = tasks;
+            form.fields[form_fields::edit_modal::TASK].completion_colors = task_colors;
         }
     }
 
