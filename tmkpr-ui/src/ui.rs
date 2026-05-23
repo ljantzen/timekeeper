@@ -351,8 +351,12 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
                 })
                 .collect();
 
-            let list =
-                List::new(items).block(Block::default().borders(Borders::ALL).title("Themes"));
+            let title = if app.command_buf().contains(' ') {
+                "Themes"
+            } else {
+                "Commands"
+            };
+            let list = List::new(items).block(Block::default().borders(Borders::ALL).title(title));
             frame.render_widget(Clear, popup_area);
             frame.render_widget(list, popup_area);
         }

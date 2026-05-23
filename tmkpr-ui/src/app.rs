@@ -479,6 +479,7 @@ impl App {
             completion_idx: None,
             original_theme: None,
         };
+        self.update_command_completions();
     }
 
     pub fn command_push(&mut self, c: char) {
@@ -501,8 +502,10 @@ impl App {
             _ => return,
         };
 
-        let new_completions = if let Some(rest) = buf.trim().strip_prefix("theme") {
-            let filter = rest.trim_start().to_lowercase();
+        let trimmed = buf.trim();
+        let new_completions = if let Some(arg) = trimmed.strip_prefix("theme ") {
+            // Past "theme <space>" — complete theme names.
+            let filter = arg.trim_start().to_lowercase();
             let mut all: Vec<String> = crate::theme::Theme::builtin_names()
                 .iter()
                 .map(|s| s.to_string())
@@ -520,6 +523,14 @@ impl App {
                     .filter(|n| n.to_lowercase().contains(&filter))
                     .collect()
             }
+        } else if !trimmed.contains(' ') {
+            // No space yet — complete command names.
+            let prefix = trimmed.to_lowercase();
+            ["config-open", "config-reload", "quit", "theme"]
+                .iter()
+                .filter(|c| c.starts_with(prefix.as_str()))
+                .map(|c| c.to_string())
+                .collect()
         } else {
             vec![]
         };
@@ -546,22 +557,27 @@ impl App {
             return;
         }
 
-        // Save original theme on first tab press
-        let has_original = matches!(
-            &self.mode,
-            AppMode::Command {
-                original_theme: Some(_),
-                ..
-            }
-        );
-        if !has_original {
-            let saved = self.theme.clone();
-            if let AppMode::Command { original_theme, .. } = &mut self.mode {
-                *original_theme = Some(saved);
+        // Are we completing a theme name (buf has a space) or a command name?
+        let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, .. } if buf.contains(' '));
+
+        // Save original theme on the first tab in theme-arg mode.
+        if is_theme_arg {
+            let has_original = matches!(
+                &self.mode,
+                AppMode::Command {
+                    original_theme: Some(_),
+                    ..
+                }
+            );
+            if !has_original {
+                let saved = self.theme.clone();
+                if let AppMode::Command { original_theme, .. } = &mut self.mode {
+                    *original_theme = Some(saved);
+                }
             }
         }
 
-        // Compute next index and theme name
+        // Advance the selection index.
         let (next_name, next_idx) = if let AppMode::Command {
             completions,
             completion_idx,
@@ -599,11 +615,18 @@ impl App {
         } = &mut self.mode
         {
             *completion_idx = Some(next_idx);
-            *buf = format!("theme {next_name}");
+            if is_theme_arg {
+                *buf = format!("theme {next_name}");
+            } else {
+                *buf = next_name.clone();
+            }
         }
 
-        let themes = self.themes.clone();
-        self.theme = crate::theme::Theme::resolve(&next_name, &themes);
+        // Live-preview only applies to theme names.
+        if is_theme_arg {
+            let themes = self.themes.clone();
+            self.theme = crate::theme::Theme::resolve(&next_name, &themes);
+        }
     }
 
     pub fn command_cancel(&mut self) {
