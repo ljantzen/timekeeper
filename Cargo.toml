@@ -6,6 +6,9 @@ members = ["tmkpr-lib", "tmkpr-cli", "tmkpr-ui", "tmkpr-pomodoro"]
 version = "1.1.7"
 edition = "2021"
 license = "MIT"
+authors = ["Leif Jantzen"]
+repository = "https://github.com/ljantzen/timekeeper"
+keywords = ["time-tracking", "productivity", "tui", "pomodoro", "cli"]
 
 [workspace.dependencies]
 serde        = { version = "1", features = ["derive"] }

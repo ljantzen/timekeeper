@@ -4,6 +4,10 @@ description = "Core library for tmkpr time tracking"
 version.workspace    = true
 edition.workspace    = true
 license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+keywords.workspace   = true
+readme = "README.md"
 
 [dependencies]
 serde      = { workspace = true }
