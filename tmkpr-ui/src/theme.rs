@@ -189,7 +189,7 @@ impl Theme {
     fn catppuccin_latte() -> Self {
         Self {
             bg: Color::Rgb(0xef, 0xf1, 0xf5),
-            fg: Some(Color::Rgb(0x4c, 0x4f, 0x69)),
+            fg: Some(Color::Rgb(0x1e, 0x1e, 0x2e)),
             active: Color::Rgb(0x40, 0xa0, 0x2b),
             accent: Color::Rgb(0x88, 0x39, 0xef),
             dim: Color::Rgb(0x9c, 0xa0, 0xb0),
