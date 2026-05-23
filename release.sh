@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 REPO_OWNER="ljantzen"
 REPO_NAME="tmkpr"
 WORKFLOW_NAME="Release"
-MAX_WAIT_TIME=900  # 15 minutes in seconds
+MAX_WAIT_TIME=1800  # 30 minutes in seconds
 POLL_INTERVAL=10   # Poll every 10 seconds
 RUN_CREATION_TIMEOUT=600  # 10 minutes to wait for run to be created
 
