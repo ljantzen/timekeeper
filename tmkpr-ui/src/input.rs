@@ -148,11 +148,11 @@ fn handle_command(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.command_pop();
             }
         }
-        KeyCode::Tab => {
+        KeyCode::Tab | KeyCode::Down => {
             let forward = !key.modifiers.contains(KeyModifiers::SHIFT);
             app.command_tab(forward);
         }
-        KeyCode::BackTab => {
+        KeyCode::BackTab | KeyCode::Up => {
             app.command_tab(false);
         }
         KeyCode::Enter => {

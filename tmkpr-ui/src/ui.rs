@@ -465,12 +465,25 @@ fn render_form_modal(
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let display = if focused {
+        let text = if focused {
             let before = &field.value[..field.cursor];
             let after = &field.value[field.cursor..];
             format!("{before}█{after}")
         } else {
             field.value.clone()
+        };
+
+        let value_color = field
+            .completions
+            .iter()
+            .position(|c| c == &field.value)
+            .and_then(|i| field.completion_colors.get(i))
+            .and_then(|c| c.as_deref())
+            .and_then(parse_hex_color);
+
+        let display = match value_color {
+            Some(c) => Line::from(Span::styled(text, Style::default().fg(c))),
+            None => Line::from(text),
         };
 
         frame.render_widget(Paragraph::new(display).block(field_block), field_chunks[i]);
