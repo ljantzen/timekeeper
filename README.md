@@ -82,6 +82,10 @@ tmkpr-pomodoro
 
 ## Installation
 
+### Github releases 
+
+Download the latest (or any other ) binary for your OS from the [Github Releases](https://github.com/ljantzen/timekeeper/releases) page
+
 ### From Source
 
 ```bash
