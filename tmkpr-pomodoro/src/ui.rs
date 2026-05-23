@@ -18,8 +18,16 @@ use ratatui::{
 };
 
 pub fn draw(f: &mut Frame, app: &App) {
+    let area = f.area();
+    if app.theme().bg != Color::Reset {
+        f.render_widget(
+            Block::default().style(Style::default().bg(app.theme().bg)),
+            area,
+        );
+    }
+
     if app.screen() == Screen::Settings {
-        draw_settings(f, app, f.area());
+        draw_settings(f, app, area);
         return;
     }
 

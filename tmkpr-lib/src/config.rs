@@ -20,9 +20,12 @@ pub struct Config {
     pub themes: HashMap<String, ThemeConfig>,
 }
 
-/// Color overrides for a named theme. All five fields are hex strings (e.g. `"#a6e22e"`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Color overrides for a named theme. All fields are hex strings (e.g. `"#a6e22e"`).
+/// `bg` is optional — leave it empty or omit it to keep the terminal's own background.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ThemeConfig {
+    #[serde(default)]
+    pub bg: String,
     pub active: String,
     pub accent: String,
     pub dim: String,

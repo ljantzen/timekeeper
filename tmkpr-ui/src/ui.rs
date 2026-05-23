@@ -49,6 +49,14 @@ fn project_color(app: &App, project_id: &str) -> Option<Color> {
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
 
+    // Fill background with theme colour (no-op for Color::Reset / default theme).
+    if app.theme.bg != Color::Reset {
+        frame.render_widget(
+            Block::default().style(Style::default().bg(app.theme.bg)),
+            area,
+        );
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -202,9 +210,10 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
                 "  "
             };
 
+            let dim = Style::default().fg(app.theme.dim);
             let mut spans: Vec<Span> = vec![
-                Span::raw(format!("{start}-{end}  {dur:<8}")),
-                Span::raw(comment_indicator),
+                Span::styled(format!("{start}-{end}  {dur:<8}"), dim),
+                Span::styled(comment_indicator, dim),
             ];
 
             // Add project and task with colors
@@ -226,11 +235,11 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
             }
 
             if let Some(note) = entry.note.as_deref().filter(|n| !n.is_empty()) {
-                spans.push(Span::raw(format!("  {note}")));
+                spans.push(Span::styled(format!("  {note}"), dim));
             }
 
             if !entry.tags.is_empty() {
-                spans.push(Span::raw(format!("  [{}]", entry.tags.join(", "))));
+                spans.push(Span::styled(format!("  [{}]", entry.tags.join(", ")), dim));
             }
 
             ListItem::new(Line::from(spans))
