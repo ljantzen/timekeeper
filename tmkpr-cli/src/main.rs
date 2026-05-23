@@ -28,7 +28,10 @@ fn launch(binary: &str, db: Option<&std::path::Path>, extra: &[String]) -> anyho
     cmd.args(extra);
     let status = cmd.status().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            anyhow::anyhow!("'{binary}' not found — is it installed? (`cargo install --path {}`)", binary.replace('-', "/"))
+            anyhow::anyhow!(
+                "'{binary}' not found — is it installed? (`cargo install --path {}`)",
+                binary.replace('-', "/")
+            )
         } else {
             anyhow::anyhow!("failed to launch '{binary}': {e}")
         }
