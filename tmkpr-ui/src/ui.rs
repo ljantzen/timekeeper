@@ -298,7 +298,10 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
                 })
                 .collect();
 
-            lines.push(Line::from("─".repeat(inner.width as usize)));
+            lines.push(Line::from(Span::styled(
+                "─".repeat(inner.width as usize),
+                Style::default().fg(app.theme.border),
+            )));
 
             let total_h = report.total_secs / 3600;
             let total_m = (report.total_secs % 3600) / 60;
