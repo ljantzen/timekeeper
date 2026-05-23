@@ -253,7 +253,7 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let list = List::new(items)
         .block(block)
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .highlight_style(Style::default().bg(app.theme.selection))
         .highlight_symbol("> ");
 
     frame.render_stateful_widget(list, area, &mut app.list_state);
@@ -521,7 +521,7 @@ fn render_form_modal(
                     .border_style(Style::default().fg(theme.accent))
                     .style(Style::default().bg(theme.bg)),
             )
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+            .highlight_style(Style::default().bg(theme.selection));
         let mut ac_state = ListState::default();
         ac_state.select(focused_field.ac_index);
         frame.render_stateful_widget(list, dropdown, &mut ac_state);
@@ -594,7 +594,7 @@ fn render_list_panel(
         );
     } else {
         let list = List::new(items)
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .highlight_style(Style::default().bg(theme.selection))
             .highlight_symbol("> ");
 
         let mut state = ListState::default();
@@ -749,7 +749,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             );
         } else {
             let list = List::new(items)
-                .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+                .highlight_style(Style::default().bg(app.theme.selection))
                 .highlight_symbol("> ");
 
             let mut state = ListState::default();
@@ -1064,7 +1064,7 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
             .collect();
 
         let list = List::new(items)
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .highlight_style(Style::default().bg(app.theme.selection))
             .highlight_symbol("> ");
 
         let mut state = ListState::default();

@@ -18,6 +18,8 @@ pub struct Theme {
     pub error: Color,
     /// Warning / create-confirmation dialogs.
     pub warning: Color,
+    /// Background highlight for the selected list row.
+    pub selection: Color,
 }
 
 fn parse_hex(s: &str) -> Option<Color> {
@@ -65,6 +67,7 @@ impl Theme {
                 dim: parse_hex(&cfg.dim).unwrap_or(fb.dim),
                 error: parse_hex(&cfg.error).unwrap_or(fb.error),
                 warning: parse_hex(&cfg.warning).unwrap_or(fb.warning),
+                selection: parse_hex(&cfg.selection).unwrap_or(fb.selection),
             };
         }
         Self::from_name(name)
@@ -100,6 +103,7 @@ impl Theme {
             dim: Color::DarkGray,
             error: Color::Red,
             warning: Color::Yellow,
+            selection: Color::Rgb(0x3a, 0x3a, 0x3a),
         }
     }
 
@@ -112,6 +116,7 @@ impl Theme {
             dim: Color::Rgb(0x6e, 0x6a, 0x86),
             error: Color::Rgb(0xeb, 0x6f, 0x92),
             warning: Color::Rgb(0xf6, 0xc1, 0x77),
+            selection: Color::Rgb(0x26, 0x23, 0x3a),
         }
     }
 
@@ -124,6 +129,7 @@ impl Theme {
             dim: Color::Rgb(0x7f, 0x84, 0x9c),
             error: Color::Rgb(0xf3, 0x8b, 0xa8),
             warning: Color::Rgb(0xf9, 0xe2, 0xaf),
+            selection: Color::Rgb(0x31, 0x32, 0x44),
         }
     }
 
@@ -136,6 +142,7 @@ impl Theme {
             dim: Color::Rgb(0x80, 0x87, 0xa2),
             error: Color::Rgb(0xed, 0x87, 0x96),
             warning: Color::Rgb(0xee, 0xd4, 0x9f),
+            selection: Color::Rgb(0x36, 0x3a, 0x4f),
         }
     }
 
@@ -148,6 +155,7 @@ impl Theme {
             dim: Color::Rgb(0x83, 0x8b, 0xa7),
             error: Color::Rgb(0xe7, 0x82, 0x84),
             warning: Color::Rgb(0xe5, 0xc8, 0x90),
+            selection: Color::Rgb(0x41, 0x45, 0x59),
         }
     }
 
@@ -160,6 +168,7 @@ impl Theme {
             dim: Color::Rgb(0x61, 0x6e, 0x87),
             error: Color::Rgb(0xbf, 0x61, 0x6a),
             warning: Color::Rgb(0xd0, 0x87, 0x70),
+            selection: Color::Rgb(0x3b, 0x42, 0x52),
         }
     }
 
@@ -172,6 +181,7 @@ impl Theme {
             dim: Color::Rgb(0x92, 0x83, 0x74),
             error: Color::Rgb(0xfb, 0x49, 0x34),
             warning: Color::Rgb(0xfa, 0xbd, 0x2f),
+            selection: Color::Rgb(0x3c, 0x38, 0x36),
         }
     }
 
@@ -184,6 +194,7 @@ impl Theme {
             dim: Color::Rgb(0x75, 0x71, 0x5e),
             error: Color::Rgb(0xf9, 0x26, 0x72),
             warning: Color::Rgb(0xe6, 0xdb, 0x74),
+            selection: Color::Rgb(0x38, 0x38, 0x30),
         }
     }
 
@@ -196,6 +207,7 @@ impl Theme {
             dim: Color::Rgb(0x62, 0x72, 0xa4),
             error: Color::Rgb(0xff, 0x55, 0x55),
             warning: Color::Rgb(0xff, 0xb8, 0x6c),
+            selection: Color::Rgb(0x44, 0x47, 0x5a),
         }
     }
 
@@ -208,6 +220,7 @@ impl Theme {
             dim: Color::Rgb(0x56, 0x5f, 0x89),
             error: Color::Rgb(0xf7, 0x76, 0x8e),
             warning: Color::Rgb(0xe0, 0xaf, 0x68),
+            selection: Color::Rgb(0x28, 0x34, 0x57),
         }
     }
 
@@ -220,6 +233,7 @@ impl Theme {
             dim: Color::Rgb(0x5c, 0x63, 0x70),
             error: Color::Rgb(0xe0, 0x6c, 0x75),
             warning: Color::Rgb(0xe5, 0xc0, 0x7b),
+            selection: Color::Rgb(0x3e, 0x44, 0x52),
         }
     }
 
@@ -232,6 +246,7 @@ impl Theme {
             dim: Color::Rgb(0x58, 0x6e, 0x75),
             error: Color::Rgb(0xdc, 0x32, 0x2f),
             warning: Color::Rgb(0xb5, 0x89, 0x00),
+            selection: Color::Rgb(0x07, 0x36, 0x42),
         }
     }
 
@@ -244,6 +259,7 @@ impl Theme {
             dim: Color::Rgb(0x8b, 0x94, 0x9e),
             error: Color::Rgb(0xff, 0x7b, 0x72),
             warning: Color::Rgb(0xe3, 0xb3, 0x41),
+            selection: Color::Rgb(0x16, 0x1b, 0x22),
         }
     }
 
@@ -256,6 +272,7 @@ impl Theme {
             dim: Color::Rgb(0x72, 0x71, 0x69),
             error: Color::Rgb(0xc3, 0x40, 0x43),
             warning: Color::Rgb(0xdc, 0xa5, 0x61),
+            selection: Color::Rgb(0x2a, 0x2a, 0x37),
         }
     }
 
@@ -268,6 +285,7 @@ impl Theme {
             dim: Color::Rgb(0x7a, 0x84, 0x78),
             error: Color::Rgb(0xe6, 0x7e, 0x80),
             warning: Color::Rgb(0xdb, 0xbc, 0x7f),
+            selection: Color::Rgb(0x37, 0x41, 0x45),
         }
     }
 
@@ -280,6 +298,7 @@ impl Theme {
             dim: Color::Rgb(0x62, 0x6a, 0x73),
             error: Color::Rgb(0xf0, 0x71, 0x78),
             warning: Color::Rgb(0xe6, 0xb4, 0x50),
+            selection: Color::Rgb(0x0d, 0x10, 0x17),
         }
     }
 }
