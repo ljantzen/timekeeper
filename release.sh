@@ -373,7 +373,7 @@ main() {
         echo ""
 
         print_info "Pushing commits to remote..."
-        git push origin HEAD
+        git push origin HEAD:main
         print_success "Commits pushed to remote"
         echo ""
 
