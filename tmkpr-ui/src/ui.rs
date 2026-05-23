@@ -351,7 +351,8 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
                 })
                 .collect();
 
-            let title = if app.command_buf().contains(' ') {
+            let b = app.command_buf().trim();
+            let title = if b == "theme" || b.starts_with("theme ") {
                 "Themes"
             } else {
                 "Commands"

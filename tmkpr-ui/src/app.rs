@@ -503,9 +503,13 @@ impl App {
         };
 
         let trimmed = buf.trim();
-        let new_completions = if let Some(arg) = trimmed.strip_prefix("theme ") {
-            // Past "theme <space>" — complete theme names.
-            let filter = arg.trim_start().to_lowercase();
+        let new_completions = if trimmed == "theme" || trimmed.starts_with("theme ") {
+            // "theme" or "theme <arg>" — complete theme names.
+            let filter = trimmed
+                .strip_prefix("theme")
+                .unwrap_or("")
+                .trim_start()
+                .to_lowercase();
             let mut all: Vec<String> = crate::theme::Theme::builtin_names()
                 .iter()
                 .map(|s| s.to_string())
@@ -557,8 +561,11 @@ impl App {
             return;
         }
 
-        // Are we completing a theme name (buf has a space) or a command name?
-        let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, .. } if buf.contains(' '));
+        // Are we completing a theme name or a command name?
+        let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, .. } if {
+            let t = buf.trim();
+            t == "theme" || t.starts_with("theme ")
+        });
 
         // Save original theme on the first tab in theme-arg mode.
         if is_theme_arg {
