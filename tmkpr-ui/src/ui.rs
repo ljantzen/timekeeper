@@ -81,7 +81,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::ConfirmCreate => render_confirm_create(frame, app, area),
         ModeKind::ConfirmDeleteProject => render_confirm_delete_project(frame, app, area),
         ModeKind::Help => render_help(frame, area, &app.theme),
-        ModeKind::Normal => {}
+        ModeKind::Normal | ModeKind::Command => {}
     }
 }
 
@@ -294,6 +294,18 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
+    use crate::app::ModeKind;
+    if app.mode.kind() == ModeKind::Command {
+        let buf = app.command_buf();
+        let line = Line::from(vec![
+            Span::styled(":", Style::default().fg(app.theme.accent)),
+            Span::styled(buf, Style::default().fg(app.theme.accent)),
+            Span::styled("█", Style::default().fg(app.theme.accent)),
+        ]);
+        frame.render_widget(Paragraph::new(line), area);
+        return;
+    }
+
     let line = match &app.status {
         Some((msg, is_error)) => {
             let style = if *is_error {
@@ -304,7 +316,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [m]erge  [g]ap-fill  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]roject  [?]",
+            " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [m]erge  [g]ap-fill  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]rojects  [:]command  [?]",
             Style::default().fg(app.theme.dim),
         )),
     };

@@ -11,6 +11,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 
     match app.mode.kind() {
         ModeKind::Normal => handle_normal(app, key),
+        ModeKind::Command => handle_command(app, key),
         ModeKind::StartModal => handle_start_modal(app, key),
         ModeKind::EditModal => handle_edit_modal(app, key),
         ModeKind::ConfirmDelete => handle_confirm_delete(app, key),
@@ -128,6 +129,30 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('t') => app.open_manage_tasks(),
         KeyCode::Char('?') => {
             app.mode = AppMode::Help;
+        }
+        KeyCode::Char(':') => {
+            app.enter_command_mode();
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_command(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    match key.code {
+        KeyCode::Char(c) => app.command_push(c),
+        KeyCode::Backspace => {
+            if app.command_buf().is_empty() {
+                app.mode = AppMode::Normal;
+            } else {
+                app.command_pop();
+            }
+        }
+        KeyCode::Enter => {
+            app.execute_command()?;
+        }
+        KeyCode::Esc => {
+            app.mode = AppMode::Normal;
         }
         _ => {}
     }

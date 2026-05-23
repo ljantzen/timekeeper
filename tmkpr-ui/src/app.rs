@@ -17,6 +17,9 @@ use tmkpr_lib::{
 use crate::form::{Field, Form};
 use crate::theme::Theme;
 
+use std::collections::HashMap;
+use tmkpr_lib::config::ThemeConfig;
+
 // Form field indices — prevents magic numbers in handlers
 pub mod form_fields {
     pub mod start_modal {
@@ -293,6 +296,9 @@ impl EntryFilterInput {
 
 pub enum AppMode {
     Normal,
+    Command {
+        buf: String,
+    },
     StartModal(Form),
     EditModal {
         id: String,
@@ -355,6 +361,7 @@ pub enum AppMode {
 #[derive(Clone, Copy, PartialEq)]
 pub enum ModeKind {
     Normal,
+    Command,
     StartModal,
     EditModal,
     ConfirmDelete,
@@ -379,6 +386,7 @@ impl AppMode {
     pub fn kind(&self) -> ModeKind {
         match self {
             AppMode::Normal => ModeKind::Normal,
+            AppMode::Command { .. } => ModeKind::Command,
             AppMode::StartModal(_) => ModeKind::StartModal,
             AppMode::EditModal { .. } => ModeKind::EditModal,
             AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
@@ -422,10 +430,17 @@ pub struct App {
     pub task_sort: TaskSort,
     pub task_filter: TaskFilter,
     pub theme: Theme,
+    pub themes: HashMap<String, ThemeConfig>,
+    pub pending_open: Option<std::path::PathBuf>,
 }
 
 impl App {
-    pub fn new(storage: Box<dyn Storage>, user_id: String, theme: Theme) -> Self {
+    pub fn new(
+        storage: Box<dyn Storage>,
+        user_id: String,
+        theme: Theme,
+        themes: HashMap<String, ThemeConfig>,
+    ) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
         Self {
@@ -449,6 +464,85 @@ impl App {
             task_sort: TaskSort::Name,
             task_filter: TaskFilter::default(),
             theme,
+            themes,
+            pending_open: None,
+        }
+    }
+
+    pub fn enter_command_mode(&mut self) {
+        self.mode = AppMode::Command { buf: String::new() };
+    }
+
+    pub fn command_push(&mut self, c: char) {
+        if let AppMode::Command { buf } = &mut self.mode {
+            buf.push(c);
+        }
+    }
+
+    pub fn command_pop(&mut self) {
+        if let AppMode::Command { buf } = &mut self.mode {
+            buf.pop();
+        }
+    }
+
+    pub fn execute_command(&mut self) -> anyhow::Result<()> {
+        let buf = if let AppMode::Command { buf } = &self.mode {
+            buf.trim().to_string()
+        } else {
+            return Ok(());
+        };
+
+        self.mode = AppMode::Normal;
+
+        let (cmd, arg) = match buf.split_once(' ') {
+            Some((c, a)) => (c, a.trim()),
+            None => (buf.as_str(), ""),
+        };
+
+        match cmd {
+            "q" | "quit" => {
+                self.running = false;
+            }
+            "theme" => {
+                if arg.is_empty() {
+                    self.status = Some(("Usage: theme <name>".into(), true));
+                } else {
+                    self.theme = crate::theme::Theme::resolve(arg, &self.themes);
+                    self.status = Some((format!("Theme set to '{arg}'."), false));
+                }
+            }
+            "config-reload" => match tmkpr_lib::config::Config::load() {
+                Ok(cfg) => {
+                    let theme_name = cfg.display.theme.clone();
+                    self.themes = cfg.themes.clone();
+                    self.theme = crate::theme::Theme::resolve(&theme_name, &self.themes);
+                    self.status = Some(("Config reloaded.".into(), false));
+                }
+                Err(e) => {
+                    self.status = Some((format!("Config reload failed: {e}"), true));
+                }
+            },
+            "config-open" => match tmkpr_lib::config::config_path() {
+                Ok(path) => {
+                    self.pending_open = Some(path);
+                }
+                Err(e) => {
+                    self.status = Some((format!("Cannot resolve config path: {e}"), true));
+                }
+            },
+            "" => {}
+            other => {
+                self.status = Some((format!("Unknown command: '{other}'"), true));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn command_buf(&self) -> &str {
+        if let AppMode::Command { buf } = &self.mode {
+            buf.as_str()
+        } else {
+            ""
         }
     }
 
@@ -1604,6 +1698,7 @@ mod tests {
             Box::new(storage),
             LOCAL_USER_ID.to_string(),
             crate::theme::Theme::from_name("default"),
+            HashMap::new(),
         )
     }
 

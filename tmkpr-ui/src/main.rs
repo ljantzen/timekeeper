@@ -14,6 +14,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+use std::collections::HashMap;
 use tmkpr_lib::{config::Config, storage::open_sqlite};
 
 use app::App;
@@ -57,7 +58,8 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = run_app(&mut terminal, storage, user_id, theme);
+    let themes = config.themes.clone();
+    let result = run_app(&mut terminal, storage, user_id, theme, themes);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -71,8 +73,9 @@ fn run_app(
     storage: Box<dyn tmkpr_lib::storage::Storage>,
     user_id: String,
     theme: Theme,
+    themes: HashMap<String, tmkpr_lib::config::ThemeConfig>,
 ) -> anyhow::Result<()> {
-    let mut app = App::new(storage, user_id, theme);
+    let mut app = App::new(storage, user_id, theme, themes);
     app.refresh()?;
     app.load_ui_state()?;
     app.status = None;
@@ -90,6 +93,25 @@ fn run_app(
                     input::handle_key(&mut app, key)?;
                 }
             }
+        }
+
+        if let Some(path) = app.pending_open.take() {
+            let editor = std::env::var("EDITOR")
+                .or_else(|_| std::env::var("VISUAL"))
+                .unwrap_or_else(|_| "vi".to_string());
+            disable_raw_mode()?;
+            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+            std::process::Command::new(&editor).arg(&path).status()?;
+            enable_raw_mode()?;
+            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
+            terminal.clear()?;
+            // Auto-reload config after editing
+            if let Ok(cfg) = tmkpr_lib::config::Config::load() {
+                let theme_name = cfg.display.theme.clone();
+                app.themes = cfg.themes.clone();
+                app.theme = Theme::resolve(&theme_name, &app.themes);
+            }
+            app.status = Some(("Config reloaded.".into(), false));
         }
 
         if last_tick.elapsed() >= tick {
