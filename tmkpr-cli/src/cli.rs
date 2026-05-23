@@ -522,14 +522,19 @@ Optional columns:
 Column names are matched case-insensitively; spaces and hyphens are treated as
 underscores.  Naive datetimes (no timezone) are interpreted as local time.
 
-Example CSV:
-  project,task,start,end,note,tags
-  \"Website\",\"Frontend\",\"2024-01-15 09:00\",\"2024-01-15 10:30\",\"Login page\",\"dev\"
-  \"Website\",\"\",\"2024-01-15 11:00\",\"2024-01-15 12:00\",\"Code review\",\"\"
+File format is detected from the extension (.json → JSON, anything else → CSV).
+Use -f json to force JSON when reading from stdin.
+
+Examples:
+  tmkpr import entries.csv
+  tmkpr import entries.json
+  tmkpr import -                          # CSV from stdin
+  tmkpr -f json import -                  # JSON from stdin
+  tmkpr export | tmkpr import -           # pipe export directly into import
 ")]
 pub struct ImportArgs {
-    /// Path to the CSV file
-    pub file: std::path::PathBuf,
+    /// Path to the CSV or JSON file, or '-' to read from stdin (default: stdin)
+    pub file: Option<std::path::PathBuf>,
 
     /// Continue past row errors instead of aborting on the first failure
     #[arg(long)]

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::{self, Read};
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
@@ -387,9 +388,24 @@ fn process_csv_row(
     )
 }
 
+fn is_stdin(args: &ImportArgs) -> bool {
+    match &args.file {
+        None => true,
+        Some(p) => p.as_os_str() == "-",
+    }
+}
+
 fn run_csv(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
-    let mut rdr = csv::Reader::from_path(&args.file)
-        .with_context(|| format!("cannot open '{}'", args.file.display()))?;
+    let reader: Box<dyn Read> = if is_stdin(args) {
+        Box::new(io::stdin())
+    } else {
+        let path = args.file.as_ref().unwrap();
+        Box::new(
+            std::fs::File::open(path)
+                .with_context(|| format!("cannot open '{}'", path.display()))?,
+        )
+    };
+    let mut rdr = csv::Reader::from_reader(reader);
 
     let headers = rdr.headers()?.clone();
     let cols = map_columns(&headers)?;
@@ -525,10 +541,20 @@ fn process_json_entry(
 }
 
 fn run_json(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
-    let content = std::fs::read_to_string(&args.file)
-        .with_context(|| format!("cannot read '{}'", args.file.display()))?;
+    let content = if is_stdin(args) {
+        let mut s = String::new();
+        io::stdin()
+            .read_to_string(&mut s)
+            .context("reading JSON from stdin")?;
+        s
+    } else {
+        let path = args.file.as_ref().unwrap();
+        std::fs::read_to_string(path)
+            .with_context(|| format!("cannot read '{}'", path.display()))?
+    };
+    let source = args.file.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "<stdin>".into());
     let json_entries: Vec<JsonEntry> = serde_json::from_str(&content)
-        .with_context(|| format!("cannot parse JSON from '{}'", args.file.display()))?;
+        .with_context(|| format!("cannot parse JSON from '{source}'"))?;
 
     let mut project_cache: HashMap<String, (String, bool)> = HashMap::new();
     let mut task_cache: HashMap<(String, String), String> = HashMap::new();
@@ -558,11 +584,13 @@ fn run_json(args: &ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<(
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
-    let is_json = args.file.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("json"))
-        .unwrap_or(false);
+pub fn run(args: ImportArgs, storage: &dyn Storage, user_id: &str, format: &str) -> Result<()> {
+    let is_json = format == "json"
+        || args.file.as_ref()
+            .and_then(|p| p.extension())
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("json"))
+            .unwrap_or(false);
 
     if is_json {
         run_json(&args, storage, user_id)
