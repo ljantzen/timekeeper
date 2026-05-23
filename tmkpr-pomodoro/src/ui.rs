@@ -174,7 +174,7 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
             let is_selected = idx == selected;
             let prefix = if is_selected { "▶ " } else { "  " };
             let style = if task.completed {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(app.theme().dim)
             } else {
                 let mut s = Style::default().fg(proj_color);
                 if is_selected {
@@ -195,7 +195,7 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  + {}█", app.new_task_buf()),
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.theme().accent)
                 .add_modifier(Modifier::BOLD),
         ))));
     }
@@ -274,13 +274,12 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
     let editing = app.sound_editing();
     let buf = app.sound_edit_buf();
 
-    let sel = |text: String, selected: bool| -> Line {
+    let accent = app.theme().accent;
+    let sel = move |text: String, selected: bool| -> Line {
         if selected {
             Line::from(Span::styled(
                 text,
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ))
         } else {
             Line::from(text)
@@ -304,9 +303,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         if is_editing {
             Line::from(Span::styled(
                 text,
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ))
         } else {
             sel(text, is_selected)
@@ -403,11 +400,11 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         Line::from(""),
         Line::from(Span::styled(
             "  Formats: WAV · MP3 · OGG · FLAC",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme().dim),
         )),
         Line::from(Span::styled(
             "  Suggested: ~/.config/tmkpr/sounds/",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme().dim),
         )),
         Line::from(""),
         Line::from(hint),

@@ -8,6 +8,8 @@ use tmkpr_lib::{
     storage::Storage,
 };
 
+use crate::theme::Theme;
+
 #[derive(Clone, Debug)]
 pub struct CompletedSession {
     pub project: String,
@@ -69,10 +71,16 @@ pub struct App<'a> {
     new_task_editing: bool,
     new_task_buf: String,
     completed_sessions: Vec<CompletedSession>,
+    theme: Theme,
 }
 
 impl<'a> App<'a> {
-    pub fn new(storage: &'a dyn Storage, user_id: &'a str, config: Config) -> Result<Self> {
+    pub fn new(
+        storage: &'a dyn Storage,
+        user_id: &'a str,
+        config: Config,
+        theme: Theme,
+    ) -> Result<Self> {
         let projects = storage.list_projects(user_id, false).unwrap_or_default();
         let tasks = if !projects.is_empty() {
             storage
@@ -117,6 +125,7 @@ impl<'a> App<'a> {
             new_task_editing: false,
             new_task_buf: String::new(),
             completed_sessions: Vec::new(),
+            theme,
         })
     }
 
@@ -603,6 +612,10 @@ impl<'a> App<'a> {
         self.elapsed
     }
 
+    pub fn theme(&self) -> &Theme {
+        &self.theme
+    }
+
     pub fn work_duration(&self) -> u64 {
         if self.timer_state == TimerState::Break {
             let is_long_break = self.work_sessions_completed > 0
@@ -726,7 +739,13 @@ mod tests {
     }
 
     fn make_app(s: &dyn Storage) -> App<'_> {
-        App::new(s, "local", Config::default()).unwrap()
+        App::new(
+            s,
+            "local",
+            Config::default(),
+            crate::theme::Theme::from_name("default"),
+        )
+        .unwrap()
     }
 
     // --- timer state ---
@@ -996,7 +1015,13 @@ mod tests {
 
     fn seed_and_make_app(s: &dyn Storage) -> App<'_> {
         seed_project_and_task(s);
-        App::new(s, tmkpr_lib::models::LOCAL_USER_ID, Config::default()).unwrap()
+        App::new(
+            s,
+            tmkpr_lib::models::LOCAL_USER_ID,
+            Config::default(),
+            crate::theme::Theme::from_name("default"),
+        )
+        .unwrap()
     }
 
     #[test]
