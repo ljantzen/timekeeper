@@ -613,16 +613,22 @@ impl App {
         }
 
         // Identify which prefix level we're completing.
-        let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, .. } if {
-            buf.trim().starts_with("theme ")
+        // Use the completions list as the signal: if "theme"/"set" appear as entries we're
+        // still cycling top-level commands; if they don't, the buf prefix puts us in sub-mode.
+        let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, completions, .. } if {
+            let t = buf.trim();
+            (t == "theme" || t.starts_with("theme "))
+                && !completions.contains(&"theme".to_string())
         });
         let is_set_date_format = matches!(&self.mode, AppMode::Command { buf, .. } if {
             let t = buf.trim();
             t == "set date-format" || t.starts_with("set date-format ")
         });
         let is_set_cmd = !is_set_date_format
-            && matches!(&self.mode, AppMode::Command { buf, .. } if {
-                buf.trim().starts_with("set ")
+            && matches!(&self.mode, AppMode::Command { buf, completions, .. } if {
+                let t = buf.trim();
+                (t == "set" || t.starts_with("set "))
+                    && !completions.contains(&"set".to_string())
             });
 
         // Save original theme on the first tab in theme-arg mode.
