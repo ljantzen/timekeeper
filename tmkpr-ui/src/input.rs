@@ -143,16 +143,23 @@ fn handle_command(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char(c) => app.command_push(c),
         KeyCode::Backspace => {
             if app.command_buf().is_empty() {
-                app.mode = AppMode::Normal;
+                app.command_cancel();
             } else {
                 app.command_pop();
             }
+        }
+        KeyCode::Tab => {
+            let forward = !key.modifiers.contains(KeyModifiers::SHIFT);
+            app.command_tab(forward);
+        }
+        KeyCode::BackTab => {
+            app.command_tab(false);
         }
         KeyCode::Enter => {
             app.execute_command()?;
         }
         KeyCode::Esc => {
-            app.mode = AppMode::Normal;
+            app.command_cancel();
         }
         _ => {}
     }

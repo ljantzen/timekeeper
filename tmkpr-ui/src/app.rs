@@ -298,6 +298,9 @@ pub enum AppMode {
     Normal,
     Command {
         buf: String,
+        completions: Vec<String>,
+        completion_idx: Option<usize>,
+        original_theme: Option<crate::theme::Theme>,
     },
     StartModal(Form),
     EditModal {
@@ -470,28 +473,159 @@ impl App {
     }
 
     pub fn enter_command_mode(&mut self) {
-        self.mode = AppMode::Command { buf: String::new() };
+        self.mode = AppMode::Command {
+            buf: String::new(),
+            completions: vec![],
+            completion_idx: None,
+            original_theme: None,
+        };
     }
 
     pub fn command_push(&mut self, c: char) {
-        if let AppMode::Command { buf } = &mut self.mode {
+        if let AppMode::Command { buf, .. } = &mut self.mode {
             buf.push(c);
         }
+        self.update_command_completions();
     }
 
     pub fn command_pop(&mut self) {
-        if let AppMode::Command { buf } = &mut self.mode {
+        if let AppMode::Command { buf, .. } = &mut self.mode {
             buf.pop();
+        }
+        self.update_command_completions();
+    }
+
+    fn update_command_completions(&mut self) {
+        let buf = match &self.mode {
+            AppMode::Command { buf, .. } => buf.clone(),
+            _ => return,
+        };
+
+        let new_completions = if let Some(rest) = buf.trim().strip_prefix("theme") {
+            let filter = rest.trim_start().to_lowercase();
+            let mut all: Vec<String> = crate::theme::Theme::builtin_names()
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+            for name in self.themes.keys() {
+                if !all.contains(name) {
+                    all.push(name.clone());
+                }
+            }
+            all.sort();
+            if filter.is_empty() {
+                all
+            } else {
+                all.into_iter()
+                    .filter(|n| n.to_lowercase().contains(&filter))
+                    .collect()
+            }
+        } else {
+            vec![]
+        };
+
+        if let AppMode::Command {
+            completions,
+            completion_idx,
+            ..
+        } = &mut self.mode
+        {
+            if *completions != new_completions {
+                *completions = new_completions;
+                *completion_idx = None;
+            }
         }
     }
 
+    pub fn command_tab(&mut self, forward: bool) {
+        let has_completions = matches!(
+            &self.mode,
+            AppMode::Command { completions, .. } if !completions.is_empty()
+        );
+        if !has_completions {
+            return;
+        }
+
+        // Save original theme on first tab press
+        let has_original = matches!(
+            &self.mode,
+            AppMode::Command {
+                original_theme: Some(_),
+                ..
+            }
+        );
+        if !has_original {
+            let saved = self.theme.clone();
+            if let AppMode::Command { original_theme, .. } = &mut self.mode {
+                *original_theme = Some(saved);
+            }
+        }
+
+        // Compute next index and theme name
+        let (next_name, next_idx) = if let AppMode::Command {
+            completions,
+            completion_idx,
+            ..
+        } = &self.mode
+        {
+            let len = completions.len();
+            let next = match *completion_idx {
+                None => {
+                    if forward {
+                        0
+                    } else {
+                        len - 1
+                    }
+                }
+                Some(idx) => {
+                    if forward {
+                        (idx + 1) % len
+                    } else if idx == 0 {
+                        len - 1
+                    } else {
+                        idx - 1
+                    }
+                }
+            };
+            (completions[next].clone(), next)
+        } else {
+            return;
+        };
+
+        if let AppMode::Command {
+            completion_idx,
+            buf,
+            ..
+        } = &mut self.mode
+        {
+            *completion_idx = Some(next_idx);
+            *buf = format!("theme {next_name}");
+        }
+
+        let themes = self.themes.clone();
+        self.theme = crate::theme::Theme::resolve(&next_name, &themes);
+    }
+
+    pub fn command_cancel(&mut self) {
+        let original = if let AppMode::Command { original_theme, .. } = &mut self.mode {
+            original_theme.take()
+        } else {
+            None
+        };
+        if let Some(t) = original {
+            self.theme = t;
+        }
+        self.mode = AppMode::Normal;
+    }
+
     pub fn execute_command(&mut self) -> anyhow::Result<()> {
-        let buf = if let AppMode::Command { buf } = &self.mode {
+        let buf = if let AppMode::Command { buf, .. } = &self.mode {
             buf.trim().to_string()
         } else {
             return Ok(());
         };
 
+        // Confirm: drop original_theme (preview becomes permanent)
         self.mode = AppMode::Normal;
 
         let (cmd, arg) = match buf.split_once(' ') {
@@ -507,7 +641,8 @@ impl App {
                 if arg.is_empty() {
                     self.status = Some(("Usage: theme <name>".into(), true));
                 } else {
-                    self.theme = crate::theme::Theme::resolve(arg, &self.themes);
+                    let themes = self.themes.clone();
+                    self.theme = crate::theme::Theme::resolve(arg, &themes);
                     self.status = Some((format!("Theme set to '{arg}'."), false));
                 }
             }
@@ -515,7 +650,8 @@ impl App {
                 Ok(cfg) => {
                     let theme_name = cfg.display.theme.clone();
                     self.themes = cfg.themes.clone();
-                    self.theme = crate::theme::Theme::resolve(&theme_name, &self.themes);
+                    let themes = self.themes.clone();
+                    self.theme = crate::theme::Theme::resolve(&theme_name, &themes);
                     self.status = Some(("Config reloaded.".into(), false));
                 }
                 Err(e) => {
@@ -539,11 +675,25 @@ impl App {
     }
 
     pub fn command_buf(&self) -> &str {
-        if let AppMode::Command { buf } = &self.mode {
+        if let AppMode::Command { buf, .. } = &self.mode {
             buf.as_str()
         } else {
             ""
         }
+    }
+
+    pub fn command_completion_state(&self) -> Option<(&[String], Option<usize>)> {
+        if let AppMode::Command {
+            completions,
+            completion_idx,
+            ..
+        } = &self.mode
+        {
+            if !completions.is_empty() {
+                return Some((completions.as_slice(), *completion_idx));
+            }
+        }
+        None
     }
 
     pub fn refresh(&mut self) -> anyhow::Result<()> {

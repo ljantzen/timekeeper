@@ -4,6 +4,7 @@ use ratatui::style::Color;
 use tmkpr_lib::config::ThemeConfig;
 
 /// Semantic color roles used throughout the UI.
+#[derive(Clone)]
 pub struct Theme {
     /// Active / running entry, success state.
     pub active: Color,
@@ -29,6 +30,27 @@ fn parse_hex(s: &str) -> Option<Color> {
 }
 
 impl Theme {
+    pub fn builtin_names() -> &'static [&'static str] {
+        &[
+            "default",
+            "ayu_dark",
+            "catppuccin_frappe",
+            "catppuccin_macchiato",
+            "catppuccin_mocha",
+            "dracula",
+            "everforest",
+            "github_dark",
+            "gruvbox_dark",
+            "kanagawa",
+            "monokai",
+            "nord",
+            "onedark",
+            "rose_pine",
+            "solarized_dark",
+            "tokyonight",
+        ]
+    }
+
     /// Resolve a theme by name, checking user-defined themes before built-ins.
     /// Invalid hex values in a user theme fall back to the default palette colour.
     pub fn resolve(name: &str, custom: &HashMap<String, ThemeConfig>) -> Self {

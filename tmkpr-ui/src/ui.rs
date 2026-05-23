@@ -296,6 +296,58 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     use crate::app::ModeKind;
     if app.mode.kind() == ModeKind::Command {
+        if let Some((completions, sel_idx)) = app.command_completion_state() {
+            let max_visible: usize = 10;
+            let visible = completions.len().min(max_visible);
+            let popup_h = (visible + 2) as u16;
+            let popup_w = completions
+                .iter()
+                .map(|s| s.len() + 4)
+                .max()
+                .unwrap_or(24)
+                .max(24) as u16;
+            let popup_w = popup_w.min(area.width);
+            let popup_y = area.y.saturating_sub(popup_h);
+            let popup_area = Rect {
+                x: area.x,
+                y: popup_y,
+                width: popup_w,
+                height: popup_h,
+            };
+
+            // Scroll window to keep selected item visible
+            let start = if let Some(idx) = sel_idx {
+                idx.saturating_sub(max_visible / 2)
+                    .min(completions.len().saturating_sub(visible))
+            } else {
+                0
+            };
+            let end = (start + visible).min(completions.len());
+
+            let items: Vec<ListItem> = completions[start..end]
+                .iter()
+                .enumerate()
+                .map(|(i, name)| {
+                    let abs = start + i;
+                    let selected = sel_idx == Some(abs);
+                    let style = if selected {
+                        Style::default()
+                            .fg(app.theme.accent)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::White)
+                    };
+                    let prefix = if selected { "▶ " } else { "  " };
+                    ListItem::new(Line::from(Span::styled(format!("{prefix}{name}"), style)))
+                })
+                .collect();
+
+            let list =
+                List::new(items).block(Block::default().borders(Borders::ALL).title("Themes"));
+            frame.render_widget(Clear, popup_area);
+            frame.render_widget(list, popup_area);
+        }
+
         let buf = app.command_buf();
         let line = Line::from(vec![
             Span::styled(":", Style::default().fg(app.theme.accent)),
