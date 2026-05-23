@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use chrono::Weekday;
@@ -16,6 +17,17 @@ pub struct Config {
     pub user: UserConfig,
     pub display: DisplayConfig,
     pub pomodoro: PomodoroConfig,
+    pub themes: HashMap<String, ThemeConfig>,
+}
+
+/// Color overrides for a named theme. All five fields are hex strings (e.g. `"#a6e22e"`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeConfig {
+    pub active: String,
+    pub accent: String,
+    pub dim: String,
+    pub error: String,
+    pub warning: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +47,12 @@ pub struct DisplayConfig {
     pub week_start: WeekdayDef,
     #[serde(default)]
     pub time_format: TimeFormat,
+    #[serde(default = "default_theme_name")]
+    pub theme: String,
+}
+
+fn default_theme_name() -> String {
+    String::from("default")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,8 +113,10 @@ impl Default for Config {
                 color: true,
                 week_start: WeekdayDef::Mon,
                 time_format: TimeFormat::H24,
+                theme: default_theme_name(),
             },
             pomodoro: PomodoroConfig::default(),
+            themes: HashMap::new(),
         }
     }
 }

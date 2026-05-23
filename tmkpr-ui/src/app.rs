@@ -15,6 +15,7 @@ use tmkpr_lib::{
 };
 
 use crate::form::{Field, Form};
+use crate::theme::Theme;
 
 // Form field indices — prevents magic numbers in handlers
 pub mod form_fields {
@@ -420,10 +421,11 @@ pub struct App {
     pub project_filter: ProjectFilter,
     pub task_sort: TaskSort,
     pub task_filter: TaskFilter,
+    pub theme: Theme,
 }
 
 impl App {
-    pub fn new(storage: Box<dyn Storage>, user_id: String) -> Self {
+    pub fn new(storage: Box<dyn Storage>, user_id: String, theme: Theme) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
         Self {
@@ -446,6 +448,7 @@ impl App {
             project_filter: ProjectFilter::default(),
             task_sort: TaskSort::Name,
             task_filter: TaskFilter::default(),
+            theme,
         }
     }
 
@@ -1597,7 +1600,11 @@ mod tests {
 
     fn make_app() -> App {
         let storage = SqliteStorage::open_in_memory().unwrap();
-        App::new(Box::new(storage), LOCAL_USER_ID.to_string())
+        App::new(
+            Box::new(storage),
+            LOCAL_USER_ID.to_string(),
+            crate::theme::Theme::from_name("default"),
+        )
     }
 
     fn finished(

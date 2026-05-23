@@ -9,6 +9,7 @@ use ratatui::{
 
 use crate::app::{App, AppMode, ModeKind};
 use crate::form::Form;
+use crate::theme::Theme;
 
 // Layout constants
 #[allow(dead_code)]
@@ -79,7 +80,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::EditComment => render_edit_comment(frame, app, area),
         ModeKind::ConfirmCreate => render_confirm_create(frame, app, area),
         ModeKind::ConfirmDeleteProject => render_confirm_delete_project(frame, app, area),
-        ModeKind::Help => render_help(frame, area),
+        ModeKind::Help => render_help(frame, area, &app.theme),
         ModeKind::Normal => {}
     }
 }
@@ -112,21 +113,21 @@ fn render_active(frame: &mut Frame, app: &App, area: Rect) {
                 .map(|n| format!("  {n}"))
                 .unwrap_or_default();
             Line::from(vec![
-                Span::styled("● ", Style::default().fg(Color::Green)),
+                Span::styled("● ", Style::default().fg(app.theme.active)),
                 Span::styled(
                     what,
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(app.theme.active)
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(note_part),
                 Span::raw("  "),
-                Span::styled(elapsed, Style::default().fg(Color::Green)),
+                Span::styled(elapsed, Style::default().fg(app.theme.active)),
             ])
         }
         None => Line::from(Span::styled(
             "No active entry",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.dim),
         )),
     };
 
@@ -255,7 +256,7 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
     let lines: Vec<Line> = match &app.week_report {
         None => vec![Line::from(Span::styled(
             "No data",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.dim),
         ))],
         Some(report) => {
             let mut lines: Vec<Line> = report
@@ -270,7 +271,7 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
                     let style = if day.total_secs > 0 {
                         Style::default()
                     } else {
-                        Style::default().fg(Color::DarkGray)
+                        Style::default().fg(app.theme.dim)
                     };
                     Line::styled(format!("{name} {date}  {time_str}"), style)
                 })
@@ -296,15 +297,15 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let line = match &app.status {
         Some((msg, is_error)) => {
             let style = if *is_error {
-                Style::default().fg(Color::Red)
+                Style::default().fg(app.theme.error)
             } else {
-                Style::default().fg(Color::Cyan)
+                Style::default().fg(app.theme.accent)
             };
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
             " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [m]erge  [g]ap-fill  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]roject  [?]",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.dim),
         )),
     };
     frame.render_widget(Paragraph::new(line), area);
@@ -330,7 +331,14 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(vertical[1])[1]
 }
 
-fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16, form: &Form) {
+fn render_form_modal(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    percent_y: u16,
+    form: &Form,
+    theme: &Theme,
+) {
     let popup_area = centered_rect(layout::FILTER_ENTRIES_WIDTH, percent_y, area);
     frame.render_widget(Clear, popup_area);
 
@@ -353,9 +361,9 @@ fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16,
     for (i, field) in form.fields.iter().enumerate() {
         let focused = i == form.focused;
         let border_style = if focused {
-            Style::default().fg(Color::Cyan)
+            Style::default().fg(theme.accent)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(theme.dim)
         };
         let field_block = Block::default()
             .title(Span::styled(field.label, border_style))
@@ -393,7 +401,7 @@ fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16,
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan)),
+                    .border_style(Style::default().fg(theme.accent)),
             )
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
         let mut ac_state = ListState::default();
@@ -405,7 +413,7 @@ fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16,
         frame.render_widget(
             Paragraph::new(Span::styled(
                 "↓/↑ autocomplete  Tab next field  Enter select/submit  Esc cancel",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme.dim),
             )),
             hint_area,
         );
@@ -414,13 +422,13 @@ fn render_form_modal(frame: &mut Frame, area: Rect, title: &str, percent_y: u16,
 
 fn render_start_modal(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::StartModal(form) = &app.mode {
-        render_form_modal(frame, area, " Start Entry ", 65, form);
+        render_form_modal(frame, area, " Start Entry ", 65, form, &app.theme);
     }
 }
 
 fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditModal { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Entry ", 85, form);
+        render_form_modal(frame, area, " Edit Entry ", 85, form, &app.theme);
     }
 }
 
@@ -432,6 +440,7 @@ fn render_add_project(frame: &mut Frame, app: &App, area: Rect) {
             " Add Project ",
             layout::ADD_PROJECT_WIDTH,
             form,
+            &app.theme,
         );
     }
 }
@@ -443,6 +452,7 @@ fn render_list_panel(
     items: Vec<ListItem>,
     selected: usize,
     empty_msg: &str,
+    theme: &Theme,
 ) {
     let popup_area = centered_rect(layout::MODAL_WIDTH, layout::MODAL_HEIGHT, area);
     frame.render_widget(Clear, popup_area);
@@ -458,10 +468,7 @@ fn render_list_panel(
 
     if items.is_empty() {
         frame.render_widget(
-            Paragraph::new(Span::styled(
-                empty_msg,
-                Style::default().fg(Color::DarkGray),
-            )),
+            Paragraph::new(Span::styled(empty_msg, Style::default().fg(theme.dim))),
             chunks[0],
         );
     } else {
@@ -477,7 +484,7 @@ fn render_list_panel(
     frame.render_widget(
         Paragraph::new(Span::styled(
             "[a] add  [e] edit  [d] delete  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(theme.dim),
         )),
         chunks[1],
     );
@@ -519,6 +526,7 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
             items,
             *selected,
             "No projects. Press [a] to add one.",
+            &app.theme,
         );
     }
 }
@@ -531,13 +539,21 @@ fn render_edit_project(frame: &mut Frame, app: &App, area: Rect) {
             " Edit Project ",
             layout::EDIT_PROJECT_WIDTH,
             form,
+            &app.theme,
         );
     }
 }
 
 fn render_add_task(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddTask(form) = &app.mode {
-        render_form_modal(frame, area, " Add Task ", layout::ADD_TASK_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Add Task ",
+            layout::ADD_TASK_WIDTH,
+            form,
+            &app.theme,
+        );
     }
 }
 
@@ -568,7 +584,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             .map(|t| {
                 let proj_name = app.project_name(&t.project_id);
                 if t.completed {
-                    let style = Style::default().fg(Color::DarkGray);
+                    let style = Style::default().fg(app.theme.dim);
                     let line = Line::from(vec![
                         Span::styled(format!("{} (", t.name), style),
                         Span::styled(proj_name.to_string(), style),
@@ -603,7 +619,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
             frame.render_widget(
                 Paragraph::new(Span::styled(
                     "No tasks. Press [a] to add one.",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(app.theme.dim),
                 )),
                 chunks[0],
             );
@@ -620,7 +636,7 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
         frame.render_widget(
             Paragraph::new(Span::styled(
                 "[a] add  [e] edit  [c] complete  [d] delete  [s] sort  [f] filter  [j/k] navigate  [Esc] close",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.dim),
             )),
             chunks[1],
         );
@@ -629,7 +645,14 @@ fn render_manage_tasks(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_edit_task(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditTask { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Task ", layout::EDIT_TASK_WIDTH, form);
+        render_form_modal(
+            frame,
+            area,
+            " Edit Task ",
+            layout::EDIT_TASK_WIDTH,
+            form,
+            &app.theme,
+        );
     }
 }
 
@@ -640,7 +663,7 @@ fn render_confirm_delete(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(" Confirm Delete ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Red));
+            .border_style(Style::default().fg(app.theme.error));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
         frame.render_widget(
@@ -649,7 +672,7 @@ fn render_confirm_delete(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(""),
                 Line::from(Span::styled(
                     "[y] Yes  [n/Esc] No",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(app.theme.dim),
                 )),
             ]),
             inner,
@@ -664,7 +687,7 @@ fn render_confirm_delete_project(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(" Delete Project ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Red));
+            .border_style(Style::default().fg(app.theme.error));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
         frame.render_widget(
@@ -673,7 +696,7 @@ fn render_confirm_delete_project(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(""),
                 Line::from(Span::styled(
                     "[y] Yes  [n/Esc] No",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(app.theme.dim),
                 )),
             ]),
             inner,
@@ -695,7 +718,7 @@ fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(" Create? ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            .border_style(Style::default().fg(app.theme.warning));
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
 
@@ -712,7 +735,7 @@ fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(""),
                 Line::from(Span::styled(
                     "[y] Create and start  [n/Esc] Cancel",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(app.theme.dim),
                 )),
             ]),
             inner,
@@ -720,7 +743,7 @@ fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn render_help(frame: &mut Frame, area: Rect) {
+fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
     let popup_area = centered_rect(layout::ADD_PROJECT_WIDTH, 80, area);
     frame.render_widget(Clear, popup_area);
     let block = Block::default().title(" Help ").borders(Borders::ALL);
@@ -728,7 +751,7 @@ fn render_help(frame: &mut Frame, area: Rect) {
     frame.render_widget(block, popup_area);
 
     let bold = Style::default().add_modifier(Modifier::BOLD);
-    let dim = Style::default().fg(Color::DarkGray);
+    let dim = Style::default().fg(theme.dim);
 
     frame.render_widget(
         Paragraph::new(vec![
@@ -892,7 +915,7 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
         frame.render_widget(
             Paragraph::new(Span::styled(
                 "No comments. Press [a] to add one.",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.dim),
             )),
             chunks[0],
         );
@@ -921,7 +944,7 @@ fn render_comments(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(
         Paragraph::new(Span::styled(
             "[a] add  [e] edit  [d] delete  [j/k] navigate  [Esc] close",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.dim),
         )),
         chunks[1],
     );
@@ -935,6 +958,7 @@ fn render_filter(frame: &mut Frame, app: &App, area: Rect) {
             " Filter Entries ",
             layout::FILTER_ENTRIES_WIDTH,
             form,
+            &app.theme,
         );
     }
 }
@@ -947,6 +971,7 @@ fn render_filter_tasks(frame: &mut Frame, app: &App, area: Rect) {
             " Filter Tasks ",
             layout::FILTER_TASKS_WIDTH,
             form,
+            &app.theme,
         );
     }
 }
@@ -959,6 +984,7 @@ fn render_filter_projects(frame: &mut Frame, app: &App, area: Rect) {
             " Filter Projects ",
             layout::FILTER_PROJECTS_WIDTH,
             form,
+            &app.theme,
         );
     }
 }
@@ -967,7 +993,7 @@ fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddComment { entry_id, form } = &app.mode {
         let display = app.entry_display(entry_id);
         let title = format!(" Add Comment: {display} ");
-        render_form_modal(frame, area, &title, 35, form);
+        render_form_modal(frame, area, &title, 35, form, &app.theme);
     }
 }
 
@@ -975,6 +1001,6 @@ fn render_edit_comment(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditComment { entry_id, form, .. } = &app.mode {
         let display = app.entry_display(entry_id);
         let title = format!(" Edit Comment: {display} ");
-        render_form_modal(frame, area, &title, 35, form);
+        render_form_modal(frame, area, &title, 35, form, &app.theme);
     }
 }

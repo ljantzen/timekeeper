@@ -1,6 +1,7 @@
 mod app;
 mod form;
 mod input;
+mod theme;
 mod ui;
 
 use std::io::Stdout;
@@ -16,19 +17,30 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use tmkpr_lib::{config::Config, storage::open_sqlite};
 
 use app::App;
+use theme::Theme;
 
 #[derive(Parser)]
 #[command(name = "tmkpr-ui", about = "Terminal UI for tmkpr")]
 struct Args {
     #[arg(long, env = "TMKPR_DB", help = "Database path override")]
     db: Option<std::path::PathBuf>,
+    #[arg(
+        long,
+        env = "TMKPR_THEME",
+        help = "Colour theme: default, rose_pine, catppuccin_mocha, catppuccin_macchiato, \
+                catppuccin_frappe, nord, gruvbox_dark, monokai, dracula, tokyonight, onedark, \
+                solarized_dark, github_dark, kanagawa, everforest, ayu_dark"
+    )]
+    theme: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = Config::load()?;
     let user_id = config.user.user_id.clone();
-    let db_path = args.db.unwrap_or(config.database.path);
+    let db_path = args.db.unwrap_or(config.database.path.clone());
+    let theme_name = args.theme.as_deref().unwrap_or(&config.display.theme);
+    let theme = Theme::resolve(theme_name, &config.themes);
     let storage = open_sqlite(&db_path)?;
 
     // Restore terminal on panic.
@@ -45,7 +57,7 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = run_app(&mut terminal, storage, user_id);
+    let result = run_app(&mut terminal, storage, user_id, theme);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -58,8 +70,9 @@ fn run_app(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     storage: Box<dyn tmkpr_lib::storage::Storage>,
     user_id: String,
+    theme: Theme,
 ) -> anyhow::Result<()> {
-    let mut app = App::new(storage, user_id);
+    let mut app = App::new(storage, user_id, theme);
     app.refresh()?;
     app.load_ui_state()?;
     app.status = None;
