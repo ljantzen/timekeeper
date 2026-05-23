@@ -623,8 +623,7 @@ impl App {
         });
         let is_set_cmd = !is_set_date_format
             && matches!(&self.mode, AppMode::Command { buf, .. } if {
-                let t = buf.trim();
-                t == "set" || t.starts_with("set ")
+                buf.trim().starts_with("set ")
             });
 
         // Save original theme on the first tab in theme-arg mode.
