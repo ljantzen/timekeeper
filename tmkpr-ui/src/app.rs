@@ -614,8 +614,7 @@ impl App {
 
         // Identify which prefix level we're completing.
         let is_theme_arg = matches!(&self.mode, AppMode::Command { buf, .. } if {
-            let t = buf.trim();
-            t == "theme" || t.starts_with("theme ")
+            buf.trim().starts_with("theme ")
         });
         let is_set_date_format = matches!(&self.mode, AppMode::Command { buf, .. } if {
             let t = buf.trim();
