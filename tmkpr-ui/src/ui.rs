@@ -49,12 +49,13 @@ fn project_color(app: &App, project_id: &str) -> Option<Color> {
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
 
-    // Fill background with theme colour (no-op for Color::Reset / default theme).
-    if app.theme.bg != Color::Reset {
-        frame.render_widget(
-            Block::default().style(Style::default().bg(app.theme.bg)),
-            area,
-        );
+    // Fill background and set base fg so light themes render readable text.
+    if app.theme.bg != Color::Reset || app.theme.fg.is_some() {
+        let mut style = Style::default().bg(app.theme.bg);
+        if let Some(fg) = app.theme.fg {
+            style = style.fg(fg);
+        }
+        frame.render_widget(Block::default().style(style), area);
     }
 
     let chunks = Layout::default()
@@ -359,7 +360,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
                             .fg(app.theme.accent)
                             .add_modifier(Modifier::BOLD)
                     } else {
-                        Style::default().fg(Color::White)
+                        Style::default().fg(app.theme.fg.unwrap_or(Color::White))
                     };
                     let prefix = if selected { "▶ " } else { "  " };
                     ListItem::new(Line::from(Span::styled(format!("{prefix}{name}"), style)))

@@ -26,6 +26,8 @@ pub struct Config {
 pub struct ThemeConfig {
     #[serde(default)]
     pub bg: String,
+    #[serde(default)]
+    pub fg: String,
     pub active: String,
     pub accent: String,
     pub dim: String,
