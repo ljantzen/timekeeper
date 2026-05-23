@@ -3,7 +3,7 @@ resolver = "2"
 members = ["tmkpr-lib", "tmkpr-cli", "tmkpr-ui", "tmkpr-pomodoro"]
 
 [workspace.package]
-version = "1.1.1"
+version = "1.1.2"
 edition = "2021"
 license = "MIT"
 
@@ -26,4 +26,4 @@ interim      = { version = "0.2", features = ["chrono_0_4"] }
 ratatui      = "0.30"
 notify-rust  = "4"
 rodio        = { version = "0.17", features = ["symphonia-all"] }
-tmkpr-lib    = { path = "tmkpr-lib" }
+tmkpr-lib    = { path = "tmkpr-lib", version = "1.1.2" }
