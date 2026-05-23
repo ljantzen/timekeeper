@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 tmkpr-lib    = { workspace = true }
+csv          = { workspace = true }
 clap         = { workspace = true }
 clap_complete = { workspace = true }
 comfy-table  = { workspace = true }

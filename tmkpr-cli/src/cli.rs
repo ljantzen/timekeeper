@@ -89,6 +89,12 @@ pub enum Commands {
 
     /// Generate shell completion scripts
     Completion(CompletionArgs),
+
+    /// Import projects, tasks, and time entries from a CSV file
+    Import(ImportArgs),
+
+    /// Export time entries to a CSV file
+    Export(ExportArgs),
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────
@@ -490,4 +496,95 @@ pub struct CommentDeleteArgs {
 #[derive(Args)]
 pub struct CompletionArgs {
     pub shell: Shell,
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+
+#[derive(Args)]
+#[command(long_about = "\
+Import projects, tasks, and time entries from a CSV file.
+
+Required columns (at least one):
+  start           Combined start datetime
+  start_date      Start date (pair with start_time or defaults to midnight)
+  start_time      Start time (used with start_date)
+
+Optional columns:
+  project         Project name (created if new)
+  task            Task name within the project (created if new)
+  end / end_date / end_time
+                  End datetime; may be split into end_date + end_time
+  duration        Duration instead of end time (e.g. \"1:30:00\", \"1h30m\", \"90m\")
+  note / description / comment
+                  Free-text note
+  tags            Comma-separated tags
+
+Column names are matched case-insensitively; spaces and hyphens are treated as
+underscores.  Naive datetimes (no timezone) are interpreted as local time.
+
+Example CSV:
+  project,task,start,end,note,tags
+  \"Website\",\"Frontend\",\"2024-01-15 09:00\",\"2024-01-15 10:30\",\"Login page\",\"dev\"
+  \"Website\",\"\",\"2024-01-15 11:00\",\"2024-01-15 12:00\",\"Code review\",\"\"
+")]
+pub struct ImportArgs {
+    /// Path to the CSV file
+    pub file: std::path::PathBuf,
+
+    /// Continue past row errors instead of aborting on the first failure
+    #[arg(long)]
+    pub skip_errors: bool,
+
+    /// Show what would be imported without writing to the database
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+#[derive(Args)]
+#[command(long_about = "\
+Export time entries to a CSV file compatible with 'tmkpr import'.
+
+Output columns: project, task, start, end, note, tags
+
+Datetimes are written in local time (YYYY-MM-DD HH:MM:SS) so the file round-trips
+cleanly through 'tmkpr import'.  Active entries are included by default with an
+empty 'end' field.
+
+When no file is given the CSV is written to stdout.
+
+Examples:
+  tmkpr export                         # all entries to stdout
+  tmkpr export entries.csv             # all entries to file
+  tmkpr export --from 2024-01-01 out.csv
+  tmkpr export -p \"My Project\" out.csv
+")]
+pub struct ExportArgs {
+    /// Output file (omit to write to stdout)
+    pub file: Option<std::path::PathBuf>,
+
+    /// Filter by project name
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
+    pub project: Option<String>,
+
+    /// Filter by task name
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
+    pub task: Option<String>,
+
+    /// Start of date range (natural language or ISO 8601)
+    #[arg(long)]
+    pub from: Option<String>,
+
+    /// End of date range (natural language or ISO 8601)
+    #[arg(long)]
+    pub until: Option<String>,
+
+    /// Filter by tag (can be specified multiple times)
+    #[arg(long)]
+    pub tag: Vec<String>,
+
+    /// Exclude the currently active (unfinished) entry
+    #[arg(long)]
+    pub no_active: bool,
 }

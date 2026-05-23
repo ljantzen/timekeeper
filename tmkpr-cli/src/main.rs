@@ -101,6 +101,10 @@ fn run() -> anyhow::Result<()> {
             }
         },
         Commands::Completion(args) => commands::completion::run(args)?,
+        Commands::Import(args) => commands::import::run(args, storage.as_ref(), &user_id)?,
+        Commands::Export(args) => {
+            commands::export::run(args, storage.as_ref(), &user_id, time_fmt)?
+        }
     }
 
     Ok(())

@@ -26,4 +26,5 @@ interim      = { version = "0.2", features = ["chrono_0_4"] }
 ratatui      = "0.30"
 notify-rust  = "4"
 rodio        = { version = "0.17", features = ["symphonia-all"] }
+csv          = "1"
 tmkpr-lib    = { path = "tmkpr-lib", version = "1.1.4" }
