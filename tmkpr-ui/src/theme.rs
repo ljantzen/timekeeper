@@ -433,7 +433,7 @@ impl Theme {
     fn cobalt() -> Self {
         Self {
             bg: Color::Rgb(0x00, 0x33, 0xff),
-            fg: Some(Color::Rgb(0xff, 0xff, 0x00)),
+            fg: Some(Color::Rgb(0xff, 0xe0, 0x00)),
             active: Color::Rgb(0x00, 0xff, 0x88),
             accent: Color::Rgb(0xff, 0xff, 0xff),
             dim: Color::Rgb(0xaa, 0xbb, 0xff),
