@@ -2,6 +2,8 @@
 
 A comprehensive, fast, and offline time tracker written in Rust. Track time against projects and tasks with a focus on simplicity and cross-platform compatibility. All data is stored locally in SQLite, giving you full control over your time-tracking information.
 
+![tmkpr-ui screenshot](timekeeper.png)
+
 ## Features
 
 - **Project & Task Management**: Organize your work with projects and flexible task hierarchies
