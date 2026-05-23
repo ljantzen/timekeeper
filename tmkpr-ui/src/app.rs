@@ -1534,7 +1534,7 @@ impl App {
             return Ok(());
         };
 
-        let tasks = self.storage.list_tasks(&id, true)?;
+        let tasks = self.storage.list_tasks(&id, false)?;
         if !tasks.is_empty() {
             self.status = Some((
                 format!(
@@ -2047,7 +2047,18 @@ impl App {
     pub fn load_ui_state(&mut self) -> anyhow::Result<()> {
         if let Ok(state) = UiState::load() {
             if !state.entry_filter_project.is_empty() || !state.entry_filter_date.is_empty() {
-                self.apply_filter(&state.entry_filter_project, &state.entry_filter_date)?;
+                // Silently clear the project filter if the project no longer exists in
+                // this database (e.g. the state was saved with a different TMKPR_DB).
+                let project = if !state.entry_filter_project.is_empty() {
+                    let svc = ProjectService::new(self.storage.as_ref(), &self.user_id);
+                    match svc.get_by_name(&state.entry_filter_project)? {
+                        Some(_) => state.entry_filter_project.clone(),
+                        None => String::new(),
+                    }
+                } else {
+                    state.entry_filter_project.clone()
+                };
+                self.apply_filter(&project, &state.entry_filter_date)?;
             }
             if !state.entry_sort.is_empty() {
                 if let Some(sort) = EntrySort::from_label(&state.entry_sort) {

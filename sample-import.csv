@@ -1,0 +1,14 @@
+project,task,start,end,note,tags
+Alpha,Planning,2025-05-19 09:00,2025-05-19 09:45,Sprint kickoff and backlog grooming,planning
+Alpha,Backend API,2025-05-19 09:45,2025-05-19 12:00,Implement auth endpoints,backend
+Alpha,Backend API,2025-05-19 13:00,2025-05-19 15:30,Token refresh flow and error handling,backend
+Beta,Frontend,2025-05-19 15:30,2025-05-19 17:00,Login page layout,frontend
+Beta,Frontend,2025-05-20 09:00,2025-05-20 11:00,Form validation and error states,frontend
+Alpha,Code Review,2025-05-20 11:00,2025-05-20 12:00,Review PR #42,review
+Beta,Testing,2025-05-20 13:00,2025-05-20 14:30,Write integration tests for login flow,testing
+Alpha,Backend API,2025-05-20 14:30,2025-05-20 17:00,Session management and middleware,backend
+Alpha,Planning,2025-05-21 09:00,2025-05-21 09:30,Wednesday sync,planning
+Beta,Documentation,2025-05-21 09:30,2025-05-21 11:00,API reference for frontend team,docs
+Beta,Testing,2025-05-21 11:00,2025-05-21 12:30,End-to-end login flow tests,testing
+Beta,Deployment,2025-05-21 13:30,2025-05-21 15:00,Staging deploy and smoke tests,devops
+Alpha,Code Review,2025-05-21 15:00,2025-05-21 17:00,Review session middleware PRs,review
