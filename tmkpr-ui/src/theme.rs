@@ -55,6 +55,7 @@ impl Theme {
             "cobalt",
             "high_contrast",
             "kanagawa",
+            "matrix",
             "monokai",
             "nord",
             "onedark",
@@ -104,6 +105,7 @@ impl Theme {
             "github_dark" => Self::github_dark(),
             "github_light" => Self::github_light(),
             "kanagawa" => Self::kanagawa(),
+            "matrix" => Self::matrix(),
             "everforest" => Self::everforest(),
             "ayu_dark" => Self::ayu_dark(),
             "cobalt" => Self::cobalt(),
@@ -244,6 +246,21 @@ impl Theme {
             warning: Color::Rgb(0xb5, 0x76, 0x14),
             selection: Color::Rgb(0xeb, 0xdb, 0xb2),
             border: Color::Rgb(0xbd, 0xae, 0x93),
+        }
+    }
+
+    /// Matrix — black background with bright green text
+    fn matrix() -> Self {
+        Self {
+            bg: Color::Rgb(0x00, 0x00, 0x00),
+            fg: Some(Color::Rgb(0x00, 0xff, 0x41)),
+            active: Color::Rgb(0x00, 0xff, 0x41),
+            accent: Color::Rgb(0x39, 0xff, 0x14),
+            dim: Color::Rgb(0x00, 0x7a, 0x1e),
+            error: Color::Rgb(0xff, 0x33, 0x33),
+            warning: Color::Rgb(0xff, 0xcc, 0x00),
+            selection: Color::Rgb(0x00, 0x2b, 0x00),
+            border: Color::Rgb(0x00, 0x55, 0x15),
         }
     }
 
