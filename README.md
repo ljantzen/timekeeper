@@ -52,6 +52,8 @@ Full-featured terminal UI dashboard built with [ratatui](https://github.com/rata
 - Entry editing and deletion
 - Intuitive vim-style keybindings
 - Quick forms with autocomplete
+- Command mode (`:`) for themes, settings, and config management
+- 16 built-in colour themes with live preview
 
 **Launch:**
 ```bash
@@ -82,11 +84,6 @@ tmkpr-pomodoro
 
 ```bash
 # Install all three tools
-cargo install --path tmkpr-cli
-cargo install --path tmkpr-ui
-cargo install --path tmkpr-pomodoro
-
-# Or install individually
 cargo install --path tmkpr-cli
 cargo install --path tmkpr-ui
 cargo install --path tmkpr-pomodoro
@@ -125,15 +122,27 @@ tmkpr --db /path/to/other.db list
 tmkpr-ui --db /path/to/other.db
 ```
 
+### Override theme
+
+```bash
+# Environment variable
+TMKPR_THEME=catppuccin_mocha tmkpr-ui
+
+# Command-line flag
+tmkpr-ui --theme dracula
+```
+
 ### Configuration File
 
 Edit `~/.config/tmkpr/config.toml` to customize settings:
 
 ```toml
 [display]
-time_format = "24h"        # "24h" (default) or "12h"
+time_format = "24h"            # "24h" (default) or "12h"
 date_format = "%Y-%m-%d %H:%M"
+week_start = "mon"             # mon (default), tue, wed, thu, fri, sat, sun
 color = true
+theme = "catppuccin_mocha"     # see Themes section below
 
 [database]
 path = "~/.local/share/tmkpr/tmkpr.db"
@@ -148,6 +157,32 @@ auto_start_break = false
 ```
 
 See individual tool READMEs for complete configuration options.
+
+## Themes
+
+`tmkpr-ui` and `tmkpr-pomodoro` ship 16 built-in colour themes:
+
+`default`, `ayu_dark`, `catppuccin_frappe`, `catppuccin_macchiato`, `catppuccin_mocha`, `dracula`, `everforest`, `github_dark`, `gruvbox_dark`, `kanagawa`, `monokai`, `nord`, `onedark`, `rose_pine`, `solarized_dark`, `tokyonight`
+
+Select a theme via `--theme <name>`, the `TMKPR_THEME` environment variable, or the `theme` key in `config.toml`. In the TUI you can also type `:theme <name>` and use Tab to cycle through themes with a live preview — run `:config-write` to persist the choice.
+
+### Custom themes
+
+Define your own theme in `config.toml` using hex colour values:
+
+```toml
+[themes.my_theme]
+bg        = "#1e1e2e"
+active    = "#a6e3a1"
+accent    = "#cba6f7"
+dim       = "#7f849c"
+error     = "#f38ba8"
+warning   = "#f9e2af"
+selection = "#313244"
+border    = "#45475a"
+```
+
+Then set `theme = "my_theme"` in `[display]`.
 
 ## Quick Start
 
