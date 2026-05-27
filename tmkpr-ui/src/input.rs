@@ -127,6 +127,16 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         KeyCode::Char('p') => app.open_manage_projects(),
         KeyCode::Char('t') => app.open_manage_tasks(),
+        KeyCode::Char('<') => {
+            if let Err(e) = app.prev_week() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('>') => {
+            if let Err(e) = app.next_week() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
         KeyCode::Char('?') => {
             app.mode = AppMode::Help;
         }

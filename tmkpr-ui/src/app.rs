@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
+use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc, Weekday};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
 use tmkpr_lib::{
@@ -447,6 +447,8 @@ pub struct App {
     pub pending_open: Option<std::path::PathBuf>,
     pub date_format: String,
     pub week_start: chrono::Weekday,
+    pub displayed_week_year: i32,
+    pub displayed_week_num: u32,
 }
 
 /// Display name → chrono format string pairs for the `:set date-format` command.
@@ -468,6 +470,8 @@ impl App {
     ) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
+        let now = Local::now();
+        let iso_week = now.iso_week();
         Self {
             running: true,
             storage,
@@ -494,6 +498,8 @@ impl App {
             pending_open: None,
             date_format,
             week_start,
+            displayed_week_year: iso_week.year(),
+            displayed_week_num: iso_week.week(),
         }
     }
 
@@ -2080,6 +2086,34 @@ impl App {
             entry_filter_date: self.entry_filter.date_str.clone(),
         };
         state.save()?;
+        Ok(())
+    }
+
+    pub fn prev_week(&mut self) -> anyhow::Result<()> {
+        let iso_date = NaiveDate::from_isoywd_opt(self.displayed_week_year, self.displayed_week_num, Weekday::Mon)
+            .ok_or_else(|| anyhow::anyhow!("Invalid week"))?;
+        let prev_iso_date = iso_date - Duration::days(7);
+        let prev_iso_week = prev_iso_date.iso_week();
+        self.displayed_week_year = prev_iso_week.year();
+        self.displayed_week_num = prev_iso_week.week();
+        self.refresh_week_report()?;
+        Ok(())
+    }
+
+    pub fn next_week(&mut self) -> anyhow::Result<()> {
+        let iso_date = NaiveDate::from_isoywd_opt(self.displayed_week_year, self.displayed_week_num, Weekday::Mon)
+            .ok_or_else(|| anyhow::anyhow!("Invalid week"))?;
+        let next_iso_date = iso_date + Duration::days(7);
+        let next_iso_week = next_iso_date.iso_week();
+        self.displayed_week_year = next_iso_week.year();
+        self.displayed_week_num = next_iso_week.week();
+        self.refresh_week_report()?;
+        Ok(())
+    }
+
+    fn refresh_week_report(&mut self) -> anyhow::Result<()> {
+        let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+        self.week_report = svc.week_report(self.displayed_week_year, self.displayed_week_num, false).ok();
         Ok(())
     }
 }

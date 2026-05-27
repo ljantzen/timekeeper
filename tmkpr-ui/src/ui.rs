@@ -267,8 +267,10 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
 fn render_week(frame: &mut Frame, app: &App, area: Rect) {
     let now = Local::now();
     let today_date = now.date_naive();
-    let week_num = now.iso_week().week();
-    let title = format!(" Week W{week_num:02} ");
+    let is_current_week = now.iso_week().year() == app.displayed_week_year
+        && now.iso_week().week() == app.displayed_week_num;
+    let week_marker = if is_current_week { "" } else { "* " };
+    let title = format!(" Week {}{:02} ", week_marker, app.displayed_week_num);
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
