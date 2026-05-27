@@ -34,9 +34,9 @@ TMKPR_THEME=dracula tmkpr-ui
 
 The dashboard shows:
 
-- **Active entry** — currently running timer with elapsed time (top)
+- **Active entry** — currently running timer with elapsed time (top); includes running task in week total
 - **Entry list** — the 50 most recent completed entries
-- **Week report** — total time per project for the current ISO week (sidebar)
+- **Week report** — total time per day and project for the displayed ISO week (sidebar); navigate with `<` and `>`
 - **Status bar** — feedback messages and error hints (bottom)
 
 ## Keybindings
@@ -62,6 +62,8 @@ The dashboard shows:
 | `Y` | Filter to yesterday |
 | `W` | Filter to this week |
 | `o` | Cycle entry sort order |
+| `<` | View previous week |
+| `>` | View next week |
 | `p` | Manage projects |
 | `t` | Manage tasks |
 | `r` | Refresh data |
