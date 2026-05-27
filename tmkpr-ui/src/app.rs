@@ -153,6 +153,9 @@ fn parse_date_filter(s: &str, week_start: chrono::Weekday) -> anyhow::Result<Dat
                 .unwrap();
             Ok((Some(naive_to_utc(from)), Some(naive_to_utc(until))))
         }
+        _ if s.contains('/') && s.matches('/').count() == 1 => Err(anyhow::anyhow!(
+            "Date range uses '..' not '/'. Try: YYYY-MM-DD..YYYY-MM-DD"
+        )),
         _ => {
             let date = NaiveDate::parse_from_str(s, "%Y-%m-%d")?;
             let from = date.and_hms_opt(0, 0, 0).unwrap();
@@ -2002,7 +2005,7 @@ impl App {
                     .with_completions(projects)
                     .with_completion_colors(project_colors),
                 Field::new(
-                    "Date: today/yesterday/this week/YYYY-MM-DD/YYYY-MM-DD..YYYY-MM-DD",
+                    "Date: today/yesterday/this week/YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD",
                     &self.entry_filter.date_str,
                 ),
             ],
@@ -2219,6 +2222,16 @@ mod tests {
     fn parse_date_filter_invalid_date_fails() {
         let result = parse_date_filter("invalid-date", chrono::Weekday::Mon);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_date_filter_slash_separator_error() {
+        let result = parse_date_filter("2024-05-15/2024-05-18", chrono::Weekday::Mon);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Date range uses '..' not '/'"));
     }
 
     #[test]

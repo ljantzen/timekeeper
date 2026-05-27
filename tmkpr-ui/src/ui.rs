@@ -266,6 +266,7 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_week(frame: &mut Frame, app: &App, area: Rect) {
     let now = Local::now();
+    let today_date = now.date_naive();
     let week_num = now.iso_week().week();
     let title = format!(" Week W{week_num:02} ");
     let block = Block::default()
@@ -285,12 +286,21 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
                 .days
                 .iter()
                 .map(|day| {
+                    let mut day_total = day.total_secs;
+                    if day.date == today_date {
+                        if let Some(active) = &app.active_entry {
+                            let active_start = active.started_at.with_timezone(&Local).date_naive();
+                            if active_start == today_date {
+                                day_total += active.elapsed().num_seconds();
+                            }
+                        }
+                    }
                     let name = day.date.format("%a");
                     let date = day.date.format("%d");
-                    let h = day.total_secs / 3600;
-                    let m = (day.total_secs % 3600) / 60;
+                    let h = day_total / 3600;
+                    let m = (day_total % 3600) / 60;
                     let time_str = format!("{h}h {m:02}m");
-                    let style = if day.total_secs > 0 {
+                    let style = if day_total > 0 {
                         Style::default()
                     } else {
                         Style::default().fg(app.theme.dim)
@@ -304,8 +314,16 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(app.theme.border),
             )));
 
-            let total_h = report.total_secs / 3600;
-            let total_m = (report.total_secs % 3600) / 60;
+            let mut total_with_active = report.total_secs;
+            if let Some(active) = &app.active_entry {
+                let active_start = active.started_at.with_timezone(&Local).date_naive();
+                if active_start.iso_week() == today_date.iso_week() && active_start.year() == today_date.year() {
+                    total_with_active += active.elapsed().num_seconds();
+                }
+            }
+
+            let total_h = total_with_active / 3600;
+            let total_m = (total_with_active % 3600) / 60;
             lines.push(Line::from(Span::styled(
                 format!("Total  {total_h}h {total_m:02}m"),
                 Style::default().add_modifier(Modifier::BOLD),
