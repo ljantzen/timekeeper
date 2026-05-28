@@ -82,6 +82,10 @@ tmkpr-pomodoro
 tmkpr pomodoro   # via the CLI
 ```
 
+**Note**
+
+You cannot create projects or tasks in the pomodoro app. You need to use the cli oumr tui for that.
+
 ## Installation
 
 ### Github releases 
