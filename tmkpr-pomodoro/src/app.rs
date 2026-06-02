@@ -298,20 +298,16 @@ impl<'a> App<'a> {
 fn play_sound(path: &str) {
     let path = path.to_string();
     std::thread::spawn(move || {
-        let Ok((_stream, handle)) = rodio::OutputStream::try_default() else {
-            return;
-        };
-        let Ok(sink) = rodio::Sink::try_new(&handle) else {
+        let Ok(handle) = rodio::DeviceSinkBuilder::open_default_sink() else {
             return;
         };
         let Ok(file) = std::fs::File::open(&path) else {
             return;
         };
-        let Ok(source) = rodio::Decoder::new(std::io::BufReader::new(file)) else {
+        let Ok(player) = rodio::play(handle.mixer(), std::io::BufReader::new(file)) else {
             return;
         };
-        sink.append(source);
-        sink.sleep_until_end();
+        player.sleep_until_end();
     });
 }
 

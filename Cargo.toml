@@ -16,7 +16,7 @@ anyhow       = "1"
 thiserror    = "2"
 toml         = "1.1"
 dirs         = "6"
-rusqlite     = { version = "0.39", features = ["bundled", "chrono"] }
+rusqlite     = { version = "0.40", features = ["bundled", "chrono"] }
 clap         = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4", features = ["unstable-dynamic"] }
 comfy-table  = "7"
@@ -25,6 +25,6 @@ colored      = "3"
 interim      = { version = "0.2", features = ["chrono_0_4"] }
 ratatui      = "0.30"
 notify-rust  = "4"
-rodio        = { version = "0.17", features = ["symphonia-all"] }
+rodio        = { version = "0.22", features = ["symphonia-all"] }
 csv          = "1"
 tmkpr-lib    = { path = "tmkpr-lib", version = "1.1.7" }
