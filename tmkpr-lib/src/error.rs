@@ -33,4 +33,7 @@ pub enum TmkprError {
 
     #[error("serialization error: {0}")]
     Serde(#[from] serde_json::Error),
+
+    #[error("obsidian logging error")]
+    Obsidian,
 }

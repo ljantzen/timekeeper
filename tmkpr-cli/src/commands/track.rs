@@ -1,7 +1,9 @@
 use anyhow::Result;
 use chrono::Utc;
+use tmkpr_lib::config::Config;
 use tmkpr_lib::models::entry::EntryFilter;
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
+use tmkpr_lib::obsidian_logger;
 use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
@@ -16,6 +18,7 @@ pub fn run(
     date_fmt: &str,
     time_fmt: TimeFormat,
     color: bool,
+    config: &Config,
 ) -> Result<()> {
     let explicit_start = args.start.is_some();
     let started_at = match args.start.as_deref() {
@@ -105,6 +108,15 @@ pub fn run(
         Some(started_at),
     )?;
 
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_activity_to_obsidian(
+        config,
+        &entry,
+        project.as_ref().map(|p| p.name.as_str()),
+        task.as_ref().map(|t| t.name.as_str()),
+        obsidian_logger::ActivityAction::Started,
+    );
+
     let projects = ProjectIndex(storage.list_projects(user_id, false).unwrap_or_default());
     let tasks = entry
         .project_id
@@ -141,6 +153,7 @@ pub(crate) fn last_entry_end(
 mod tests {
     use super::*;
     use chrono::{Duration, Timelike, Utc};
+    use tmkpr_lib::config::Config;
     use tmkpr_lib::models::entry::NewEntry;
     use tmkpr_lib::models::LOCAL_USER_ID;
     use tmkpr_lib::storage::sqlite::SqliteStorage;
@@ -148,6 +161,10 @@ mod tests {
 
     fn mem() -> SqliteStorage {
         SqliteStorage::open_in_memory().unwrap()
+    }
+
+    fn test_config() -> Config {
+        Config::default()
     }
 
     fn args(start: Option<&str>, force: bool) -> StartArgs {
@@ -179,6 +196,7 @@ mod tests {
     #[test]
     fn no_active_entry_starts_normally() {
         let s = mem();
+        let cfg = test_config();
         run(
             args(None, false),
             &s,
@@ -186,6 +204,7 @@ mod tests {
             "%Y-%m-%d %H:%M",
             TimeFormat::H24,
             false,
+            &cfg,
         )
         .unwrap();
         assert!(EntryService::new(&s, LOCAL_USER_ID)
@@ -197,6 +216,7 @@ mod tests {
     #[test]
     fn force_handoff_stops_active_at_start_time() {
         let s = mem();
+        let cfg = test_config();
         let active_id = seed_active(&s, Utc::now() - Duration::hours(2));
 
         run(
@@ -206,6 +226,7 @@ mod tests {
             "%Y-%m-%d %H:%M",
             TimeFormat::H24,
             false,
+            &cfg,
         )
         .unwrap();
 
@@ -230,6 +251,7 @@ mod tests {
     #[test]
     fn start_before_active_errors() {
         let s = mem();
+        let cfg = test_config();
         seed_active(&s, Utc::now() - Duration::hours(1));
 
         let err = run(
@@ -239,6 +261,7 @@ mod tests {
             "%Y-%m-%d %H:%M",
             TimeFormat::H24,
             false,
+            &cfg,
         )
         .unwrap_err();
 
@@ -253,6 +276,7 @@ mod tests {
         // Zero-duration handoff: new task starts exactly when old one started.
         // Strip sub-seconds so the ISO string round-trips to the same instant.
         let s = mem();
+        let cfg = test_config();
         let t = (Utc::now() - Duration::hours(1))
             .with_nanosecond(0)
             .unwrap();
@@ -266,6 +290,7 @@ mod tests {
             "%Y-%m-%d %H:%M",
             TimeFormat::H24,
             false,
+            &cfg,
         )
         .unwrap();
 

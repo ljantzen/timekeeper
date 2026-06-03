@@ -20,6 +20,7 @@ toml       = { workspace = true }
 dirs       = { workspace = true }
 rusqlite   = { workspace = true }
 interim    = { workspace = true }
+obsidian-logging = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

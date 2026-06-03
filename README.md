@@ -13,6 +13,7 @@ A comprehensive, fast, and offline time tracker written in Rust. Track time agai
 - **Comments**: Attach free-form notes to any entry for context
 - **Tagging**: Organize entries with custom tags
 - **Data Portability**: Import and export entries in CSV or JSON format
+- **Obsidian Integration**: Automatically log activities, comments, and project/task changes to your Obsidian vault (optional)
 - **Fast & Responsive**: Built in Rust for speed and reliability
 - **Offline-First**: Works completely offline, syncs to local SQLite database
 - **No Cloud Required**: Your time data stays on your machine
@@ -169,6 +170,72 @@ auto_start_break = false
 ```
 
 See individual tool READMEs for complete configuration options.
+
+### Obsidian Integration (Optional)
+
+Automatically log your time tracking activities to your Obsidian vault. Enable this optional feature to keep your daily notes synchronized with your time entries.
+
+**Setup:**
+
+1. Edit `~/.config/tmkpr/config.toml` and add the `[obsidian]` section:
+
+```toml
+[obsidian]
+enabled = true
+vault_dir = "/path/to/your/obsidian/vault"
+activity_category = "work"      # optional: category for time entries
+comment_category = "notes"      # optional: category for comments
+```
+
+2. Create the vault directory if it doesn't exist and add an `obsidian-logging.yaml` config to your vault (see [obsidian-logging documentation](https://github.com/ljantzen/obsidian-logging) for details).
+
+**What Gets Logged:**
+
+| Event | Format | Example |
+|-------|--------|---------|
+| **Activity Started** | `[STARTED] project / task (duration)` | `[STARTED] Backend / Feature Dev (active)` |
+| **Activity Stopped** | `[STOPPED] project / task (duration)` | `[STOPPED] Backend / Bug Fixes (2h 30m)` |
+| **Activity Edited** | `[EDITED] project / task (duration)` | `[EDITED] Frontend / Review (1h 15m)` |
+| **Activity Merged** | `[MERGED] project / task (duration)` | `[MERGED] Backend / Testing (45m)` |
+| **Activity Deleted** | `[DELETED] project / task (duration)` | `[DELETED] Support / Call (30m)` |
+| **Comment Added** | Comment entry | `Comment: Fixed the bug` |
+| **Project Created** | `[CREATED] project_name` | `[CREATED] Backend API` |
+| **Project Updated** | `[UPDATED] project_name` | `[UPDATED] Backend API` |
+| **Project Deleted** | `[DELETED] project_name` | `[DELETED] Archived Project` |
+| **Task Created** | `[CREATED] project / task` | `[CREATED] Backend / Feature Dev` |
+| **Task Updated** | `[UPDATED] project / task` | `[UPDATED] Backend / Feature Dev` |
+| **Task Completed** | `[COMPLETED] project / task` | `[COMPLETED] Backend / Bug Fixes` |
+| **Task Deleted** | `[DELETED] project / task` | `[DELETED] Support / Call` |
+
+**Action Types:**
+
+Activities use these action prefixes to indicate what happened:
+- `[STARTED]` — Activity started (active timer)
+- `[STOPPED]` — Activity stopped (completed with duration)
+- `[EDITED]` — Activity edited (retroactive logging or reactivation)
+- `[COMPLETED]` — Activity marked as complete
+- `[MERGED]` — Multiple activities merged into one
+- `[DELETED]` — Activity deleted
+
+Tasks and projects use similar action types:
+- `[CREATED]` — New task or project created
+- `[UPDATED]` — Task or project name/description changed
+- `[COMPLETED]` — Task marked as complete
+- `[DELETED]` — Task or project deleted
+
+**Categories:**
+
+- If `activity_category` is not specified, activities are logged to your vault's default section
+- If `comment_category` is not specified, comments are logged to your vault's default section
+- Project and task operations are always logged to the default section
+
+**Behavior:**
+
+- Logging is **completely optional** — disable by setting `enabled = false` or omitting the section entirely
+- If the vault directory doesn't exist, logging silently fails with no error messages
+- All logging is **non-blocking** and doesn't affect performance
+- Works with all three tools: CLI, TUI, and Pomodoro timer
+- Activity logs include project and task names when available
 
 ## Themes
 

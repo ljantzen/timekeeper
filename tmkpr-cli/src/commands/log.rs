@@ -1,7 +1,9 @@
 use anyhow::Result;
 use chrono::{Local, TimeZone, Utc};
+use tmkpr_lib::config::Config;
 use tmkpr_lib::models::entry::EntryFilter;
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
+use tmkpr_lib::obsidian_logger;
 use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
@@ -16,6 +18,7 @@ pub fn run(
     date_fmt: &str,
     time_fmt: TimeFormat,
     color: bool,
+    config: &Config,
 ) -> Result<()> {
     let started_at = match args.start.as_deref() {
         Some(s) => parse_datetime_now(s, time_fmt)?,
@@ -57,6 +60,15 @@ pub fn run(
         started_at,
         finished_at,
     )?;
+
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_activity_to_obsidian(
+        config,
+        &entry,
+        project.as_ref().map(|p| p.name.as_str()),
+        task.as_ref().map(|t| t.name.as_str()),
+        obsidian_logger::ActivityAction::Edited,
+    );
 
     let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
     let all_tasks: Vec<_> = storage

@@ -1,5 +1,7 @@
 use anyhow::Result;
+use tmkpr_lib::config::Config;
 use tmkpr_lib::models::task::UpdateTask;
+use tmkpr_lib::obsidian_logger;
 use tmkpr_lib::service::{ProjectService, TaskService};
 use tmkpr_lib::storage::Storage;
 
@@ -9,10 +11,12 @@ use crate::cli::{
 use crate::output;
 use crate::prompt;
 
-pub fn add(args: TaskAddArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn add(args: TaskAddArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let project = prompt::resolve_or_create_project(storage, user_id, &args.project)?;
     let task =
         TaskService::new(storage, user_id).add(&project.name, args.name, args.description)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_task_created(config, &project.name, &task);
     println!(
         "Created task '{}' in project '{}'.",
         task.name, project.name
@@ -27,7 +31,7 @@ pub fn list(args: TaskListArgs, storage: &dyn Storage, user_id: &str, format: &s
     Ok(())
 }
 
-pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let project = prompt::resolve_or_create_project(storage, user_id, &args.project)?;
 
     let dest_project_id = args
@@ -49,27 +53,35 @@ pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str) -> Result<
         completed: None,
     };
     let task = TaskService::new(storage, user_id).edit(&project.id, &args.task, update)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_task_updated(config, &project.name, &task);
     println!("Updated task '{}'.", task.name);
     Ok(())
 }
 
-pub fn done(args: TaskDoneArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn done(args: TaskDoneArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     let task = TaskService::new(storage, user_id).complete(&project.name, &args.task)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_task_updated(config, &project.name, &task);
     println!("Marked task '{}' as completed.", task.name);
     Ok(())
 }
 
-pub fn reactivate(args: TaskReactivateArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn reactivate(args: TaskReactivateArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     let task = TaskService::new(storage, user_id).reactivate(&project.name, &args.task)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_task_updated(config, &project.name, &task);
     println!("Reactivated task '{}'.", task.name);
     Ok(())
 }
 
-pub fn delete(args: TaskDeleteArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn delete(args: TaskDeleteArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     TaskService::new(storage, user_id).delete(&project.name, &args.name, args.hard)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_task_deleted(config, &project.name, &args.name);
     if args.hard {
         println!("Deleted task '{}'.", args.name);
     } else {

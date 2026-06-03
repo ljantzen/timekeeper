@@ -4,6 +4,7 @@ use tmkpr_lib::{
     config::{Config, PomodoroConfig},
     models::project::Project,
     models::task::{NewTask, Task},
+    obsidian_logger,
     service::EntryService,
     storage::Storage,
 };
@@ -178,7 +179,16 @@ impl<'a> App<'a> {
             let svc = EntryService::new(self.storage, self.user_id);
             if let Some(proj) = self.selected_project() {
                 if let Some(task) = self.selected_task() {
-                    let _ = svc.start(Some(&proj.name), Some(&task.name), None, vec![], None);
+                    if let Ok(entry) = svc.start(Some(&proj.name), Some(&task.name), None, vec![], None) {
+                        // Log to Obsidian if enabled
+                        let _ = obsidian_logger::log_activity_to_obsidian(
+                            &self.config,
+                            &entry,
+                            Some(&proj.name),
+                            Some(&task.name),
+                            obsidian_logger::ActivityAction::Started,
+                        );
+                    }
                 }
             }
             Ok(())
@@ -247,7 +257,17 @@ impl<'a> App<'a> {
             let color = self.selected_project().and_then(|p| p.color.clone());
 
             let svc = EntryService::new(self.storage, self.user_id);
-            svc.stop(None)?;
+            let entry = svc.stop(None)?;
+            // Log to Obsidian if enabled
+            let proj_name = if proj.is_empty() { None } else { Some(proj.as_str()) };
+            let task_name = if task.is_empty() { None } else { Some(task.as_str()) };
+            let _ = obsidian_logger::log_activity_to_obsidian(
+                &self.config,
+                &entry,
+                proj_name,
+                task_name,
+                obsidian_logger::ActivityAction::Stopped,
+            );
 
             self.completed_sessions.push(CompletedSession {
                 project: proj,

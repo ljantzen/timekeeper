@@ -1,14 +1,18 @@
 use anyhow::Result;
+use tmkpr_lib::config::Config;
 use tmkpr_lib::models::project::UpdateProject;
+use tmkpr_lib::obsidian_logger;
 use tmkpr_lib::service::ProjectService;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::{ProjectAddArgs, ProjectDeleteArgs, ProjectEditArgs, ProjectListArgs};
 use crate::output;
 
-pub fn add(args: ProjectAddArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn add(args: ProjectAddArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let svc = ProjectService::new(storage, user_id);
     let project = svc.add(args.name, args.description, args.color)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_project_created(config, &project);
     println!("Created project '{}'.", project.name);
     Ok(())
 }
@@ -43,7 +47,7 @@ pub fn list(
     Ok(())
 }
 
-pub fn edit(args: ProjectEditArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn edit(args: ProjectEditArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let update = UpdateProject {
         name: args.name,
         description: match args.description.as_deref() {
@@ -59,13 +63,17 @@ pub fn edit(args: ProjectEditArgs, storage: &dyn Storage, user_id: &str) -> Resu
         archived: None,
     };
     let project = ProjectService::new(storage, user_id).edit(&args.project, update)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_project_updated(config, &project);
     println!("Updated project '{}'.", project.name);
     Ok(())
 }
 
-pub fn delete(args: ProjectDeleteArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn delete(args: ProjectDeleteArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let svc = ProjectService::new(storage, user_id);
     svc.delete(&args.name, args.hard)?;
+    // Log to Obsidian if enabled
+    let _ = obsidian_logger::log_project_deleted(config, &args.name);
     if args.hard {
         println!("Deleted project '{}'.", args.name);
     } else {

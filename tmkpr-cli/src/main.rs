@@ -57,18 +57,18 @@ fn run() -> anyhow::Result<()> {
     let user_id = config.user.user_id.clone();
     let format = cli.format.as_str();
 
-    let db_path = cli.db.unwrap_or(config.database.path);
+    let db_path = cli.db.unwrap_or_else(|| config.database.path.clone());
     let storage = open_sqlite(&db_path)?;
 
     match cli.command.unwrap_or(Commands::Status) {
         Commands::Start(args) => {
-            commands::track::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
+            commands::track::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
         }
         Commands::Stop(args) => {
-            commands::stop::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt)?
+            commands::stop::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, &config)?
         }
         Commands::Log(args) => {
-            commands::log::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
+            commands::log::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
         }
         Commands::Status => {
             commands::status::run(storage.as_ref(), &user_id, &date_fmt, format, color)?
@@ -86,34 +86,34 @@ fn run() -> anyhow::Result<()> {
             commands::report::run(args, storage.as_ref(), &user_id, time_fmt, format, color)?
         }
         Commands::Project(sub) => match sub {
-            ProjectCommands::Add(args) => commands::project::add(args, storage.as_ref(), &user_id)?,
+            ProjectCommands::Add(args) => commands::project::add(args, storage.as_ref(), &user_id, &config)?,
             ProjectCommands::List(args) => {
                 commands::project::list(args, storage.as_ref(), &user_id, format, color)?
             }
             ProjectCommands::Edit(args) => {
-                commands::project::edit(args, storage.as_ref(), &user_id)?
+                commands::project::edit(args, storage.as_ref(), &user_id, &config)?
             }
             ProjectCommands::Delete(args) => {
-                commands::project::delete(args, storage.as_ref(), &user_id)?
+                commands::project::delete(args, storage.as_ref(), &user_id, &config)?
             }
         },
         Commands::Task(sub) => match sub {
-            TaskCommands::Add(args) => commands::task::add(args, storage.as_ref(), &user_id)?,
+            TaskCommands::Add(args) => commands::task::add(args, storage.as_ref(), &user_id, &config)?,
             TaskCommands::List(args) => {
                 commands::task::list(args, storage.as_ref(), &user_id, format)?
             }
-            TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id)?,
-            TaskCommands::Delete(args) => commands::task::delete(args, storage.as_ref(), &user_id)?,
-            TaskCommands::Done(args) => commands::task::done(args, storage.as_ref(), &user_id)?,
+            TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id, &config)?,
+            TaskCommands::Delete(args) => commands::task::delete(args, storage.as_ref(), &user_id, &config)?,
+            TaskCommands::Done(args) => commands::task::done(args, storage.as_ref(), &user_id, &config)?,
             TaskCommands::Reactivate(args) => {
-                commands::task::reactivate(args, storage.as_ref(), &user_id)?
+                commands::task::reactivate(args, storage.as_ref(), &user_id, &config)?
             }
         },
         Commands::Edit(args) => {
             commands::edit::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
         }
-        Commands::Delete(args) => commands::delete::run(args, storage.as_ref(), &user_id)?,
-        Commands::Merge(args) => commands::merge::run(args, storage.as_ref(), &user_id)?,
+        Commands::Delete(args) => commands::delete::run(args, storage.as_ref(), &user_id, &config)?,
+        Commands::Merge(args) => commands::merge::run(args, storage.as_ref(), &user_id, &config)?,
         Commands::FillGap(args) => commands::fill_gap::run(args, storage.as_ref(), &user_id)?,
         Commands::Comment(sub) => match sub {
             CommentCommands::Add(args) => commands::comment::add(args, storage.as_ref(), &user_id)?,

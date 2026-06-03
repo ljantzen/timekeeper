@@ -31,3 +31,4 @@ notify-rust  = "4"
 rodio        = { version = "0.22", features = ["symphonia-all"] }
 csv          = "1"
 tmkpr-lib    = { path = "tmkpr-lib", version = "1.1.8" }
+obsidian-logging = "1.3.5"

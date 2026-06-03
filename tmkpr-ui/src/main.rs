@@ -65,6 +65,7 @@ fn main() -> anyhow::Result<()> {
         config.themes.clone(),
         config.display.date_format.clone(),
         chrono::Weekday::from(config.display.week_start),
+        config.clone(),
     );
     let result = run_app(&mut terminal, app);
 

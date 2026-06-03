@@ -2,6 +2,7 @@ use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc, Weekday};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
 use tmkpr_lib::{
+    config::Config,
     models::{
         comment::Comment,
         entry::{parse_tags, Entry, EntryFilter, UpdateEntry},
@@ -9,6 +10,7 @@ use tmkpr_lib::{
         task::{Task, UpdateTask},
     },
     nlp::parser::{parse_datetime, TimeFormat},
+    obsidian_logger,
     service::{CommentService, EntryService, ProjectService, TaskService, WeekReport},
     storage::Storage,
     ui_state::UiState,
@@ -449,6 +451,7 @@ pub struct App {
     pub week_start: chrono::Weekday,
     pub displayed_week_year: i32,
     pub displayed_week_num: u32,
+    pub config: Config,
 }
 
 /// Display name → chrono format string pairs for the `:set date-format` command.
@@ -459,6 +462,7 @@ const DATE_FORMAT_PRESETS: &[(&str, &str)] = &[
 ];
 
 impl App {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         storage: Box<dyn Storage>,
         user_id: String,
@@ -467,6 +471,7 @@ impl App {
         themes: HashMap<String, ThemeConfig>,
         date_format: String,
         week_start: chrono::Weekday,
+        config: Config,
     ) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
@@ -500,6 +505,7 @@ impl App {
             week_start,
             displayed_week_year: iso_week.year(),
             displayed_week_num: iso_week.week(),
+            config,
         }
     }
 
@@ -1134,7 +1140,28 @@ impl App {
     pub fn stop_active(&mut self) -> anyhow::Result<()> {
         {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.stop(None)?;
+            let entry = svc.stop(None)?;
+
+            // Retrieve project and task names for logging
+            let project_name = entry
+                .project_id
+                .as_ref()
+                .and_then(|pid| self.storage.get_project(pid).ok())
+                .map(|p| p.name);
+            let task_name = entry
+                .task_id
+                .as_ref()
+                .and_then(|tid| self.storage.get_task(tid).ok())
+                .map(|t| t.name);
+
+            // Log to Obsidian if enabled
+            let _ = obsidian_logger::log_activity_to_obsidian(
+                &self.config,
+                &entry,
+                project_name.as_deref(),
+                task_name.as_deref(),
+                obsidian_logger::ActivityAction::Stopped,
+            );
         }
         self.refresh()?;
         self.status = Some(("Stopped.".into(), false));
@@ -1142,6 +1169,28 @@ impl App {
     }
 
     pub fn delete_entry(&mut self, id: &str) -> anyhow::Result<()> {
+        // Log to Obsidian if enabled
+        if let Ok(entry) = self.storage.get_entry(id) {
+            let project_name = entry
+                .project_id
+                .as_ref()
+                .and_then(|pid| self.storage.get_project(pid).ok())
+                .map(|p| p.name);
+            let task_name = entry
+                .task_id
+                .as_ref()
+                .and_then(|tid| self.storage.get_task(tid).ok())
+                .map(|t| t.name);
+
+            let _ = obsidian_logger::log_activity_to_obsidian(
+                &self.config,
+                &entry,
+                project_name.as_deref(),
+                task_name.as_deref(),
+                obsidian_logger::ActivityAction::Deleted,
+            );
+        }
+
         {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
             svc.delete(id)?;
@@ -1170,10 +1219,18 @@ impl App {
             Some(note.to_string())
         };
         let tags = parse_tags(tags_str);
-        {
+        let entry = {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.start(project_opt, task_opt, note_opt, tags, None)?;
-        }
+            svc.start(project_opt, task_opt, note_opt, tags, None)?
+        };
+        // Log to Obsidian if enabled
+        let _ = obsidian_logger::log_activity_to_obsidian(
+            &self.config,
+            &entry,
+            project_opt,
+            task_opt,
+            obsidian_logger::ActivityAction::Started,
+        );
         self.refresh()?;
         self.status = Some(("Started.".into(), false));
         Ok(())
@@ -1323,7 +1380,27 @@ impl App {
 
         let id = self.entries[self.selected].id.clone();
         let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-        svc.merge_into_next(&id)?;
+        let merged = svc.merge_into_next(&id)?;
+
+        // Log to Obsidian if enabled
+        let project_name = merged
+            .project_id
+            .as_ref()
+            .and_then(|pid| self.storage.get_project(pid).ok())
+            .map(|p| p.name);
+        let task_name = merged
+            .task_id
+            .as_ref()
+            .and_then(|tid| self.storage.get_task(tid).ok())
+            .map(|t| t.name);
+
+        let _ = obsidian_logger::log_activity_to_obsidian(
+            &self.config,
+            &merged,
+            project_name.as_deref(),
+            task_name.as_deref(),
+            obsidian_logger::ActivityAction::Merged,
+        );
 
         self.refresh()?;
         self.status = Some(("Entries merged.".into(), false));
@@ -1385,7 +1462,9 @@ impl App {
         }
         {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
-            svc.add(Some(&entry_id), body)?;
+            let comment = svc.add(Some(&entry_id), body)?;
+            // Log to Obsidian if enabled
+            let _ = obsidian_logger::log_comment_to_obsidian(&self.config, &comment);
         }
         self.entries_with_comments.insert(entry_id.clone());
         self.refresh_comments_mode(entry_id, 0)?;
@@ -1571,6 +1650,13 @@ impl App {
     }
 
     pub fn delete_project(&mut self, id: &str, name: &str) -> anyhow::Result<()> {
+        // Log to Obsidian if enabled
+        let _ = obsidian_logger::log_project_to_obsidian(
+            &self.config,
+            name,
+            obsidian_logger::ProjectAction::Deleted,
+        );
+
         self.storage.delete_project(id)?;
         self.refresh()?;
         let projects = self.apply_project_sort_filter(self.projects.clone());
@@ -1706,6 +1792,16 @@ impl App {
         };
 
         self.storage.update_project(&project_id, update)?;
+
+        // Log to Obsidian if enabled
+        if let Ok(project) = self.storage.get_project(&project_id) {
+            let _ = obsidian_logger::log_project_to_obsidian(
+                &self.config,
+                &project.name,
+                obsidian_logger::ProjectAction::Updated,
+            );
+        }
+
         self.refresh()?;
         let projects = self.apply_project_sort_filter(self.projects.clone());
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited project in list
@@ -1879,6 +1975,24 @@ impl App {
         };
 
         self.storage.update_task(&task_id, update)?;
+
+        // Log to Obsidian if enabled
+        if let Ok(task) = self.storage.get_task(&task_id) {
+            let project_name = self
+                .storage
+                .get_project(&task.project_id)
+                .ok()
+                .map(|p| p.name)
+                .unwrap_or_default();
+
+            let _ = obsidian_logger::log_task_to_obsidian(
+                &self.config,
+                &project_name,
+                &task.name,
+                obsidian_logger::TaskAction::Updated,
+            );
+        }
+
         self.refresh()?;
         let tasks = self.apply_task_sort_filter(self.tasks.clone());
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited task in list
@@ -1907,6 +2021,30 @@ impl App {
                 ..Default::default()
             },
         )?;
+
+        // Log to Obsidian if enabled
+        if let Ok(task) = self.storage.get_task(&task_id) {
+            let project_name = self
+                .storage
+                .get_project(&task.project_id)
+                .ok()
+                .map(|p| p.name)
+                .unwrap_or_default();
+
+            let action = if !currently_completed {
+                obsidian_logger::TaskAction::Completed
+            } else {
+                obsidian_logger::TaskAction::Updated
+            };
+
+            let _ = obsidian_logger::log_task_to_obsidian(
+                &self.config,
+                &project_name,
+                &task.name,
+                action,
+            );
+        }
+
         self.refresh()?;
         let tasks = self.apply_task_sort_filter(self.tasks.clone());
         let selected = 0;
@@ -1921,13 +2059,14 @@ impl App {
     }
 
     pub fn delete_selected_task(&mut self) -> anyhow::Result<()> {
-        let (project_name, task_name) = if let AppMode::ManageTasks { tasks, selected } = &self.mode
+        let (project_name, task_name, task_id) = if let AppMode::ManageTasks { tasks, selected } = &self.mode
         {
             if *selected < tasks.len() {
                 let task = &tasks[*selected];
                 (
                     self.project_name(&task.project_id).to_string(),
                     task.name.clone(),
+                    task.id.clone(),
                 )
             } else {
                 return Ok(());
@@ -1935,6 +2074,18 @@ impl App {
         } else {
             return Ok(());
         };
+
+        // Log to Obsidian if enabled
+        if let Ok(task) = self.storage.get_task(&task_id) {
+            let project_name_str = self.project_name(&task.project_id);
+
+            let _ = obsidian_logger::log_task_to_obsidian(
+                &self.config,
+                project_name_str,
+                &task.name,
+                obsidian_logger::TaskAction::Deleted,
+            );
+        }
 
         let svc = TaskService::new(self.storage.as_ref(), &self.user_id);
         svc.delete(&project_name, &task_name, false)?;
@@ -2137,6 +2288,7 @@ mod tests {
             HashMap::new(),
             "%H:%M".to_string(),
             chrono::Weekday::Mon,
+            Config::default(),
         )
     }
 

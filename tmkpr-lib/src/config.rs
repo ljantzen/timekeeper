@@ -17,6 +17,7 @@ pub struct Config {
     pub user: UserConfig,
     pub display: DisplayConfig,
     pub pomodoro: PomodoroConfig,
+    pub obsidian: ObsidianConfig,
     pub themes: HashMap<String, ThemeConfig>,
 }
 
@@ -81,6 +82,18 @@ pub struct PomodoroConfig {
     pub sound_break_to_work: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ObsidianConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub vault_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub activity_category: Option<String>,
+    #[serde(default)]
+    pub comment_category: Option<String>,
+}
+
 /// Serde-compatible wrapper for chrono::Weekday.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -125,6 +138,7 @@ impl Default for Config {
                 theme: default_theme_name(),
             },
             pomodoro: PomodoroConfig::default(),
+            obsidian: ObsidianConfig::default(),
             themes: HashMap::new(),
         }
     }
