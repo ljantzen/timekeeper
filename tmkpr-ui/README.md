@@ -112,7 +112,7 @@ The dashboard shows:
 | `d` | Delete selected comment |
 | `q` / `Esc` | Return to main view |
 
-### Forms (start, edit, add project, add task)
+### Forms (start, edit, filter, add project, add task)
 
 | Key | Action |
 |-----|--------|
@@ -121,6 +121,7 @@ The dashboard shows:
 | `↓` | On completion fields: select next suggestion in dropdown |
 | `↑` | On completion fields: select previous suggestion in dropdown |
 | `Enter` | Accept highlighted completion and advance field; submit on the last field |
+| `Space` | On toggle fields: flip `[✓] On` / `[ ] Off` |
 | `Esc` | Cancel |
 
 Project and task fields show a dropdown of matching names as you type. Use `↓`/`↑` to highlight a suggestion, then `Tab` or `Enter` to accept it.
@@ -138,6 +139,28 @@ Press `n` to add a past or off-session entry (only available when no timer is ac
 | End | Same format as Start; leave blank to create an active (running) entry |
 | Tags | Comma-separated list |
 | Snap to existing activities | Toggle with `Space` — when on, the start and end times are snapped to the nearest boundary of an existing entry |
+
+### Filter dialogs
+
+Accessible via `f` from the main view, the project list, or the task list. Each opens a small form scoped to its context:
+
+- **Entry filter** — project name and date range (e.g. `today`, `this week`, `2024-06-01..2024-06-30`)
+- **Project filter** — show or hide archived projects
+- **Task filter** — filter by project, show/hide archived and completed tasks
+
+Submit with `Enter` on the last field; cancel with `Esc`.
+
+### Help dialog
+
+Press `?` to open the help reference. The dialog is scrollable when content exceeds the visible area.
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Scroll down |
+| `k` / `↑` | Scroll up |
+| `Page Down` | Scroll down 10 lines |
+| `Page Up` | Scroll up 10 lines |
+| Any other key | Close |
 
 ### Delete confirmation
 
