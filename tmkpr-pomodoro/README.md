@@ -16,7 +16,12 @@ Terminal-based Pomodoro timer integrated with the tmkpr time tracking database. 
 
 - **Pomodoro Timer**: 25-minute work sessions with 5-minute breaks (configurable)
 - **Long Breaks**: Automatic longer breaks after N work sessions (default: 15 minutes after 4 sessions)
-- **Project & Task Selection**: Choose from projects and tasks stored in your tmkpr database
+- **Project & Task Management**: 
+  - Select from projects and tasks stored in your tmkpr database
+  - Create new projects and tasks inline
+  - Edit project and task names
+  - Delete projects and tasks with confirmation
+- **Task Filtering**: Hide or show completed tasks with a single keypress
 - **Session Logging**: Automatically log completed work sessions to the database
 - **Configurable Notifications**:
   - Audio file playback on session transitions (configurable per transition)
@@ -72,6 +77,8 @@ TMKPR_THEME=catppuccin_mocha tmkpr-pomodoro
 
 #### Main Screen
 
+**Navigation & Timer**
+
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Select project |
@@ -79,11 +86,37 @@ TMKPR_THEME=catppuccin_mocha tmkpr-pomodoro
 | `Enter` | Start work session |
 | `B` | Start break (short or long) |
 | `Space` | Pause / Resume |
-| `C` | Toggle selected task complete / reactivate |
 | `L` | Log current session to database |
 | `R` | Reset timer |
+
+**Project & Task Management**
+
+| Key | Action |
+|-----|--------|
+| `P` | Create new project |
+| `N` | Create new task in selected project |
+| `E` | Edit selected project or task name |
+| `D` | Delete selected project or task (with confirmation) |
+| `C` | Toggle selected task complete / reactivate |
+| `H` | Hide / show completed tasks |
+
+**Other**
+
+| Key | Action |
+|-----|--------|
 | `S` | Open settings |
 | `Q` / `Esc` | Quit (only when stopped) |
+
+**Creating & Editing Projects and Tasks**
+
+When creating or editing, a text input field appears in the Projects or Tasks column:
+
+- Type your text
+- Press `Enter` to save
+- Press `Esc` to cancel
+- Backspace works to delete characters
+
+When editing, the field is pre-populated with the current name. Delete and recreate if you need to replace entirely.
 
 #### Settings Screen
 
@@ -194,23 +227,30 @@ message_timeout_secs = 2
 ## UI Layout
 
 ```
-┌─ Timer ─────────────────────────────────┐
-│           12:34 / 25:00 [RUNNING]       │
-│                Session 2 of 4           │
-└─────────────────────────────────────────┘
-┌─ Projects ──────┬─ Tasks ──────────────┐
-│  ▶ Project A    │  ▶ Task 1            │
-│    Project B    │    Task 2            │
-│    Project C    │    Task 3            │
-└─────────────────┴──────────────────────┘
-┌─ Status ────────────────────────────────┐
-│  Timer running...                        │
-└─────────────────────────────────────────┘
-┌─ Help ──────────────────────────────────┐
-│  ↑↓: Select project  |  ←→: Select task │
-│  Enter: Start   Space: Pause   S: Sett  │
-└─────────────────────────────────────────┘
+┌─ Timer ─────────────────────────────────────────────────────┐
+│                12:34 / 25:00 [RUNNING]                      │
+│                     Session 2 of 4                          │
+└─────────────────────────────────────────────────────────────┘
+┌─ Projects ──────────────┬─ Tasks ─────────────┬─ Completed ─┐
+│  ▶ Project A            │  ▶ Task 1           │ #1 10:00    │
+│    Project B            │    Task 2           │ #2  5:45    │
+│    Project C            │    Task 3 ✓         │             │
+└─────────────────────────┴─────────────────────┴─────────────┘
+┌─ Status ────────────────────────────────────────────────────┐
+│  Timer running...                                            │
+└─────────────────────────────────────────────────────────────┘
+┌─ Help ──────────────────────────────────────────────────────┐
+│  ↑↓: Project  |  ←→: Task  |  Enter: Work  |  B: Break     │
+│  N: New task  |  P: New project  |  E: Edit  |  D: Delete   │
+│  H: Hide completed  |  C: Complete  |  S: Settings  |  Q: Quit
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**Completed Task Filtering**
+
+The Tasks column title changes when filters are active:
+- `Tasks` — all tasks visible
+- `Tasks (completed hidden)` — only incomplete tasks shown
 
 ## Database Integration
 
