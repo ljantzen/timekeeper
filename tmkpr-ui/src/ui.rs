@@ -497,14 +497,6 @@ fn render_form_modal(
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let text = if focused {
-            let before = &field.value[..field.cursor];
-            let after = &field.value[field.cursor..];
-            format!("{before}█{after}")
-        } else {
-            field.value.clone()
-        };
-
         let value_color = field
             .completions
             .iter()
@@ -513,9 +505,40 @@ fn render_form_modal(
             .and_then(|c| c.as_deref())
             .and_then(parse_hex_color);
 
-        let display = match value_color {
-            Some(c) => Line::from(Span::styled(text, Style::default().fg(c))),
-            None => Line::from(text),
+        let display = if focused {
+            let before = &field.value[..field.cursor];
+            let remaining = &field.value[field.cursor..];
+            let char_at_cursor = remaining.chars().next().unwrap_or(' ');
+            let char_len = if remaining.is_empty() { 0 } else { char_at_cursor.len_utf8() };
+            let after = &remaining[char_len..];
+
+            let mut spans = vec![];
+
+            if !before.is_empty() {
+                spans.push(match value_color {
+                    Some(c) => Span::styled(before, Style::default().fg(c)),
+                    None => Span::raw(before),
+                });
+            }
+
+            spans.push(Span::styled(
+                char_at_cursor.to_string(),
+                Style::default().reversed(),
+            ));
+
+            if !after.is_empty() {
+                spans.push(match value_color {
+                    Some(c) => Span::styled(after, Style::default().fg(c)),
+                    None => Span::raw(after),
+                });
+            }
+
+            Line::from(spans)
+        } else {
+            match value_color {
+                Some(c) => Line::from(Span::styled(field.value.clone(), Style::default().fg(c))),
+                None => Line::from(field.value.clone()),
+            }
         };
 
         frame.render_widget(Paragraph::new(display).block(field_block), field_chunks[i]);
