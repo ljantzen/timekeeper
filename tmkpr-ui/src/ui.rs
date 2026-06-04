@@ -92,7 +92,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::EditComment => render_edit_comment(frame, app, area),
         ModeKind::ConfirmCreate => render_confirm_create(frame, app, area),
         ModeKind::ConfirmDeleteProject => render_confirm_delete_project(frame, app, area),
-        ModeKind::Help => render_help(frame, area, &app.theme),
+        ModeKind::Help => render_help(frame, app, area),
         ModeKind::Settings => render_settings(frame, app, area),
         ModeKind::Normal | ModeKind::Command => {}
     }
@@ -943,7 +943,13 @@ fn render_confirm_create(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
+fn render_help(frame: &mut Frame, app: &App, area: Rect) {
+    let scroll = match &app.mode {
+        AppMode::Help { scroll } => *scroll,
+        _ => 0,
+    };
+
+    let theme = &app.theme;
     let popup_area = centered_rect(layout::ADD_PROJECT_WIDTH, 80, area);
     frame.render_widget(Clear, popup_area);
     let block = Block::default()
@@ -1090,8 +1096,9 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             ]),
             Line::from(vec![Span::styled("  q/Esc  ", bold), Span::raw("Quit")]),
             Line::from(""),
-            Line::from(Span::styled("Any key to close", dim)),
-        ]),
+            Line::from(Span::styled("j/k or ↑↓ scroll  •  any other key to close", dim)),
+        ])
+        .scroll((scroll, 0)),
         inner,
     );
 }

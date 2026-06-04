@@ -380,7 +380,7 @@ pub enum AppMode {
         name: String,
     },
     AddManualEntry(Form),
-    Help,
+    Help { scroll: u16 },
     Settings {
         cursor: usize,
         theme_names: Vec<String>,
@@ -444,7 +444,7 @@ impl AppMode {
             AppMode::ConfirmCreate { .. } => ModeKind::ConfirmCreate,
             AppMode::ConfirmDeleteProject { .. } => ModeKind::ConfirmDeleteProject,
             AppMode::AddManualEntry(_) => ModeKind::AddManualEntry,
-            AppMode::Help => ModeKind::Help,
+            AppMode::Help { .. } => ModeKind::Help,
             AppMode::Settings { .. } => ModeKind::Settings,
         }
     }

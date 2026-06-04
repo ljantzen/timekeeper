@@ -31,10 +31,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::ConfirmDeleteProject => handle_confirm_delete_project(app, key),
         ModeKind::AddManualEntry => handle_add_manual_entry(app, key),
         ModeKind::Settings => handle_settings(app, key),
-        ModeKind::Help => {
-            app.mode = AppMode::Normal;
-            Ok(())
-        }
+        ModeKind::Help => handle_help(app, key),
     }
 }
 
@@ -150,7 +147,7 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             app.open_settings();
         }
         KeyCode::Char('?') => {
-            app.mode = AppMode::Help;
+            app.mode = AppMode::Help { scroll: 0 };
         }
         KeyCode::Char(':') => {
             app.enter_command_mode();
@@ -805,6 +802,19 @@ fn handle_edit_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     app.status = Some((e.to_string(), true));
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+fn handle_help(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    if let AppMode::Help { scroll } = &mut app.mode {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => *scroll = scroll.saturating_add(1),
+            KeyCode::Char('k') | KeyCode::Up => *scroll = scroll.saturating_sub(1),
+            KeyCode::PageDown => *scroll = scroll.saturating_add(10),
+            KeyCode::PageUp => *scroll = scroll.saturating_sub(10),
+            _ => app.mode = AppMode::Normal,
         }
     }
     Ok(())
