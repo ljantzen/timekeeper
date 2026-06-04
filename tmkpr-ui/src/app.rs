@@ -381,6 +381,18 @@ pub enum AppMode {
     },
     AddManualEntry(Form),
     Help,
+    Settings {
+        cursor: usize,
+        theme_names: Vec<String>,
+        theme_idx: usize,
+        date_fmt_idx: usize,
+        week_start: chrono::Weekday,
+        obs_enabled: bool,
+        obs_vault: String,
+        obs_activity: String,
+        obs_comment: String,
+        text_editing: bool,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -406,6 +418,7 @@ pub enum ModeKind {
     ConfirmDeleteProject,
     AddManualEntry,
     Help,
+    Settings,
 }
 
 impl AppMode {
@@ -432,6 +445,7 @@ impl AppMode {
             AppMode::ConfirmDeleteProject { .. } => ModeKind::ConfirmDeleteProject,
             AppMode::AddManualEntry(_) => ModeKind::AddManualEntry,
             AppMode::Help => ModeKind::Help,
+            AppMode::Settings { .. } => ModeKind::Settings,
         }
     }
 }
@@ -468,7 +482,7 @@ pub struct App {
 }
 
 /// Display name → chrono format string pairs for the `:set date-format` command.
-const DATE_FORMAT_PRESETS: &[(&str, &str)] = &[
+pub const DATE_FORMAT_PRESETS: &[(&str, &str)] = &[
     ("YYYY-MM-DD HH:MM", "%Y-%m-%d %H:%M"),
     ("DD-MM-YYYY HH:MM", "%d-%m-%Y %H:%M"),
     ("MM-DD-YYYY HH:MM", "%m-%d-%Y %H:%M"),
@@ -2405,6 +2419,106 @@ impl App {
     fn refresh_week_report(&mut self) -> anyhow::Result<()> {
         let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
         self.week_report = svc.week_report(self.displayed_week_year, self.displayed_week_num, false).ok();
+        Ok(())
+    }
+
+    pub fn open_settings(&mut self) {
+        let mut theme_names: Vec<String> = crate::theme::Theme::builtin_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        for name in self.themes.keys() {
+            if !theme_names.contains(name) {
+                theme_names.push(name.clone());
+            }
+        }
+        theme_names.sort();
+
+        let theme_idx = theme_names
+            .iter()
+            .position(|n| n == &self.theme_name)
+            .unwrap_or(0);
+
+        let date_fmt_idx = DATE_FORMAT_PRESETS
+            .iter()
+            .position(|(_, fmt)| *fmt == self.date_format)
+            .unwrap_or(0);
+
+        let obs = &self.config.obsidian;
+        let obs_vault = obs
+            .vault_dir
+            .as_ref()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let obs_activity = obs.activity_category.clone().unwrap_or_default();
+        let obs_comment = obs.comment_category.clone().unwrap_or_default();
+
+        self.mode = AppMode::Settings {
+            cursor: 0,
+            theme_names,
+            theme_idx,
+            date_fmt_idx,
+            week_start: self.week_start,
+            obs_enabled: self.config.obsidian.enabled,
+            obs_vault,
+            obs_activity,
+            obs_comment,
+            text_editing: false,
+        };
+    }
+
+    pub fn settings_save(&mut self) -> anyhow::Result<()> {
+        let AppMode::Settings {
+            theme_names,
+            theme_idx,
+            date_fmt_idx,
+            week_start,
+            obs_enabled,
+            obs_vault,
+            obs_activity,
+            obs_comment,
+            ..
+        } = &self.mode
+        else {
+            return Ok(());
+        };
+
+        let theme_name = theme_names.get(*theme_idx).cloned().unwrap_or_default();
+        let date_format = DATE_FORMAT_PRESETS
+            .get(*date_fmt_idx)
+            .map(|(_, fmt)| fmt.to_string())
+            .unwrap_or_else(|| self.date_format.clone());
+        let week_start = *week_start;
+        let obs_enabled = *obs_enabled;
+        let obs_vault = obs_vault.clone();
+        let obs_activity = obs_activity.clone();
+        let obs_comment = obs_comment.clone();
+
+        // Apply to live state
+        let themes = self.themes.clone();
+        self.theme = crate::theme::Theme::resolve(&theme_name, &themes);
+        self.theme_name = theme_name.clone();
+        self.date_format = date_format.clone();
+        self.week_start = week_start;
+
+        // Apply to config struct and write to disk
+        self.config.display.theme = theme_name;
+        self.config.display.date_format = date_format;
+        self.config.display.week_start = weekday_to_def(week_start);
+        self.config.obsidian.enabled = obs_enabled;
+        self.config.obsidian.vault_dir = if obs_vault.is_empty() {
+            None
+        } else {
+            Some(std::path::PathBuf::from(&obs_vault))
+        };
+        self.config.obsidian.activity_category =
+            if obs_activity.is_empty() { None } else { Some(obs_activity) };
+        self.config.obsidian.comment_category =
+            if obs_comment.is_empty() { None } else { Some(obs_comment) };
+
+        self.config.save()?;
+        self.mode = AppMode::Normal;
+        self.status = Some(("Settings saved.".into(), false));
         Ok(())
     }
 }

@@ -30,6 +30,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::ConfirmCreate => handle_confirm_create(app, key),
         ModeKind::ConfirmDeleteProject => handle_confirm_delete_project(app, key),
         ModeKind::AddManualEntry => handle_add_manual_entry(app, key),
+        ModeKind::Settings => handle_settings(app, key),
         ModeKind::Help => {
             app.mode = AppMode::Normal;
             Ok(())
@@ -144,6 +145,9 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             if let Err(e) = app.next_week() {
                 app.status = Some((e.to_string(), true));
             }
+        }
+        KeyCode::Char('i') => {
+            app.open_settings();
         }
         KeyCode::Char('?') => {
             app.mode = AppMode::Help;
@@ -804,4 +808,148 @@ fn handle_edit_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn handle_settings(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+
+    // Text-editing sub-mode: intercept all keys before normal navigation.
+    if let AppMode::Settings {
+        cursor,
+        text_editing,
+        obs_vault,
+        obs_activity,
+        obs_comment,
+        ..
+    } = &mut app.mode
+    {
+        if *text_editing {
+            match key.code {
+                KeyCode::Esc | KeyCode::Enter => {
+                    *text_editing = false;
+                }
+                KeyCode::Char(c)
+                    if !key.modifiers.contains(KeyModifiers::CONTROL)
+                        && !key.modifiers.contains(KeyModifiers::ALT) =>
+                {
+                    match cursor {
+                        4 => obs_vault.push(c),
+                        5 => obs_activity.push(c),
+                        6 => obs_comment.push(c),
+                        _ => {}
+                    }
+                }
+                KeyCode::Backspace => match cursor {
+                    4 => { obs_vault.pop(); }
+                    5 => { obs_activity.pop(); }
+                    6 => { obs_comment.pop(); }
+                    _ => {}
+                },
+                _ => {}
+            }
+            return Ok(());
+        }
+    }
+
+    match key.code {
+        KeyCode::Esc => {
+            // Restore the pre-settings theme (in case of live preview).
+            let prev = app.theme_name.clone();
+            let themes = app.themes.clone();
+            app.theme = crate::theme::Theme::resolve(&prev, &themes);
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if let AppMode::Settings { cursor, .. } = &mut app.mode {
+                *cursor = (*cursor + 1) % 7;
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if let AppMode::Settings { cursor, .. } = &mut app.mode {
+                *cursor = (*cursor + 6) % 7;
+            }
+        }
+        KeyCode::Left | KeyCode::Char('h') => settings_adjust(app, -1),
+        KeyCode::Right | KeyCode::Char('l') | KeyCode::Char(' ') => settings_adjust(app, 1),
+        KeyCode::Enter => {
+            let is_text_row = matches!(&app.mode, AppMode::Settings { cursor, .. } if *cursor >= 4);
+            if is_text_row {
+                if let AppMode::Settings { text_editing, .. } = &mut app.mode {
+                    *text_editing = true;
+                }
+            } else {
+                if let Err(e) = app.settings_save() {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+        KeyCode::Char('s') => {
+            if let Err(e) = app.settings_save() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn settings_adjust(app: &mut App, delta: i64) {
+    use chrono::Weekday;
+    const WEEKDAYS: [Weekday; 7] = [
+        Weekday::Mon,
+        Weekday::Tue,
+        Weekday::Wed,
+        Weekday::Thu,
+        Weekday::Fri,
+        Weekday::Sat,
+        Weekday::Sun,
+    ];
+
+    let theme_preview: Option<String> = {
+        let AppMode::Settings {
+            cursor,
+            theme_names,
+            theme_idx,
+            date_fmt_idx,
+            week_start,
+            obs_enabled,
+            ..
+        } = &mut app.mode
+        else {
+            return;
+        };
+        match *cursor {
+            0 => {
+                let n = theme_names.len();
+                if n > 0 {
+                    *theme_idx = ((*theme_idx as i64 + delta).rem_euclid(n as i64)) as usize;
+                }
+                theme_names.get(*theme_idx).cloned()
+            }
+            1 => {
+                let n = crate::app::DATE_FORMAT_PRESETS.len();
+                *date_fmt_idx =
+                    ((*date_fmt_idx as i64 + delta).rem_euclid(n as i64)) as usize;
+                None
+            }
+            2 => {
+                let idx = WEEKDAYS
+                    .iter()
+                    .position(|&d| d == *week_start)
+                    .unwrap_or(0);
+                *week_start =
+                    WEEKDAYS[((idx as i64 + delta).rem_euclid(7)) as usize];
+                None
+            }
+            3 => {
+                *obs_enabled = !*obs_enabled;
+                None
+            }
+            _ => None,
+        }
+    };
+
+    if let Some(name) = theme_preview {
+        let themes = app.themes.clone();
+        app.theme = crate::theme::Theme::resolve(&name, &themes);
+    }
 }

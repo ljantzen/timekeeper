@@ -25,6 +25,8 @@ mod layout {
     pub const FILTER_PROJECTS_WIDTH: u16 = 65;
     pub const COMMENTS_WIDTH: u16 = 70;
     pub const ADD_COMMENT_WIDTH: u16 = 35;
+    pub const SETTINGS_WIDTH: u16 = 62;
+    pub const SETTINGS_HEIGHT: u16 = 80;
 }
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
@@ -91,6 +93,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::ConfirmCreate => render_confirm_create(frame, app, area),
         ModeKind::ConfirmDeleteProject => render_confirm_delete_project(frame, app, area),
         ModeKind::Help => render_help(frame, area, &app.theme),
+        ModeKind::Settings => render_settings(frame, app, area),
         ModeKind::Normal | ModeKind::Command => {}
     }
 }
@@ -499,9 +502,9 @@ fn render_form_modal(
             .border_style(border_style);
 
         let display = if matches!(field.kind, FieldKind::Toggle) {
-            let mark = if field.is_on() { "x" } else { " " };
+            let state = if field.is_on() { "[✓] On" } else { "[ ] Off" };
             let hint = if focused { "  Space to toggle" } else { "" };
-            Line::from(format!("[{}]{}", mark, hint))
+            Line::from(format!("{}{}", state, hint))
         } else {
             let value_color = field
                 .completions
@@ -1078,6 +1081,10 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             Line::from(""),
             Line::from(Span::styled("General", bold)),
             Line::from(vec![
+                Span::styled("  i      ", bold),
+                Span::raw("Settings (theme, date format, Obsidian, …)"),
+            ]),
+            Line::from(vec![
                 Span::styled("  ?      ", bold),
                 Span::raw("This help screen"),
             ]),
@@ -1210,4 +1217,124 @@ fn render_edit_comment(frame: &mut Frame, app: &App, area: Rect) {
         let title = format!(" Edit Comment: {display} ");
         render_form_modal(frame, area, &title, 35, form, &app.theme);
     }
+}
+
+fn render_settings(frame: &mut Frame, app: &App, area: Rect) {
+    let AppMode::Settings {
+        cursor,
+        theme_names,
+        theme_idx,
+        date_fmt_idx,
+        week_start,
+        obs_enabled,
+        obs_vault,
+        obs_activity,
+        obs_comment,
+        text_editing,
+    } = &app.mode
+    else {
+        return;
+    };
+
+    let popup_area = centered_rect(layout::SETTINGS_WIDTH, layout::SETTINGS_HEIGHT, area);
+    frame.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .title(" Settings ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.border))
+        .style(Style::default().bg(app.theme.bg));
+    let inner = block.inner(popup_area);
+    frame.render_widget(block, popup_area);
+
+    let accent = app.theme.accent;
+    let dim = app.theme.dim;
+
+    let sel = |text: String, selected: bool| -> Line {
+        if selected {
+            Line::from(Span::styled(
+                text,
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            ))
+        } else {
+            Line::from(text)
+        }
+    };
+
+    let text_row = |label: &str, value: &str, row: usize, editing: bool| -> Line {
+        let selected = *cursor == row;
+        let display = if editing && selected {
+            format!("  {:<22} {}█", label, value)
+        } else {
+            format!("  {:<22} {}", label, value)
+        };
+        sel(display, selected)
+    };
+
+    let theme_label = theme_names
+        .get(*theme_idx)
+        .map(|s| s.as_str())
+        .unwrap_or("default");
+    let date_label = crate::app::DATE_FORMAT_PRESETS
+        .get(*date_fmt_idx)
+        .map(|(display, _)| *display)
+        .unwrap_or("");
+    let week_label = match week_start {
+        chrono::Weekday::Mon => "Mon",
+        chrono::Weekday::Tue => "Tue",
+        chrono::Weekday::Wed => "Wed",
+        chrono::Weekday::Thu => "Thu",
+        chrono::Weekday::Fri => "Fri",
+        chrono::Weekday::Sat => "Sat",
+        chrono::Weekday::Sun => "Sun",
+    };
+
+    let hint = if *text_editing {
+        "  Type to edit   Backspace: delete   Enter/Esc: done"
+    } else {
+        "  ←→ adjust   Space/←→: toggle   Enter: edit text   s: save   Esc: cancel"
+    };
+
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Display",
+            Style::default().fg(dim).add_modifier(Modifier::BOLD),
+        )),
+        sel(
+            format!("  {:<22} ◀  {}  ▶", "Theme:", theme_label),
+            *cursor == 0,
+        ),
+        sel(
+            format!("  {:<22} ◀  {}  ▶", "Date format:", date_label),
+            *cursor == 1,
+        ),
+        sel(
+            format!("  {:<22} ◀  {}  ▶", "Week start:", week_label),
+            *cursor == 2,
+        ),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Obsidian logging",
+            Style::default().fg(dim).add_modifier(Modifier::BOLD),
+        )),
+        sel(
+            format!(
+                "  {:<22} {}",
+                "Enabled:",
+                if *obs_enabled { "[✓] On" } else { "[ ] Off" }
+            ),
+            *cursor == 3,
+        ),
+        text_row("Vault directory:", obs_vault, 4, *text_editing),
+        text_row("Activity category:", obs_activity, 5, *text_editing),
+        text_row("Comment category:", obs_comment, 6, *text_editing),
+        Line::from(""),
+        Line::from(Span::styled(hint, Style::default().fg(dim))),
+    ];
+
+    // Keep section headers and hint un-bold when a row in that section is selected.
+    // (They are already plain Span::styled with dim color — no change needed.)
+
+    frame.render_widget(Paragraph::new(lines), inner);
 }
