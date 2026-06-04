@@ -1,4 +1,4 @@
-use crate::app::{App, CompletedSession, EditMode, Screen, SoundField, TimerState};
+use crate::app::{App, EditMode, Screen, SoundField, TimerState};
 
 fn hex_to_rgb(hex: &str) -> Option<Color> {
     let h = hex.trim_start_matches('#');
@@ -57,7 +57,7 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     draw_projects(f, app, selection_chunks[0]);
     draw_tasks(f, app, selection_chunks[1]);
-    draw_sessions(f, app, selection_chunks[2]);
+    draw_queue(f, app, selection_chunks[2]);
 
     // Status bar
     draw_status(f, app, chunks[2]);
@@ -264,33 +264,25 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(list, area);
 }
 
-fn draw_sessions(f: &mut Frame, app: &App, area: Rect) {
-    let sessions: &[CompletedSession] = app.completed_sessions();
-    let total = sessions.len();
+fn draw_queue(f: &mut Frame, app: &App, area: Rect) {
+    let queue = app.task_queue();
+    let selected = app.selected_queue_idx();
 
-    let items: Vec<ListItem> = sessions
+    let items: Vec<ListItem> = queue
         .iter()
-        .rev()
         .enumerate()
-        .map(|(idx, s)| {
-            let num = total - idx;
-            let mins = s.duration.as_secs() / 60;
-            let secs = s.duration.as_secs() % 60;
-            let proj_color = s
-                .color
-                .as_deref()
-                .and_then(hex_to_rgb)
-                .unwrap_or(Color::White);
-            let line = if s.project.is_empty() {
-                Line::from(format!("#{num}  {mins:02}:{secs:02}"))
+        .map(|(idx, task)| {
+            let is_selected = idx == selected;
+            let prefix = if is_selected { "▶ " } else { "  " };
+            let style = if is_selected {
+                Style::default()
+                    .fg(app.theme().accent)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                Line::from(vec![
-                    Span::raw(format!("#{num}  ")),
-                    Span::styled(&*s.project, Style::default().fg(proj_color)),
-                    Span::raw(format!(" / {} ({mins:02}:{secs:02})", s.task)),
-                ])
+                Style::default().fg(Color::White)
             };
-            ListItem::new(line)
+            let label = format!("{prefix}{}", task.name);
+            ListItem::new(Line::from(Span::styled(label, style)))
         })
         .collect();
 
@@ -299,7 +291,7 @@ fn draw_sessions(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(app.theme().border))
-                .title("Completed"),
+                .title("Queue"),
         )
         .style(Style::default().fg(Color::White));
 
@@ -483,8 +475,8 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     let help_text = [
-        "↑↓: Project  |  ←→: Task  |  Enter: Work  |  B: Break  |  Space: Pause  |  C: Complete",
-        "N: New task  |  P: New project  |  E: Edit  |  D: Delete  |  H: Hide completed  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
+        "↑↓: Project  |  ←→: Task  |  Enter: Work  |  W: Queue next  |  B: Break  |  Space: Pause  |  C: Complete",
+        "N: New task  |  P: New project  |  E: Edit  |  D: Delete  |  H: Hide completed  |  +/−: Queue  |  {}: Reorder  |  L: Log  |  S: Settings  |  Q: Quit",
     ];
 
     let help = Paragraph::new(help_text.join("\n"))

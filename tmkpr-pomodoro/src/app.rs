@@ -11,14 +11,6 @@ use tmkpr_lib::{
 
 use crate::theme::Theme;
 
-#[derive(Clone, Debug)]
-pub struct CompletedSession {
-    pub project: String,
-    pub task: String,
-    pub duration: Duration,
-    pub color: Option<String>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SoundField {
     WorkToBreak,
@@ -85,7 +77,8 @@ pub struct App<'a> {
     edit_buf: String,
     delete_target: Option<&'static str>,
     hide_completed_tasks: bool,
-    completed_sessions: Vec<CompletedSession>,
+    task_queue: Vec<Task>,
+    selected_queue_idx: usize,
     theme: Theme,
 }
 
@@ -147,7 +140,8 @@ impl<'a> App<'a> {
             edit_buf: String::new(),
             delete_target: None,
             hide_completed_tasks,
-            completed_sessions: Vec::new(),
+            task_queue: Vec::new(),
+            selected_queue_idx: 0,
             theme,
         })
     }
@@ -228,7 +222,17 @@ impl<'a> App<'a> {
 
             if is_long_break {
                 let svc = EntryService::new(self.storage, self.user_id);
-                let _ = svc.stop(None);
+                if let Ok(entry) = svc.stop(None) {
+                    let proj = self.selected_project().map(|p| p.name.as_str());
+                    let task = self.selected_task().map(|t| t.name.as_str());
+                    let _ = obsidian_logger::log_activity_to_obsidian(
+                        &self.config,
+                        &entry,
+                        proj,
+                        task,
+                        obsidian_logger::ActivityAction::Stopped,
+                    );
+                }
             }
 
             self.timer_state = TimerState::Break;
@@ -267,7 +271,7 @@ impl<'a> App<'a> {
 
     pub fn log_session(&mut self) -> Result<()> {
         if self.timer_state != TimerState::Stopped && self.elapsed > Duration::ZERO {
-            let elapsed = self.elapsed;
+            let _elapsed = self.elapsed;
             let proj = self
                 .selected_project()
                 .map(|p| p.name.clone())
@@ -276,7 +280,7 @@ impl<'a> App<'a> {
                 .selected_task()
                 .map(|t| t.name.clone())
                 .unwrap_or_default();
-            let color = self.selected_project().and_then(|p| p.color.clone());
+            let _color = self.selected_project().and_then(|p| p.color.clone());
 
             let svc = EntryService::new(self.storage, self.user_id);
             let entry = svc.stop(None)?;
@@ -291,16 +295,6 @@ impl<'a> App<'a> {
                 obsidian_logger::ActivityAction::Stopped,
             );
 
-            self.completed_sessions.push(CompletedSession {
-                project: proj,
-                task,
-                duration: elapsed,
-                color,
-            });
-            if self.completed_sessions.len() > 20 {
-                self.completed_sessions.remove(0);
-            }
-
             self.message = Some("Session logged!".to_string());
             self.reset();
             Ok(())
@@ -312,7 +306,17 @@ impl<'a> App<'a> {
 
     pub fn reset(&mut self) {
         let svc = EntryService::new(self.storage, self.user_id);
-        let _ = svc.stop(None);
+        if let Ok(entry) = svc.stop(None) {
+            let proj = self.selected_project().map(|p| p.name.as_str());
+            let task = self.selected_task().map(|t| t.name.as_str());
+            let _ = obsidian_logger::log_activity_to_obsidian(
+                &self.config,
+                &entry,
+                proj,
+                task,
+                obsidian_logger::ActivityAction::Stopped,
+            );
+        }
 
         self.timer_state = TimerState::Stopped;
         self.elapsed = Duration::ZERO;
@@ -528,25 +532,22 @@ impl<'a> App<'a> {
                         .selected_task()
                         .map(|t| t.name.clone())
                         .unwrap_or_default();
-                    let color = self.selected_project().and_then(|p| p.color.clone());
-                    self.completed_sessions.push(CompletedSession {
-                        project: proj,
-                        task,
-                        duration: self.work_duration,
-                        color,
-                    });
-                    if self.completed_sessions.len() > 20 {
-                        self.completed_sessions.remove(0);
-                    }
-
                     self.work_sessions_completed += 1;
                     let is_long_break = self
                         .work_sessions_completed
                         .is_multiple_of(self.sessions_before_long_break);
 
-                    if is_long_break {
-                        let svc = EntryService::new(self.storage, self.user_id);
-                        let _ = svc.stop(None);
+                    let svc = EntryService::new(self.storage, self.user_id);
+                    if let Ok(entry) = svc.stop(None) {
+                        let proj_name = if proj.is_empty() { None } else { Some(proj.as_str()) };
+                        let task_name = if task.is_empty() { None } else { Some(task.as_str()) };
+                        let _ = obsidian_logger::log_activity_to_obsidian(
+                            &self.config,
+                            &entry,
+                            proj_name,
+                            task_name,
+                            obsidian_logger::ActivityAction::Stopped,
+                        );
                     }
 
                     if self.auto_start_break {
@@ -680,10 +681,6 @@ impl<'a> App<'a> {
 
     pub fn sessions_before_long(&self) -> u64 {
         self.sessions_before_long_break
-    }
-
-    pub fn completed_sessions(&self) -> &[CompletedSession] {
-        &self.completed_sessions
     }
 
     pub fn is_new_task_editing(&self) -> bool {
@@ -973,6 +970,104 @@ impl<'a> App<'a> {
             .iter()
             .filter(|t| !self.hide_completed_tasks || !t.completed)
             .collect()
+    }
+
+    pub fn add_selected_task_to_queue(&mut self) {
+        let task_to_add = self.selected_task().cloned();
+        if let Some(task) = task_to_add {
+            if !self.task_queue.iter().any(|t| t.id == task.id) {
+                self.task_queue.push(task.clone());
+                self.message = Some(format!("Added '{}' to queue.", task.name));
+            } else {
+                self.message = Some("Task already in queue.".to_string());
+            }
+        }
+    }
+
+    pub fn remove_from_queue(&mut self) {
+        if !self.task_queue.is_empty() {
+            let removed = self.task_queue.remove(self.selected_queue_idx);
+            self.selected_queue_idx = self.selected_queue_idx.saturating_sub(1);
+            self.message = Some(format!("Removed '{}' from queue.", removed.name));
+        }
+    }
+
+    pub fn move_queue_up(&mut self) {
+        if !self.task_queue.is_empty() && self.selected_queue_idx > 0 {
+            self.task_queue.swap(self.selected_queue_idx, self.selected_queue_idx - 1);
+            self.selected_queue_idx -= 1;
+        }
+    }
+
+    pub fn move_queue_down(&mut self) {
+        if !self.task_queue.is_empty() && self.selected_queue_idx < self.task_queue.len() - 1 {
+            self.task_queue.swap(self.selected_queue_idx, self.selected_queue_idx + 1);
+            self.selected_queue_idx += 1;
+        }
+    }
+
+    pub fn select_next_queue(&mut self) {
+        if !self.task_queue.is_empty() {
+            self.selected_queue_idx = (self.selected_queue_idx + 1) % self.task_queue.len();
+        }
+    }
+
+    pub fn select_prev_queue(&mut self) {
+        if !self.task_queue.is_empty() {
+            self.selected_queue_idx = if self.selected_queue_idx == 0 {
+                self.task_queue.len() - 1
+            } else {
+                self.selected_queue_idx - 1
+            };
+        }
+    }
+
+    pub fn task_queue(&self) -> &[Task] {
+        &self.task_queue
+    }
+
+    pub fn selected_queue_idx(&self) -> usize {
+        self.selected_queue_idx
+    }
+
+    pub fn start_queue_task(&mut self) -> Result<()> {
+        if self.task_queue.is_empty() {
+            self.message = Some("Queue is empty.".to_string());
+            return Ok(());
+        }
+
+        let task = self.task_queue[self.selected_queue_idx].clone();
+        let project = self.projects.iter().find(|p| {
+            self.storage
+                .list_tasks(&p.id, false)
+                .unwrap_or_default()
+                .iter()
+                .any(|t| t.id == task.id)
+        });
+
+        if let Some(proj) = project {
+            if self.timer_state == TimerState::Stopped {
+                self.timer_state = TimerState::Running;
+                self.session_start = Some(Instant::now());
+                self.elapsed = Duration::ZERO;
+                let msg = format!("Timer started! Working on '{}'", task.name);
+                self.message = Some(msg);
+
+                let svc = EntryService::new(self.storage, self.user_id);
+                if let Ok(_entry) = svc.start(Some(&proj.name), Some(&task.name), None, vec![], None) {
+                    let _ = obsidian_logger::log_activity_to_obsidian(
+                        &self.config,
+                        &_entry,
+                        Some(&proj.name),
+                        Some(&task.name),
+                        obsidian_logger::ActivityAction::Started,
+                    );
+                }
+
+                self.remove_from_queue();
+            }
+        }
+        Ok(())
     }
 }
 
