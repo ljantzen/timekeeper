@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 use crate::app::{App, AppMode, ModeKind};
-use crate::form::Form;
+use crate::form::{FieldKind, Form};
 use crate::theme::Theme;
 
 // Layout constants
@@ -498,47 +498,53 @@ fn render_form_modal(
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let value_color = field
-            .completions
-            .iter()
-            .position(|c| c == &field.value)
-            .and_then(|i| field.completion_colors.get(i))
-            .and_then(|c| c.as_deref())
-            .and_then(parse_hex_color);
-
-        let display = if focused {
-            let before = &field.value[..field.cursor];
-            let remaining = &field.value[field.cursor..];
-            let char_at_cursor = remaining.chars().next().unwrap_or(' ');
-            let char_len = if remaining.is_empty() { 0 } else { char_at_cursor.len_utf8() };
-            let after = &remaining[char_len..];
-
-            let mut spans = vec![];
-
-            if !before.is_empty() {
-                spans.push(match value_color {
-                    Some(c) => Span::styled(before, Style::default().fg(c)),
-                    None => Span::raw(before),
-                });
-            }
-
-            spans.push(Span::styled(
-                char_at_cursor.to_string(),
-                Style::default().reversed(),
-            ));
-
-            if !after.is_empty() {
-                spans.push(match value_color {
-                    Some(c) => Span::styled(after, Style::default().fg(c)),
-                    None => Span::raw(after),
-                });
-            }
-
-            Line::from(spans)
+        let display = if matches!(field.kind, FieldKind::Toggle) {
+            let mark = if field.is_on() { "x" } else { " " };
+            let hint = if focused { "  Space to toggle" } else { "" };
+            Line::from(format!("[{}]{}", mark, hint))
         } else {
-            match value_color {
-                Some(c) => Line::from(Span::styled(field.value.clone(), Style::default().fg(c))),
-                None => Line::from(field.value.clone()),
+            let value_color = field
+                .completions
+                .iter()
+                .position(|c| c == &field.value)
+                .and_then(|i| field.completion_colors.get(i))
+                .and_then(|c| c.as_deref())
+                .and_then(parse_hex_color);
+
+            if focused {
+                let before = &field.value[..field.cursor];
+                let remaining = &field.value[field.cursor..];
+                let char_at_cursor = remaining.chars().next().unwrap_or(' ');
+                let char_len = if remaining.is_empty() { 0 } else { char_at_cursor.len_utf8() };
+                let after = &remaining[char_len..];
+
+                let mut spans = vec![];
+
+                if !before.is_empty() {
+                    spans.push(match value_color {
+                        Some(c) => Span::styled(before, Style::default().fg(c)),
+                        None => Span::raw(before),
+                    });
+                }
+
+                spans.push(Span::styled(
+                    char_at_cursor.to_string(),
+                    Style::default().reversed(),
+                ));
+
+                if !after.is_empty() {
+                    spans.push(match value_color {
+                        Some(c) => Span::styled(after, Style::default().fg(c)),
+                        None => Span::raw(after),
+                    });
+                }
+
+                Line::from(spans)
+            } else {
+                match value_color {
+                    Some(c) => Line::from(Span::styled(field.value.clone(), Style::default().fg(c))),
+                    None => Line::from(field.value.clone()),
+                }
             }
         };
 

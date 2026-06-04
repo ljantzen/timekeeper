@@ -1161,7 +1161,7 @@ impl App {
                 Field::new("Start (YYYY-MM-DD HH:MM or HH:MM)", &start_val),
                 Field::new("End (YYYY-MM-DD HH:MM or HH:MM)", ""),
                 Field::new("Tags (comma-separated)", ""),
-                Field::new("Snap to existing activities", ""),
+                Field::toggle("Snap to existing activities", false),
             ],
             focused: 0,
         });
@@ -1828,13 +1828,9 @@ impl App {
 
     pub fn open_project_filter_modal(&mut self) {
         self.mode = AppMode::FilterProjects(Form {
-            fields: vec![Field::new(
-                "Show archived projects? (y/n)",
-                if self.project_filter.hide_archived {
-                    "n"
-                } else {
-                    "y"
-                },
+            fields: vec![Field::toggle(
+                "Show archived projects",
+                !self.project_filter.hide_archived,
             )],
             focused: 0,
         });
@@ -2053,22 +2049,8 @@ impl App {
                 Field::new("Filter by project (empty = all)", &project_filter)
                     .with_completions(projects)
                     .with_completion_colors(project_colors),
-                Field::new(
-                    "Show archived tasks? (y/n)",
-                    if self.task_filter.hide_archived {
-                        "n"
-                    } else {
-                        "y"
-                    },
-                ),
-                Field::new(
-                    "Show completed tasks? (y/n)",
-                    if self.task_filter.hide_completed {
-                        "n"
-                    } else {
-                        "y"
-                    },
-                ),
+                Field::toggle("Show archived tasks", !self.task_filter.hide_archived),
+                Field::toggle("Show completed tasks", !self.task_filter.hide_completed),
             ],
             focused: 0,
         });

@@ -49,6 +49,7 @@ The dashboard shows:
 | `k` / `↑` | Select previous entry |
 | `s` | Start tracking (opens form) |
 | `S` | Start tracking pre-filled from selected entry |
+| `n` | Add a manual entry (opens form) |
 | `x` | Stop active entry |
 | `e` | Edit selected entry |
 | `d` | Delete selected entry (prompts for confirmation) |
@@ -122,6 +123,20 @@ The dashboard shows:
 | `Esc` | Cancel |
 
 Project and task fields show a dropdown of matching names as you type. Use `↓`/`↑` to highlight a suggestion, then `Tab` or `Enter` to accept it.
+
+### Manual entry form
+
+Press `n` to add a past or off-session entry (only available when no timer is active).
+
+| Field | Notes |
+|-------|-------|
+| Project | Autocompleted from existing projects; creates a new project on submit if not found |
+| Task | Autocompleted from tasks in the selected project; creates a new task on submit if not found |
+| Note | Free-text description |
+| Start | `YYYY-MM-DD HH:MM` or `HH:MM` (today is assumed when only a time is given) |
+| End | Same format as Start; leave blank to create an active (running) entry |
+| Tags | Comma-separated list |
+| Snap to existing activities | Toggle with `Space` — when on, the start and end times are snapped to the nearest boundary of an existing entry |
 
 ### Delete confirmation
 

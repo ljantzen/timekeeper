@@ -227,41 +227,19 @@ fn handle_filter_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let project_name = form.fields[form_fields::filter_tasks::PROJECT]
                     .value
                     .clone();
-                let show_archived = form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED]
-                    .value
-                    .to_lowercase();
-                let show_completed = form.fields[form_fields::filter_tasks::SHOW_COMPLETED]
-                    .value
-                    .to_lowercase();
-
-                match (show_archived.as_str(), show_completed.as_str()) {
-                    (a, c)
-                        if (matches!(a, "y" | "yes" | "n" | "no" | ""))
-                            && (matches!(c, "y" | "yes" | "n" | "no" | "")) =>
-                    {
-                        app.task_filter.hide_archived =
-                            !matches!(show_archived.as_str(), "y" | "yes");
-                        app.task_filter.hide_completed =
-                            !matches!(show_completed.as_str(), "y" | "yes");
-                        app.task_filter.project_id = if project_name.is_empty() {
-                            None
-                        } else {
-                            app.projects
-                                .iter()
-                                .find(|p| p.name == project_name)
-                                .map(|p| p.id.clone())
-                        };
-
-                        app.open_manage_tasks();
-                    }
-                    _ => {
-                        app.status = Some((
-                            "Invalid input. Please enter 'y', 'n', or leave blank.".into(),
-                            true,
-                        ));
-                        app.open_task_filter_modal();
-                    }
-                }
+                app.task_filter.hide_archived =
+                    !form.fields[form_fields::filter_tasks::INCLUDE_ARCHIVED].is_on();
+                app.task_filter.hide_completed =
+                    !form.fields[form_fields::filter_tasks::SHOW_COMPLETED].is_on();
+                app.task_filter.project_id = if project_name.is_empty() {
+                    None
+                } else {
+                    app.projects
+                        .iter()
+                        .find(|p| p.name == project_name)
+                        .map(|p| p.id.clone())
+                };
+                app.open_manage_tasks();
             }
         }
     }
@@ -366,23 +344,9 @@ fn handle_filter_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::FilterProjects(form) = old {
-                let show_archived = form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED]
-                    .value
-                    .to_lowercase();
-                match show_archived.as_str() {
-                    "y" | "yes" | "n" | "no" | "" => {
-                        app.project_filter.hide_archived =
-                            !matches!(show_archived.as_str(), "y" | "yes");
-                        app.open_manage_projects();
-                    }
-                    _ => {
-                        app.status = Some((
-                            "Invalid input. Please enter 'y', 'n', or leave blank.".into(),
-                            true,
-                        ));
-                        app.open_project_filter_modal();
-                    }
-                }
+                app.project_filter.hide_archived =
+                    !form.fields[form_fields::filter_projects::INCLUDE_ARCHIVED].is_on();
+                app.open_manage_projects();
             }
         }
     }
@@ -697,9 +661,7 @@ fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let start = form.fields[form_fields::add_manual_entry::START].value.clone();
                 let end = form.fields[form_fields::add_manual_entry::END].value.clone();
                 let tags = form.fields[form_fields::add_manual_entry::TAGS].value.clone();
-                let snap_to_existing = form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].value.to_lowercase() == "yes"
-                    || form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].value.to_lowercase() == "true"
-                    || form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].value == "x";
+                let snap_to_existing = form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].is_on();
 
                 let create_project = !project.is_empty()
                     && !app

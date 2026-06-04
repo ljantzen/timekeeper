@@ -5,6 +5,11 @@ pub struct Form {
     pub focused: usize,
 }
 
+pub enum FieldKind {
+    Text,
+    Toggle,
+}
+
 pub struct Field {
     pub label: &'static str,
     pub value: String,
@@ -12,6 +17,7 @@ pub struct Field {
     pub completions: Vec<String>,
     pub completion_colors: Vec<Option<String>>,
     pub ac_index: Option<usize>,
+    pub kind: FieldKind,
 }
 
 pub enum FormResult {
@@ -31,7 +37,24 @@ impl Field {
             completions: vec![],
             completion_colors: vec![],
             ac_index: None,
+            kind: FieldKind::Text,
         }
+    }
+
+    pub fn toggle(label: &'static str, on: bool) -> Self {
+        Self {
+            label,
+            value: if on { "true" } else { "false" }.to_string(),
+            cursor: 0,
+            completions: vec![],
+            completion_colors: vec![],
+            ac_index: None,
+            kind: FieldKind::Toggle,
+        }
+    }
+
+    pub fn is_on(&self) -> bool {
+        self.value == "true"
     }
 
     pub fn with_completions(mut self, completions: Vec<String>) -> Self {
@@ -95,33 +118,40 @@ impl Field {
     }
 
     pub fn handle_key(&mut self, code: KeyCode) {
-        match code {
-            KeyCode::Char(c) => self.insert(c),
-            KeyCode::Backspace => self.delete_back(),
-            KeyCode::Delete if self.cursor < self.value.len() => {
-                let ch_len = self.value[self.cursor..]
-                    .chars()
-                    .next()
-                    .map(|c| c.len_utf8())
-                    .unwrap_or(1);
-                self.value.drain(self.cursor..self.cursor + ch_len);
+        match self.kind {
+            FieldKind::Toggle => {
+                if matches!(code, KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right) {
+                    self.value = if self.is_on() { "false" } else { "true" }.to_string();
+                }
             }
-            KeyCode::Left if self.cursor > 0 => {
-                let before = &self.value[..self.cursor];
-                let ch_len = before.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
-                self.cursor -= ch_len;
-            }
-            KeyCode::Right if self.cursor < self.value.len() => {
-                let ch_len = self.value[self.cursor..]
-                    .chars()
-                    .next()
-                    .map(|c| c.len_utf8())
-                    .unwrap_or(1);
-                self.cursor += ch_len;
-            }
-            KeyCode::Home => self.cursor = 0,
-            KeyCode::End => self.cursor = self.value.len(),
-            _ => {}
+            FieldKind::Text => match code {
+                KeyCode::Char(c) => self.insert(c),
+                KeyCode::Backspace => self.delete_back(),
+                KeyCode::Delete if self.cursor < self.value.len() => {
+                    let ch_len = self.value[self.cursor..]
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    self.value.drain(self.cursor..self.cursor + ch_len);
+                }
+                KeyCode::Left if self.cursor > 0 => {
+                    let before = &self.value[..self.cursor];
+                    let ch_len = before.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                    self.cursor -= ch_len;
+                }
+                KeyCode::Right if self.cursor < self.value.len() => {
+                    let ch_len = self.value[self.cursor..]
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    self.cursor += ch_len;
+                }
+                KeyCode::Home => self.cursor = 0,
+                KeyCode::End => self.cursor = self.value.len(),
+                _ => {}
+            },
         }
     }
 }
