@@ -29,6 +29,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::EditComment => handle_edit_comment(app, key),
         ModeKind::ConfirmCreate => handle_confirm_create(app, key),
         ModeKind::ConfirmDeleteProject => handle_confirm_delete_project(app, key),
+        ModeKind::AddManualEntry => handle_add_manual_entry(app, key),
         ModeKind::Help => {
             app.mode = AppMode::Normal;
             Ok(())
@@ -53,6 +54,13 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('S') => {
             if app.active_entry.is_none() {
                 app.open_start_modal_from_selected();
+            } else {
+                app.status = Some(("Already tracking. Stop first with [x].".into(), true));
+            }
+        }
+        KeyCode::Char('n') => {
+            if app.active_entry.is_none() {
+                app.open_add_manual_entry_modal();
             } else {
                 app.status = Some(("Already tracking. Stop first with [x].".into(), true));
             }
@@ -645,6 +653,73 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let end = form.fields[form_fields::edit_modal::END].value.clone();
                 let tags = form.fields[form_fields::edit_modal::TAGS].value.clone();
                 if let Err(e) = app.edit_entry(&id, &project, &task, &note, &start, &end, &tags) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::AddManualEntry(form) => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    // Update task completions based on selected project
+    let project_name = if let AppMode::AddManualEntry(form) = &app.mode {
+        form.fields[form_fields::add_manual_entry::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
+    if !project_name.is_empty() {
+        let tasks = app.task_names_for_project(&project_name);
+        let task_colors = app.task_colors_for_project(&project_name);
+        if let AppMode::AddManualEntry(form) = &mut app.mode {
+            form.fields[form_fields::add_manual_entry::TASK].completions = tasks;
+            form.fields[form_fields::add_manual_entry::TASK].completion_colors = task_colors;
+        }
+    }
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.mode = AppMode::Normal;
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::AddManualEntry(form) = old {
+                let project = form.fields[form_fields::add_manual_entry::PROJECT].value.clone();
+                let task = form.fields[form_fields::add_manual_entry::TASK].value.clone();
+                let note = form.fields[form_fields::add_manual_entry::NOTE].value.clone();
+                let start = form.fields[form_fields::add_manual_entry::START].value.clone();
+                let end = form.fields[form_fields::add_manual_entry::END].value.clone();
+                let tags = form.fields[form_fields::add_manual_entry::TAGS].value.clone();
+                let snap_to_existing = form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].value.to_lowercase() == "yes"
+                    || form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].value.to_lowercase() == "true"
+                    || form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].value == "x";
+
+                let create_project = !project.is_empty()
+                    && !app
+                        .projects
+                        .iter()
+                        .any(|p| p.name == project && !p.archived);
+                let create_task = !task.is_empty()
+                    && !project.is_empty()
+                    && (create_project || !app.task_names_for_project(&project).contains(&task));
+
+                if create_project || create_task {
+                    app.mode = AppMode::ConfirmCreate {
+                        project,
+                        task,
+                        note,
+                        tags,
+                        create_project,
+                        create_task,
+                    };
+                } else if let Err(e) = app.add_manual_entry(&project, &task, &note, &start, &end, &tags, snap_to_existing) {
                     app.status = Some((e.to_string(), true));
                 }
             }

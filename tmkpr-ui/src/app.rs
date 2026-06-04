@@ -85,6 +85,16 @@ pub mod form_fields {
     pub mod edit_comment {
         pub const BODY: usize = 0;
     }
+
+    pub mod add_manual_entry {
+        pub const PROJECT: usize = 0;
+        pub const TASK: usize = 1;
+        pub const NOTE: usize = 2;
+        pub const START: usize = 3;
+        pub const END: usize = 4;
+        pub const TAGS: usize = 5;
+        pub const SNAP_TO_EXISTING: usize = 6;
+    }
 }
 
 type DateRange = (Option<chrono::DateTime<Utc>>, Option<chrono::DateTime<Utc>>);
@@ -369,6 +379,7 @@ pub enum AppMode {
         id: String,
         name: String,
     },
+    AddManualEntry(Form),
     Help,
 }
 
@@ -393,6 +404,7 @@ pub enum ModeKind {
     EditComment,
     ConfirmCreate,
     ConfirmDeleteProject,
+    AddManualEntry,
     Help,
 }
 
@@ -418,6 +430,7 @@ impl AppMode {
             AppMode::EditComment { .. } => ModeKind::EditComment,
             AppMode::ConfirmCreate { .. } => ModeKind::ConfirmCreate,
             AppMode::ConfirmDeleteProject { .. } => ModeKind::ConfirmDeleteProject,
+            AppMode::AddManualEntry(_) => ModeKind::AddManualEntry,
             AppMode::Help => ModeKind::Help,
         }
     }
@@ -1127,6 +1140,33 @@ impl App {
         };
     }
 
+    pub fn open_add_manual_entry_modal(&mut self) {
+        let projects = self.project_names();
+        let project_colors = self.project_colors();
+        let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
+
+        let now = Local::now();
+        let start_val = now.format("%Y-%m-%d %H:%M").to_string();
+
+        self.mode = AppMode::AddManualEntry(Form {
+            fields: vec![
+                Field::new("Project", "")
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
+                Field::new("Task", "")
+                    .with_completions(tasks)
+                    .with_completion_colors(task_colors),
+                Field::new("Note", ""),
+                Field::new("Start (YYYY-MM-DD HH:MM or HH:MM)", &start_val),
+                Field::new("End (YYYY-MM-DD HH:MM or HH:MM)", ""),
+                Field::new("Tags (comma-separated)", ""),
+                Field::new("Snap to existing activities", ""),
+            ],
+            focused: 0,
+        });
+    }
+
     pub fn open_confirm_delete(&mut self) {
         let entry = &self.entries[self.selected];
         let short_id = &entry.id[..8.min(entry.id.len())];
@@ -1335,6 +1375,124 @@ impl App {
         }
         self.refresh()?;
         self.status = Some(("Updated.".into(), false));
+        Ok(())
+    }
+
+    fn find_nearby_activities(&self, time: chrono::DateTime<Utc>, window_minutes: i64) -> Vec<(&Entry, &'static str)> {
+        let window = Duration::minutes(window_minutes);
+        let start = time - window;
+        let end = time + window;
+
+        let mut nearby = Vec::new();
+        for entry in &self.entries {
+            if entry.started_at >= start && entry.started_at <= end {
+                nearby.push((entry, "start"));
+            }
+            if let Some(finished) = entry.finished_at {
+                if finished >= start && finished <= end {
+                    nearby.push((entry, "end"));
+                }
+            }
+        }
+        nearby.sort_by_key(|(e, kind)| {
+            let time_val = if *kind == "start" { e.started_at } else { e.finished_at.unwrap_or(e.started_at) };
+            (time_val - time).abs()
+        });
+        nearby
+    }
+
+    fn snap_time_to_activity(&mut self, time_str: &str, snap_enabled: bool) -> anyhow::Result<String> {
+        if !snap_enabled || time_str.is_empty() {
+            return Ok(time_str.to_string());
+        }
+
+        let now = Utc::now();
+        let parsed_time = parse_datetime(time_str, now, TimeFormat::H24)?;
+        let nearby = self.find_nearby_activities(parsed_time, 60);
+
+        if let Some((entry, kind)) = nearby.first() {
+            let snapped_time = if *kind == "start" {
+                entry.started_at
+            } else {
+                entry.finished_at.unwrap_or(entry.started_at)
+            };
+            let project_name = entry
+                .project_id
+                .as_ref()
+                .and_then(|pid| self.storage.get_project(pid).ok())
+                .map(|p| p.name)
+                .unwrap_or_else(|| "Unnamed".to_string());
+
+            let snapped_str = snapped_time.with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M")
+                .to_string();
+            self.status = Some((format!("Snapped to {} ({})", project_name, snapped_str), false));
+            Ok(snapped_str)
+        } else {
+            Ok(time_str.to_string())
+        }
+    }
+
+    pub fn add_manual_entry(
+        &mut self,
+        project: &str,
+        task: &str,
+        note: &str,
+        start_str: &str,
+        end_str: &str,
+        tags_str: &str,
+        snap_to_existing: bool,
+    ) -> anyhow::Result<()> {
+        if start_str.is_empty() {
+            return Err(anyhow::anyhow!("Start time is required"));
+        }
+        if end_str.is_empty() {
+            return Err(anyhow::anyhow!("End time is required"));
+        }
+
+        let now = Utc::now();
+
+        let snapped_start = self.snap_time_to_activity(start_str, snap_to_existing)?;
+        let snapped_end = self.snap_time_to_activity(end_str, snap_to_existing)?;
+
+        let started_at = parse_datetime(&snapped_start, now, TimeFormat::H24)
+            .map_err(|e| anyhow::anyhow!("Invalid start time: {}", e))?;
+
+        let finished_at = parse_datetime(&snapped_end, now, TimeFormat::H24)
+            .map_err(|e| anyhow::anyhow!("Invalid end time: {}", e))?;
+
+        if started_at >= finished_at {
+            return Err(anyhow::anyhow!("Start time must be before end time"));
+        }
+
+        let project_opt = if project.is_empty() {
+            None
+        } else {
+            Some(project)
+        };
+        let task_opt = if task.is_empty() { None } else { Some(task) };
+        let note_opt = if note.is_empty() {
+            None
+        } else {
+            Some(note.to_string())
+        };
+        let tags = parse_tags(tags_str);
+
+        let entry = {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            svc.log(project_opt, task_opt, note_opt, tags, started_at, finished_at)?
+        };
+
+        let _ = obsidian_logger::log_activity_to_obsidian(
+            &self.config,
+            &entry,
+            project_opt,
+            task_opt,
+            obsidian_logger::ActivityAction::Merged,
+        );
+
+        self.refresh()?;
+        self.status = Some(("Entry created.".into(), false));
         Ok(())
     }
 

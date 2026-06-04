@@ -74,6 +74,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     match app.mode.kind() {
         ModeKind::StartModal => render_start_modal(frame, app, area),
         ModeKind::EditModal => render_edit_modal(frame, app, area),
+        ModeKind::AddManualEntry => render_add_manual_entry(frame, app, area),
         ModeKind::ConfirmDelete => render_confirm_delete(frame, app, area),
         ModeKind::AddProject => render_add_project(frame, app, area),
         ModeKind::ManageProjects => render_manage_projects(frame, app, area),
@@ -605,6 +606,12 @@ fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+fn render_add_manual_entry(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::AddManualEntry(form) = &app.mode {
+        render_form_modal(frame, area, " Add Manual Entry ", 85, form, &app.theme);
+    }
+}
+
 fn render_add_project(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddProject(form) = &app.mode {
         render_form_modal(
@@ -961,6 +968,10 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &Theme) {
             Line::from(vec![
                 Span::styled("  S      ", bold),
                 Span::raw("Start from selected (same project / task / note)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  n      ", bold),
+                Span::raw("Add manual entry (with specific times)"),
             ]),
             Line::from(vec![
                 Span::styled("  x      ", bold),
