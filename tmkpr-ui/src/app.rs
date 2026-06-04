@@ -3220,4 +3220,154 @@ mod tests {
         app.refresh().unwrap();
         assert_eq!(app.task_names(), vec!["task"]);
     }
+
+    // --- open_settings ---
+
+    #[test]
+    fn open_settings_selects_correct_theme_idx() {
+        let mut app = make_app();
+        app.theme_name = "dracula".to_string();
+        app.open_settings();
+        let AppMode::Settings { theme_names, theme_idx, .. } = &app.mode else {
+            panic!("expected Settings mode");
+        };
+        assert_eq!(theme_names[*theme_idx], "dracula");
+    }
+
+    #[test]
+    fn open_settings_selects_correct_date_fmt_idx() {
+        let mut app = make_app();
+        app.date_format = "%d-%m-%Y %H:%M".to_string();
+        app.open_settings();
+        let AppMode::Settings { date_fmt_idx, .. } = &app.mode else {
+            panic!("expected Settings mode");
+        };
+        let (_, fmt) = DATE_FORMAT_PRESETS[*date_fmt_idx];
+        assert_eq!(fmt, "%d-%m-%Y %H:%M");
+    }
+
+    #[test]
+    fn open_settings_unknown_date_fmt_defaults_to_zero() {
+        let mut app = make_app();
+        app.date_format = "%X".to_string();
+        app.open_settings();
+        let AppMode::Settings { date_fmt_idx, .. } = &app.mode else {
+            panic!("expected Settings mode");
+        };
+        assert_eq!(*date_fmt_idx, 0);
+    }
+
+    #[test]
+    fn open_settings_reads_week_start() {
+        let mut app = make_app();
+        app.week_start = chrono::Weekday::Sun;
+        app.open_settings();
+        let AppMode::Settings { week_start, .. } = &app.mode else {
+            panic!("expected Settings mode");
+        };
+        assert_eq!(*week_start, chrono::Weekday::Sun);
+    }
+
+    #[test]
+    fn open_settings_reads_obsidian_config() {
+        let mut app = make_app();
+        app.config.obsidian.enabled = true;
+        app.config.obsidian.vault_dir = Some(std::path::PathBuf::from("/my/vault"));
+        app.config.obsidian.activity_category = Some("Work".to_string());
+        app.config.obsidian.comment_category = Some("Notes".to_string());
+        app.open_settings();
+        let AppMode::Settings { obs_enabled, obs_vault, obs_activity, obs_comment, .. } = &app.mode else {
+            panic!("expected Settings mode");
+        };
+        assert!(*obs_enabled);
+        assert_eq!(obs_vault, "/my/vault");
+        assert_eq!(obs_activity, "Work");
+        assert_eq!(obs_comment, "Notes");
+    }
+
+    // --- settings_save ---
+
+    fn app_in_settings(theme: &str, date_fmt_idx: usize, week_start: chrono::Weekday) -> App {
+        let mut app = make_app();
+        app.open_settings();
+        // Override the draft values without going through input handlers
+        if let AppMode::Settings { theme_names, theme_idx, date_fmt_idx: di, week_start: ws, .. } = &mut app.mode {
+            *theme_idx = theme_names.iter().position(|n| n == theme).unwrap_or(0);
+            *di = date_fmt_idx;
+            *ws = week_start;
+        }
+        app
+    }
+
+    #[test]
+    fn settings_save_applies_date_format_to_live_state() {
+        let mut app = app_in_settings("default", 1, chrono::Weekday::Mon);
+        app.settings_save().unwrap();
+        assert_eq!(app.date_format, DATE_FORMAT_PRESETS[1].1);
+    }
+
+    #[test]
+    fn settings_save_applies_week_start_to_live_state() {
+        let mut app = app_in_settings("default", 0, chrono::Weekday::Wed);
+        app.settings_save().unwrap();
+        assert_eq!(app.week_start, chrono::Weekday::Wed);
+    }
+
+    #[test]
+    fn settings_save_applies_theme_name() {
+        let mut app = app_in_settings("dracula", 0, chrono::Weekday::Mon);
+        app.settings_save().unwrap();
+        assert_eq!(app.theme_name, "dracula");
+    }
+
+    #[test]
+    fn settings_save_updates_config_struct() {
+        let mut app = app_in_settings("default", 2, chrono::Weekday::Fri);
+        app.settings_save().unwrap();
+        assert_eq!(app.config.display.date_format, DATE_FORMAT_PRESETS[2].1);
+    }
+
+    #[test]
+    fn settings_save_empty_obsidian_vault_becomes_none() {
+        let mut app = make_app();
+        app.open_settings();
+        if let AppMode::Settings { obs_vault, .. } = &mut app.mode {
+            *obs_vault = String::new();
+        }
+        app.settings_save().unwrap();
+        assert!(app.config.obsidian.vault_dir.is_none());
+    }
+
+    #[test]
+    fn settings_save_nonempty_obsidian_fields_set() {
+        let mut app = make_app();
+        app.open_settings();
+        if let AppMode::Settings { obs_enabled, obs_vault, obs_activity, obs_comment, .. } = &mut app.mode {
+            *obs_enabled = true;
+            *obs_vault = "/vault".to_string();
+            *obs_activity = "Activity".to_string();
+            *obs_comment = "Comment".to_string();
+        }
+        app.settings_save().unwrap();
+        assert!(app.config.obsidian.enabled);
+        assert_eq!(app.config.obsidian.vault_dir, Some(std::path::PathBuf::from("/vault")));
+        assert_eq!(app.config.obsidian.activity_category.as_deref(), Some("Activity"));
+        assert_eq!(app.config.obsidian.comment_category.as_deref(), Some("Comment"));
+    }
+
+    #[test]
+    fn settings_save_sets_mode_to_normal() {
+        let mut app = app_in_settings("default", 0, chrono::Weekday::Mon);
+        app.settings_save().unwrap();
+        assert!(matches!(app.mode, AppMode::Normal));
+    }
+
+    #[test]
+    fn settings_save_noop_when_not_in_settings_mode() {
+        let mut app = make_app();
+        // mode is Normal, not Settings
+        let result = app.settings_save();
+        assert!(result.is_ok());
+        assert!(matches!(app.mode, AppMode::Normal));
+    }
 }
