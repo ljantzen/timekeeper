@@ -1,4 +1,4 @@
-use crate::app::{App, CompletedSession, Screen, SoundField, TimerState};
+use crate::app::{App, CompletedSession, EditMode, Screen, SoundField, TimerState};
 
 fn hex_to_rgb(hex: &str) -> Option<Color> {
     let h = hex.trim_start_matches('#');
@@ -64,6 +64,11 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     // Help text
     draw_help(f, app, chunks[3]);
+
+    // Delete confirmation dialog
+    if app.edit_mode() == EditMode::ConfirmDelete {
+        draw_delete_confirmation(f, app);
+    }
 }
 
 fn draw_timer(f: &mut Frame, app: &App, area: Rect) {
@@ -144,32 +149,51 @@ fn draw_projects(f: &mut Frame, app: &App, area: Rect) {
     let projects = app.projects();
     let selected = app.selected_project_idx();
 
-    let items: Vec<ListItem> = projects
+    let mut items: Vec<ListItem> = projects
         .iter()
         .enumerate()
         .map(|(idx, proj)| {
             let is_selected = idx == selected;
             let prefix = if is_selected { "▶ " } else { "  " };
             let mut style = Style::default();
+
+            let display_name = if is_selected && app.edit_mode() == EditMode::EditProject {
+                format!("{prefix}{}█", app.edit_buf())
+            } else {
+                format!("{prefix}{}", proj.name)
+            };
+
             if let Some(c) = proj.color.as_deref().and_then(hex_to_rgb) {
                 style = style.fg(c);
             }
             if is_selected {
                 style = style.add_modifier(Modifier::BOLD);
             }
-            ListItem::new(Line::from(Span::styled(
-                format!("{prefix}{}", proj.name),
-                style,
-            )))
+            ListItem::new(Line::from(Span::styled(display_name, style)))
         })
         .collect();
+
+    if app.is_new_project_editing() {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  + {}█", app.new_project_buf()),
+            Style::default()
+                .fg(app.theme().accent)
+                .add_modifier(Modifier::BOLD),
+        ))));
+    }
+
+    let title = if app.is_new_project_editing() || app.edit_mode() == EditMode::EditProject {
+        "Projects (Enter: save  Esc: cancel)"
+    } else {
+        "Projects"
+    };
 
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(app.theme().border))
-                .title("Projects"),
+                .title(title),
         )
         .style(Style::default().fg(Color::White));
 
@@ -177,7 +201,8 @@ fn draw_projects(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
-    let tasks = app.tasks();
+    let all_tasks = app.tasks();
+    let filtered_tasks = app.filtered_tasks();
     let selected = app.selected_task_idx();
     let proj_color = app
         .selected_project()
@@ -185,11 +210,10 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
         .and_then(hex_to_rgb)
         .unwrap_or(Color::White);
 
-    let mut items: Vec<ListItem> = tasks
+    let mut items: Vec<ListItem> = filtered_tasks
         .iter()
-        .enumerate()
-        .map(|(idx, task)| {
-            let is_selected = idx == selected;
+        .map(|task| {
+            let is_selected = all_tasks.iter().position(|t| t.id == task.id) == Some(selected);
             let prefix = if is_selected { "▶ " } else { "  " };
             let style = if task.completed {
                 Style::default().fg(app.theme().dim)
@@ -200,7 +224,9 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
                 }
                 s
             };
-            let label = if task.completed {
+            let label = if is_selected && app.edit_mode() == EditMode::EditTask {
+                format!("{}{}█", prefix, app.edit_buf())
+            } else if task.completed {
                 format!("{prefix}{} ✓", task.name)
             } else {
                 format!("{prefix}{}", task.name)
@@ -218,8 +244,10 @@ fn draw_tasks(f: &mut Frame, app: &App, area: Rect) {
         ))));
     }
 
-    let title = if app.is_new_task_editing() {
+    let title = if app.is_new_task_editing() || app.edit_mode() == EditMode::EditTask {
         "Tasks (Enter: save  Esc: cancel)"
+    } else if app.hide_completed_tasks() {
+        "Tasks (completed hidden)"
     } else {
         "Tasks"
     };
@@ -455,8 +483,8 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     let help_text = [
-        "↑↓: Select project  |  ←→: Select task  |  Enter: Work  |  B: Break",
-        "Space: Pause/Resume  |  C: Complete task  |  N: New task  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
+        "↑↓: Project  |  ←→: Task  |  Enter: Work  |  B: Break  |  Space: Pause  |  C: Complete",
+        "N: New task  |  P: New project  |  E: Edit  |  D: Delete  |  H: Hide completed  |  L: Log  |  R: Reset  |  S: Settings  |  Q: Quit",
     ];
 
     let help = Paragraph::new(help_text.join("\n"))
@@ -470,6 +498,43 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: true });
 
     f.render_widget(help, area);
+}
+
+fn draw_delete_confirmation(f: &mut Frame, app: &App) {
+    let area = f.area();
+    let width = 40.min(area.width.saturating_sub(4));
+    let height = 7;
+    let left = (area.width.saturating_sub(width)) / 2;
+    let top = area.height.saturating_sub(height) / 2;
+
+    let dialog_area = Rect {
+        x: left,
+        y: top,
+        width,
+        height,
+    };
+
+    let title = match app.delete_target() {
+        Some("project") => "Delete Project?",
+        Some("task") => "Delete Task?",
+        _ => "Delete?",
+    };
+
+    let dialog = Paragraph::new("Press Y to confirm, any other key to cancel")
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme().accent))
+                .title(title),
+        )
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(Color::White));
+
+    f.render_widget(
+        Block::default().style(Style::default().bg(Color::Black)),
+        dialog_area,
+    );
+    f.render_widget(dialog, dialog_area);
 }
 
 #[cfg(test)]

@@ -32,6 +32,14 @@ pub enum Screen {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EditMode {
+    None,
+    EditProject,
+    EditTask,
+    ConfirmDelete,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TimerState {
     Stopped,
     Running,
@@ -71,6 +79,12 @@ pub struct App<'a> {
     sound_edit_buf: String,
     new_task_editing: bool,
     new_task_buf: String,
+    new_project_editing: bool,
+    new_project_buf: String,
+    edit_mode: EditMode,
+    edit_buf: String,
+    delete_target: Option<&'static str>,
+    hide_completed_tasks: bool,
     completed_sessions: Vec<CompletedSession>,
     theme: Theme,
 }
@@ -125,6 +139,12 @@ impl<'a> App<'a> {
             sound_edit_buf: String::new(),
             new_task_editing: false,
             new_task_buf: String::new(),
+            new_project_editing: false,
+            new_project_buf: String::new(),
+            edit_mode: EditMode::None,
+            edit_buf: String::new(),
+            delete_target: None,
+            hide_completed_tasks: false,
             completed_sessions: Vec::new(),
             theme,
         })
@@ -742,6 +762,211 @@ impl<'a> App<'a> {
             });
         }
         Ok(())
+    }
+
+    pub fn new_project_begin(&mut self) {
+        if self.timer_state == TimerState::Stopped {
+            self.new_project_editing = true;
+            self.new_project_buf = String::new();
+        }
+    }
+
+    pub fn new_project_push(&mut self, c: char) {
+        self.new_project_buf.push(c);
+    }
+
+    pub fn new_project_pop(&mut self) {
+        self.new_project_buf.pop();
+    }
+
+    pub fn new_project_confirm(&mut self) -> Result<()> {
+        let name = self.new_project_buf.trim().to_string();
+        if name.is_empty() {
+            self.new_project_editing = false;
+            self.new_project_buf = String::new();
+            return Ok(());
+        }
+        use tmkpr_lib::models::project::NewProject;
+        let new_proj = NewProject {
+            user_id: self.user_id.to_string(),
+            name: name.clone(),
+            description: None,
+            color: None,
+        };
+        self.storage.create_project(new_proj)?;
+        self.projects = self.storage.list_projects(self.user_id, false).unwrap_or_default();
+        if let Some(idx) = self.projects.iter().position(|p| p.name == name) {
+            self.selected_project_idx = idx;
+            self.refresh_tasks();
+        }
+        self.new_project_editing = false;
+        self.new_project_buf = String::new();
+        self.message = Some("Project created.".to_string());
+        Ok(())
+    }
+
+    pub fn new_project_cancel(&mut self) {
+        self.new_project_editing = false;
+        self.new_project_buf = String::new();
+    }
+
+    pub fn delete_project_begin(&mut self) {
+        if self.timer_state == TimerState::Stopped && !self.projects.is_empty() {
+            self.edit_mode = EditMode::ConfirmDelete;
+            self.delete_target = Some("project");
+        }
+    }
+
+    pub fn delete_task_begin(&mut self) {
+        if self.timer_state == TimerState::Stopped && !self.tasks.is_empty() {
+            self.edit_mode = EditMode::ConfirmDelete;
+            self.delete_target = Some("task");
+        }
+    }
+
+    pub fn confirm_delete(&mut self) -> Result<()> {
+        match self.delete_target {
+            Some("project") => {
+                if let Some(proj) = self.selected_project() {
+                    self.storage.delete_project(&proj.id)?;
+                    self.projects = self.storage.list_projects(self.user_id, false).unwrap_or_default();
+                    self.selected_project_idx = self.selected_project_idx.min(self.projects.len().saturating_sub(1));
+                    self.refresh_tasks();
+                    self.message = Some("Project deleted.".to_string());
+                }
+            }
+            Some("task") => {
+                if let Some(task) = self.tasks.get(self.selected_task_idx) {
+                    self.storage.delete_task(&task.id)?;
+                    self.refresh_tasks();
+                    self.message = Some("Task deleted.".to_string());
+                }
+            }
+            _ => {}
+        }
+        self.edit_mode = EditMode::None;
+        self.delete_target = None;
+        Ok(())
+    }
+
+    pub fn cancel_delete(&mut self) {
+        self.edit_mode = EditMode::None;
+        self.delete_target = None;
+    }
+
+    pub fn is_new_project_editing(&self) -> bool {
+        self.new_project_editing
+    }
+
+    pub fn new_project_buf(&self) -> &str {
+        &self.new_project_buf
+    }
+
+    pub fn edit_mode(&self) -> EditMode {
+        self.edit_mode
+    }
+
+    pub fn delete_target(&self) -> Option<&str> {
+        self.delete_target
+    }
+
+    pub fn edit_project_begin(&mut self) {
+        if self.timer_state == TimerState::Stopped && !self.projects.is_empty() {
+            let name = self.projects[self.selected_project_idx].name.clone();
+            self.edit_mode = EditMode::EditProject;
+            self.edit_buf = name;
+        }
+    }
+
+    pub fn edit_task_begin(&mut self) {
+        if self.timer_state == TimerState::Stopped && !self.tasks.is_empty() {
+            let name = self.tasks[self.selected_task_idx].name.clone();
+            self.edit_mode = EditMode::EditTask;
+            self.edit_buf = name;
+        }
+    }
+
+    pub fn edit_push(&mut self, c: char) {
+        self.edit_buf.push(c);
+    }
+
+    pub fn edit_pop(&mut self) {
+        self.edit_buf.pop();
+    }
+
+    pub fn edit_confirm(&mut self) -> Result<()> {
+        let new_name = self.edit_buf.trim().to_string();
+        if new_name.is_empty() {
+            self.edit_mode = EditMode::None;
+            self.edit_buf.clear();
+            return Ok(());
+        }
+
+        match self.edit_mode {
+            EditMode::EditProject => {
+                if let Some(proj) = self.selected_project() {
+                    use tmkpr_lib::models::project::UpdateProject;
+                    self.storage.update_project(
+                        &proj.id.clone(),
+                        UpdateProject {
+                            name: Some(new_name.clone()),
+                            ..Default::default()
+                        },
+                    )?;
+                    self.projects = self.storage.list_projects(self.user_id, false).unwrap_or_default();
+                    self.message = Some("Project updated.".to_string());
+                }
+            }
+            EditMode::EditTask => {
+                if let Some(task) = self.selected_task() {
+                    use tmkpr_lib::models::task::UpdateTask;
+                    self.storage.update_task(
+                        &task.id.clone(),
+                        UpdateTask {
+                            name: Some(new_name.clone()),
+                            ..Default::default()
+                        },
+                    )?;
+                    self.refresh_tasks();
+                    self.message = Some("Task updated.".to_string());
+                }
+            }
+            _ => {}
+        }
+
+        self.edit_mode = EditMode::None;
+        self.edit_buf.clear();
+        Ok(())
+    }
+
+    pub fn edit_cancel(&mut self) {
+        self.edit_mode = EditMode::None;
+        self.edit_buf.clear();
+    }
+
+    pub fn edit_buf(&self) -> &str {
+        &self.edit_buf
+    }
+
+    pub fn toggle_hide_completed_tasks(&mut self) {
+        self.hide_completed_tasks = !self.hide_completed_tasks;
+        let status = if self.hide_completed_tasks {
+            "Hiding completed tasks."
+        } else {
+            "Showing completed tasks."
+        };
+        self.message = Some(status.to_string());
+    }
+
+    pub fn hide_completed_tasks(&self) -> bool {
+        self.hide_completed_tasks
+    }
+
+    pub fn filtered_tasks(&self) -> Vec<&Task> {
+        self.tasks
+            .iter()
+            .filter(|t| !self.hide_completed_tasks || !t.completed)
+            .collect()
     }
 }
 

@@ -94,13 +94,34 @@ fn run_app(
                         }
                     }
                     Screen::Main => {
-                        if app.is_new_task_editing() {
+                        if app.is_new_project_editing() {
+                            match key.code {
+                                KeyCode::Char(c) => app.new_project_push(c),
+                                KeyCode::Backspace => app.new_project_pop(),
+                                KeyCode::Enter => app.new_project_confirm()?,
+                                KeyCode::Esc => app.new_project_cancel(),
+                                _ => {}
+                            }
+                        } else if app.is_new_task_editing() {
                             match key.code {
                                 KeyCode::Char(c) => app.new_task_push(c),
                                 KeyCode::Backspace => app.new_task_pop(),
                                 KeyCode::Enter => app.new_task_confirm()?,
                                 KeyCode::Esc => app.new_task_cancel(),
                                 _ => {}
+                            }
+                        } else if app.edit_mode() == app::EditMode::EditProject || app.edit_mode() == app::EditMode::EditTask {
+                            match key.code {
+                                KeyCode::Char(c) => app.edit_push(c),
+                                KeyCode::Backspace => app.edit_pop(),
+                                KeyCode::Enter => app.edit_confirm()?,
+                                KeyCode::Esc => app.edit_cancel(),
+                                _ => {}
+                            }
+                        } else if app.edit_mode() == app::EditMode::ConfirmDelete {
+                            match key.code {
+                                KeyCode::Char('y') | KeyCode::Enter => app.confirm_delete()?,
+                                _ => app.cancel_delete(),
                             }
                         } else {
                             match key.code {
@@ -109,6 +130,12 @@ fn run_app(
                                 }
                                 KeyCode::Char('c') => app.task_complete_toggle()?,
                                 KeyCode::Char('n') => app.new_task_begin(),
+                                KeyCode::Char('P') => app.new_project_begin(),
+                                KeyCode::Char('e') if !app.tasks().is_empty() => app.edit_task_begin(),
+                                KeyCode::Char('e') => app.edit_project_begin(),
+                                KeyCode::Char('d') if !app.tasks().is_empty() => app.delete_task_begin(),
+                                KeyCode::Char('d') => app.delete_project_begin(),
+                                KeyCode::Char('h') => app.toggle_hide_completed_tasks(),
                                 KeyCode::Char('s') => app.open_settings(),
                                 KeyCode::Up => app.previous_project(),
                                 KeyCode::Down => app.next_project(),
