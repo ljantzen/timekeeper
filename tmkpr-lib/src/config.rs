@@ -80,6 +80,8 @@ pub struct PomodoroConfig {
     pub sound_work_to_break: Option<String>,
     #[serde(default)]
     pub sound_break_to_work: Option<String>,
+    #[serde(default)]
+    pub hide_completed_tasks: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -157,6 +159,7 @@ impl Default for PomodoroConfig {
             max_cycles: 0,
             sound_work_to_break: None,
             sound_break_to_work: None,
+            hide_completed_tasks: false,
         }
     }
 }

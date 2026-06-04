@@ -135,7 +135,7 @@ fn run_app(
                                 KeyCode::Char('e') => app.edit_project_begin(),
                                 KeyCode::Char('d') if !app.tasks().is_empty() => app.delete_task_begin(),
                                 KeyCode::Char('d') => app.delete_project_begin(),
-                                KeyCode::Char('h') => app.toggle_hide_completed_tasks(),
+                                KeyCode::Char('h') => app.toggle_hide_completed_tasks()?,
                                 KeyCode::Char('s') => app.open_settings(),
                                 KeyCode::Up => app.previous_project(),
                                 KeyCode::Down => app.next_project(),

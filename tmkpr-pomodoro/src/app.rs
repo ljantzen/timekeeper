@@ -105,6 +105,8 @@ impl<'a> App<'a> {
             Vec::new()
         };
 
+        let hide_completed_tasks = config.pomodoro.hide_completed_tasks;
+
         Ok(Self {
             storage,
             user_id,
@@ -144,7 +146,7 @@ impl<'a> App<'a> {
             edit_mode: EditMode::None,
             edit_buf: String::new(),
             delete_target: None,
-            hide_completed_tasks: false,
+            hide_completed_tasks,
             completed_sessions: Vec::new(),
             theme,
         })
@@ -948,14 +950,18 @@ impl<'a> App<'a> {
         &self.edit_buf
     }
 
-    pub fn toggle_hide_completed_tasks(&mut self) {
+    pub fn toggle_hide_completed_tasks(&mut self) -> Result<()> {
         self.hide_completed_tasks = !self.hide_completed_tasks;
+        self.config.pomodoro.hide_completed_tasks = self.hide_completed_tasks;
+        self.config.save()?;
+
         let status = if self.hide_completed_tasks {
             "Hiding completed tasks."
         } else {
             "Showing completed tasks."
         };
         self.message = Some(status.to_string());
+        Ok(())
     }
 
     pub fn hide_completed_tasks(&self) -> bool {
