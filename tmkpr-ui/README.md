@@ -135,10 +135,29 @@ Press `n` to add a past or off-session entry (only available when no timer is ac
 | Project | Autocompleted from existing projects; creates a new project on submit if not found |
 | Task | Autocompleted from tasks in the selected project; creates a new task on submit if not found |
 | Note | Free-text description |
-| Start | `YYYY-MM-DD HH:MM` or `HH:MM` (today is assumed when only a time is given) |
+| Start | `YYYY-MM-DD HH:MM` or `HH:MM` (see datetime parsing below) |
 | End | Same format as Start; leave blank to create an active (running) entry |
 | Tags | Comma-separated list |
 | Snap to existing activities | Toggle with `Space` — when on, the start and end times are snapped to the nearest boundary of an existing entry |
+
+#### Datetime field input mode
+
+Date/time fields use **overwrite mode**: typing a character replaces the character at the cursor instead of inserting.
+- More intuitive for correcting dates and times
+- Separators (`-`, `:`, space) are automatically skipped when navigating
+
+#### Smart datetime parsing
+
+When you submit a manual entry or edit the start/end times, the app intelligently handles datetime pairs:
+
+| Scenario | Example | Result |
+|----------|---------|--------|
+| Both times, no date | `22:00` to `02:00` | Today 22:00 to tomorrow 02:00 (midnight crossing) |
+| One has date, one doesn't | `14:00` to `2025-05-10 17:30` | Both on 2025-05-10 |
+| Same date, end before start | `2025-05-10 23:00` to `01:00` | Today 23:00 to tomorrow 01:00 |
+| Different dates, end < start | `2025-05-10 17:00` to `2025-05-09` | Error: end time before start time |
+
+When only the start time is provided (no end time), the entry becomes active (running).
 
 ### Filter dialogs
 
