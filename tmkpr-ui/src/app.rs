@@ -22,6 +22,16 @@ use crate::theme::Theme;
 use std::collections::HashMap;
 use tmkpr_lib::config::ThemeConfig;
 
+pub struct ManualEntryInput {
+    pub project: String,
+    pub task: String,
+    pub note: String,
+    pub start: String,
+    pub end: String,
+    pub tags: String,
+    pub snap_to_existing: bool,
+}
+
 // Form field indices — prevents magic numbers in handlers
 pub mod form_fields {
     pub mod start_modal {
@@ -1449,43 +1459,38 @@ impl App {
         }
     }
 
-    pub fn add_manual_entry(
-        &mut self,
-        project: &str,
-        task: &str,
-        note: &str,
-        start_str: &str,
-        end_str: &str,
-        tags_str: &str,
-        snap_to_existing: bool,
-    ) -> anyhow::Result<()> {
-        if start_str.is_empty() {
+    pub fn add_manual_entry(&mut self, input: ManualEntryInput) -> anyhow::Result<()> {
+        if input.start.is_empty() {
             return Err(anyhow::anyhow!("Start time is required"));
         }
-        if end_str.is_empty() {
+        if input.end.is_empty() {
             return Err(anyhow::anyhow!("End time is required"));
         }
 
         let now = Utc::now();
 
-        let snapped_start = self.snap_time_to_activity(start_str, snap_to_existing)?;
-        let snapped_end = self.snap_time_to_activity(end_str, snap_to_existing)?;
+        let snapped_start = self.snap_time_to_activity(&input.start, input.snap_to_existing)?;
+        let snapped_end = self.snap_time_to_activity(&input.end, input.snap_to_existing)?;
 
         let (started_at, finished_at) = parse_datetime_pair(&snapped_start, &snapped_end, now, TimeFormat::H24)
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-        let project_opt = if project.is_empty() {
+        let project_opt = if input.project.is_empty() {
             None
         } else {
-            Some(project)
+            Some(input.project.as_str())
         };
-        let task_opt = if task.is_empty() { None } else { Some(task) };
-        let note_opt = if note.is_empty() {
+        let task_opt = if input.task.is_empty() {
             None
         } else {
-            Some(note.to_string())
+            Some(input.task.as_str())
         };
-        let tags = parse_tags(tags_str);
+        let note_opt = if input.note.is_empty() {
+            None
+        } else {
+            Some(input.note.clone())
+        };
+        let tags = parse_tags(&input.tags);
 
         let entry = {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);

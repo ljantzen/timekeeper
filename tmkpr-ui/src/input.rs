@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{form_fields, App, AppMode, ModeKind};
+use crate::app::{form_fields, App, AppMode, ModeKind, ManualEntryInput};
 use crate::form::FormResult;
 
 pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
@@ -682,7 +682,15 @@ fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                         create_project,
                         create_task,
                     };
-                } else if let Err(e) = app.add_manual_entry(&project, &task, &note, &start, &end, &tags, snap_to_existing) {
+                } else if let Err(e) = app.add_manual_entry(ManualEntryInput {
+                    project,
+                    task,
+                    note,
+                    start,
+                    end,
+                    tags,
+                    snap_to_existing,
+                }) {
                     app.status = Some((e.to_string(), true));
                 }
             }
