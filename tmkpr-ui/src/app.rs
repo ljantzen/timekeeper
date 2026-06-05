@@ -9,7 +9,7 @@ use tmkpr_lib::{
         project::{Project, UpdateProject},
         task::{Task, UpdateTask},
     },
-    nlp::parser::{parse_datetime, TimeFormat},
+    nlp::parser::{parse_datetime, parse_datetime_pair, TimeFormat},
     obsidian_logger,
     service::{CommentService, EntryService, ProjectService, TaskService, WeekReport},
     storage::Storage,
@@ -1145,8 +1145,8 @@ impl App {
                         .with_completions(tasks)
                         .with_completion_colors(task_colors),
                     Field::new("Note", note_val),
-                    Field::new("Start", start_val),
-                    Field::new("End (blank = active)", end_val),
+                    Field::datetime("Start", start_val),
+                    Field::datetime("End (blank = active)", end_val),
                     Field::new("Tags (comma-separated)", tags_val),
                 ],
                 focused: 0,
@@ -1172,8 +1172,8 @@ impl App {
                     .with_completions(tasks)
                     .with_completion_colors(task_colors),
                 Field::new("Note", ""),
-                Field::new("Start (YYYY-MM-DD HH:MM or HH:MM)", &start_val),
-                Field::new("End (YYYY-MM-DD HH:MM or HH:MM)", ""),
+                Field::datetime("Start (YYYY-MM-DD HH:MM or HH:MM)", &start_val),
+                Field::datetime("End (YYYY-MM-DD HH:MM or HH:MM)", ""),
                 Field::new("Tags (comma-separated)", ""),
                 Field::toggle("Snap to existing activities", false),
             ],
@@ -1323,22 +1323,24 @@ impl App {
     ) -> anyhow::Result<()> {
         let now = Utc::now();
 
-        let started_at = if start_str.is_empty() {
-            None
-        } else {
-            Some(
-                parse_datetime(start_str, now, TimeFormat::H24)
-                    .map_err(|e| anyhow::anyhow!("Invalid start time: {}", e))?,
-            )
-        };
-
-        let finished_at = if end_str.is_empty() {
-            // Leave finished_at unchanged — None here means "don't update the field"
-            None
-        } else {
-            let parsed = parse_datetime(end_str, now, TimeFormat::H24)
+        let (started_at, finished_at) = if !start_str.is_empty() && !end_str.is_empty() {
+            // Both provided: use pair logic
+            let (start, end) = parse_datetime_pair(start_str, end_str, now, TimeFormat::H24)
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            (Some(start), Some(Some(end)))
+        } else if !start_str.is_empty() {
+            // Only start provided
+            let start = parse_datetime(start_str, now, TimeFormat::H24)
+                .map_err(|e| anyhow::anyhow!("Invalid start time: {}", e))?;
+            (Some(start), None)
+        } else if !end_str.is_empty() {
+            // Only end provided
+            let end = parse_datetime(end_str, now, TimeFormat::H24)
                 .map_err(|e| anyhow::anyhow!("Invalid end time: {}", e))?;
-            Some(Some(parsed))
+            (None, Some(Some(end)))
+        } else {
+            // Neither provided
+            (None, None)
         };
 
         let project_id_update = if project.is_empty() {
@@ -1469,15 +1471,8 @@ impl App {
         let snapped_start = self.snap_time_to_activity(start_str, snap_to_existing)?;
         let snapped_end = self.snap_time_to_activity(end_str, snap_to_existing)?;
 
-        let started_at = parse_datetime(&snapped_start, now, TimeFormat::H24)
-            .map_err(|e| anyhow::anyhow!("Invalid start time: {}", e))?;
-
-        let finished_at = parse_datetime(&snapped_end, now, TimeFormat::H24)
-            .map_err(|e| anyhow::anyhow!("Invalid end time: {}", e))?;
-
-        if started_at >= finished_at {
-            return Err(anyhow::anyhow!("Start time must be before end time"));
-        }
+        let (started_at, finished_at) = parse_datetime_pair(&snapped_start, &snapped_end, now, TimeFormat::H24)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
 
         let project_opt = if project.is_empty() {
             None

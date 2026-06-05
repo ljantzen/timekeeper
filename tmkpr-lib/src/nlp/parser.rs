@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::{DateTime, Local, TimeZone, Timelike, Utc};
 use interim::{parse_date_string, Dialect};
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +50,100 @@ pub fn parse_datetime(
 
 pub fn parse_datetime_now(input: &str, format: TimeFormat) -> TmkprResult<DateTime<Utc>> {
     parse_datetime(input, Utc::now(), format)
+}
+
+/// Parse a pair of start/end datetime strings with smart defaults:
+/// - If both lack dates, assume today
+/// - If one lacks a date, use the same date as the other
+/// - If end < start and on same date, assume end is next day (midnight crossing)
+/// - If end < start and on different dates, return error
+pub fn parse_datetime_pair(
+    start_str: &str,
+    end_str: &str,
+    now: DateTime<Utc>,
+    format: TimeFormat,
+) -> TmkprResult<(DateTime<Utc>, DateTime<Utc>)> {
+    let has_date = |s: &str| {
+        s.contains('-') || s.contains('/') ||
+        s.to_lowercase().contains("today") ||
+        s.to_lowercase().contains("yesterday") ||
+        s.to_lowercase().contains("ago") ||
+        s.to_lowercase().contains("week")
+    };
+
+    let start_has_date = has_date(start_str);
+    let end_has_date = has_date(end_str);
+
+    let start_dt = parse_datetime(start_str, now, format)?;
+    let mut end_dt = parse_datetime(end_str, now, format)?;
+
+    match (start_has_date, end_has_date) {
+        (false, false) => {
+            // Both are times only. If end < start, assume end is next day (midnight crossing).
+            if end_dt < start_dt {
+                end_dt += chrono::Duration::days(1);
+            }
+        }
+        (true, false) => {
+            // Start has date, end doesn't. Use start's date for end.
+            let start_date = start_dt.with_timezone(&Local).date_naive();
+            let end_time = end_dt.with_timezone(&Local).time();
+            let new_end = start_date
+                .and_hms_opt(end_time.hour(), end_time.minute(), end_time.second())
+                .and_then(|naive| Local.from_local_datetime(&naive).single())
+                .ok_or_else(|| TmkprError::DateParse {
+                    input: end_str.to_string(),
+                    reason: "failed to combine date and time".to_string(),
+                })?;
+            end_dt = new_end.with_timezone(&Utc);
+        }
+        (false, true) => {
+            // End has date, start doesn't. Use end's date for start.
+            let end_date = end_dt.with_timezone(&Local).date_naive();
+            let start_time = start_dt.with_timezone(&Local).time();
+            let new_start = end_date
+                .and_hms_opt(start_time.hour(), start_time.minute(), start_time.second())
+                .and_then(|naive| Local.from_local_datetime(&naive).single())
+                .ok_or_else(|| TmkprError::DateParse {
+                    input: start_str.to_string(),
+                    reason: "failed to combine date and time".to_string(),
+                })?;
+            let start_dt_new = new_start.with_timezone(&Utc);
+
+            // If start > end now, end must be on the next day
+            if start_dt_new > end_dt {
+                end_dt += chrono::Duration::days(1);
+            }
+            return Ok((start_dt_new, end_dt));
+        }
+        (true, true) => {
+            // Both have dates. Check if end < start.
+            if end_dt < start_dt {
+                // Check if they're on the same day
+                let start_date = start_dt.with_timezone(&Local).date_naive();
+                let end_date = end_dt.with_timezone(&Local).date_naive();
+                if start_date == end_date {
+                    // Assume end is next day
+                    end_dt += chrono::Duration::days(1);
+                } else {
+                    // Different dates and end is before start - error
+                    return Err(TmkprError::DateParse {
+                        input: format!("{} to {}", start_str, end_str),
+                        reason: "end time is before start time".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    if end_dt <= start_dt {
+        return Err(TmkprError::DateParse {
+            input: format!("{} to {}", start_str, end_str),
+            reason: "end time must be after start time".to_string(),
+        });
+    }
+
+    Ok((start_dt, end_dt))
 }
 
 /// Returns true when input is purely digits and colons in H:MM or H:MM:SS shape.
@@ -172,5 +266,69 @@ mod tests {
         assert_eq!(dt.with_timezone(&Local).hour(), 9);
         let dt2 = parse_datetime("2pm", fixed_now(), TimeFormat::H12).unwrap();
         assert_eq!(dt2.with_timezone(&Local).hour(), 14);
+    }
+
+    // --- Pair parsing tests ---
+
+    #[test]
+    fn pair_both_times_only_assumes_today() {
+        let now = fixed_now();
+        let (start, end) = parse_datetime_pair("09:00", "17:30", now, TimeFormat::H24).unwrap();
+        assert_eq!(start.with_timezone(&Local).hour(), 9);
+        assert_eq!(end.with_timezone(&Local).hour(), 17);
+        assert!(end > start);
+    }
+
+    #[test]
+    fn pair_start_has_date_end_doesnt_uses_start_date() {
+        let now = fixed_now();
+        let (start, end) = parse_datetime_pair("2025-05-10 09:00", "17:30", now, TimeFormat::H24).unwrap();
+        let start_date = start.with_timezone(&Local).date_naive();
+        let end_date = end.with_timezone(&Local).date_naive();
+        assert_eq!(start_date, end_date);
+        assert_eq!(end_date.to_string(), "2025-05-10");
+    }
+
+    #[test]
+    fn pair_end_has_date_start_doesnt_uses_end_date() {
+        let now = fixed_now();
+        let (start, end) = parse_datetime_pair("09:00", "2025-05-10 17:30", now, TimeFormat::H24).unwrap();
+        let start_date = start.with_timezone(&Local).date_naive();
+        let end_date = end.with_timezone(&Local).date_naive();
+        assert_eq!(start_date, end_date);
+        assert_eq!(start_date.to_string(), "2025-05-10");
+    }
+
+    #[test]
+    fn pair_same_date_midnight_crossing() {
+        let now = fixed_now();
+        let (start, end) = parse_datetime_pair("2025-05-10 23:00", "2025-05-10 01:00", now, TimeFormat::H24).unwrap();
+        let start_date = start.with_timezone(&Local).date_naive();
+        let end_date = end.with_timezone(&Local).date_naive();
+        assert_eq!(start_date.to_string(), "2025-05-10");
+        assert_eq!(end_date.to_string(), "2025-05-11");
+    }
+
+    #[test]
+    fn pair_end_before_start_same_date_errors() {
+        let now = fixed_now();
+        let result = parse_datetime_pair("2025-05-10 17:00", "2025-05-10 09:00", now, TimeFormat::H24);
+        assert!(result.is_ok()); // Should auto-adjust to next day
+    }
+
+    #[test]
+    fn pair_end_before_start_different_dates_errors() {
+        let now = fixed_now();
+        let result = parse_datetime_pair("2025-05-10 17:00", "2025-05-09 17:00", now, TimeFormat::H24);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn pair_times_with_no_date_and_end_earlier_assumes_next_day() {
+        let now = fixed_now();
+        let (start, end) = parse_datetime_pair("22:00", "02:00", now, TimeFormat::H24).unwrap();
+        let start_date = start.with_timezone(&Local).date_naive();
+        let end_date = end.with_timezone(&Local).date_naive();
+        assert!(end_date > start_date);
     }
 }

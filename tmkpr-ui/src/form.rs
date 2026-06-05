@@ -8,6 +8,7 @@ pub struct Form {
 pub enum FieldKind {
     Text,
     Toggle,
+    DateTime,
 }
 
 pub struct Field {
@@ -50,6 +51,20 @@ impl Field {
             completion_colors: vec![],
             ac_index: None,
             kind: FieldKind::Toggle,
+        }
+    }
+
+    pub fn datetime(label: &'static str, value: impl Into<String>) -> Self {
+        let value = value.into();
+        let cursor = value.len();
+        Self {
+            label,
+            value,
+            cursor,
+            completions: vec![],
+            completion_colors: vec![],
+            ac_index: None,
+            kind: FieldKind::DateTime,
         }
     }
 
@@ -108,6 +123,21 @@ impl Field {
         self.cursor += ch.len_utf8();
     }
 
+    fn overwrite(&mut self, ch: char) {
+        if self.cursor < self.value.len() {
+            let start_byte = self.cursor;
+            let ch_len = self.value[start_byte..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            self.value.replace_range(start_byte..start_byte + ch_len, &ch.to_string());
+        } else {
+            self.value.push(ch);
+        }
+        self.cursor += ch.len_utf8();
+    }
+
     fn delete_back(&mut self) {
         if self.cursor > 0 {
             let before = &self.value[..self.cursor];
@@ -124,6 +154,44 @@ impl Field {
                     self.value = if self.is_on() { "false" } else { "true" }.to_string();
                 }
             }
+            FieldKind::DateTime => match code {
+                KeyCode::Char(c) => {
+                    self.skip_separators_forward();
+                    self.overwrite(c);
+                    self.skip_separators_forward();
+                }
+                KeyCode::Backspace => {
+                    self.skip_separators_back();
+                    self.delete_back();
+                }
+                KeyCode::Delete if self.cursor < self.value.len() => {
+                    self.skip_separators_forward();
+                    let ch_len = self.value[self.cursor..]
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    self.value.drain(self.cursor..self.cursor + ch_len);
+                }
+                KeyCode::Left if self.cursor > 0 => {
+                    let before = &self.value[..self.cursor];
+                    let ch_len = before.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                    self.cursor -= ch_len;
+                    self.skip_separators_back();
+                }
+                KeyCode::Right if self.cursor < self.value.len() => {
+                    let ch_len = self.value[self.cursor..]
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    self.cursor += ch_len;
+                    self.skip_separators_forward();
+                }
+                KeyCode::Home => self.cursor = 0,
+                KeyCode::End => self.cursor = self.value.len(),
+                _ => {}
+            },
             FieldKind::Text => match code {
                 KeyCode::Char(c) => self.insert(c),
                 KeyCode::Backspace => self.delete_back(),
@@ -152,6 +220,34 @@ impl Field {
                 KeyCode::End => self.cursor = self.value.len(),
                 _ => {}
             },
+        }
+    }
+
+    fn skip_separators_forward(&mut self) {
+        while self.cursor < self.value.len() {
+            let ch = self.value[self.cursor..]
+                .chars()
+                .next()
+                .unwrap_or(' ');
+            if matches!(ch, '-' | ':' | ' ') {
+                let ch_len = ch.len_utf8();
+                self.cursor += ch_len;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn skip_separators_back(&mut self) {
+        while self.cursor > 0 {
+            let before = &self.value[..self.cursor];
+            let ch = before.chars().last().unwrap_or(' ');
+            if matches!(ch, '-' | ':' | ' ') {
+                let ch_len = ch.len_utf8();
+                self.cursor -= ch_len;
+            } else {
+                break;
+            }
         }
     }
 }
@@ -369,6 +465,60 @@ mod tests {
             .with_completions(vec!["alpha".into()]);
         let applied = f.apply_selected();
         assert!(!applied);
+    }
+
+    // --- DateTime field: overwrite mode ---
+
+    #[test]
+    fn datetime_char_overwrites_at_cursor() {
+        let mut f = Field::datetime("label", "2025-01-01 12:00");
+        f.cursor = 0;
+        f.handle_key(KeyCode::Char('2'));
+        assert_eq!(f.value, "2025-01-01 12:00");
+        assert_eq!(f.cursor, 1);
+    }
+
+    #[test]
+    fn datetime_char_overwrites_mid_field() {
+        let mut f = Field::datetime("label", "2025-01-01 12:00");
+        f.cursor = 5;
+        f.handle_key(KeyCode::Char('1'));
+        assert_eq!(f.value, "2025-11-01 12:00");
+        assert_eq!(f.cursor, 6);
+    }
+
+    #[test]
+    fn datetime_char_skips_separator() {
+        let mut f = Field::datetime("label", "2025-01-01 12:00");
+        f.cursor = 4;
+        f.handle_key(KeyCode::Char('0'));
+        assert_eq!(f.value, "2025-01-01 12:00");
+        assert_eq!(f.cursor, 6);
+    }
+
+    #[test]
+    fn datetime_backspace_deletes_before_cursor() {
+        let mut f = Field::datetime("label", "2025-01-01 12:00");
+        f.cursor = 5;
+        f.handle_key(KeyCode::Backspace);
+        assert_eq!(f.value, "202-01-01 12:00");
+        assert_eq!(f.cursor, 3);
+    }
+
+    #[test]
+    fn datetime_left_from_after_separator() {
+        let mut f = Field::datetime("label", "2025-01-01 12:00");
+        f.cursor = 5;
+        f.handle_key(KeyCode::Left);
+        assert_eq!(f.cursor, 4);
+    }
+
+    #[test]
+    fn datetime_right_from_separator() {
+        let mut f = Field::datetime("label", "2025-01-01 12:00");
+        f.cursor = 4;
+        f.handle_key(KeyCode::Right);
+        assert_eq!(f.cursor, 5);
     }
 
     // --- Form navigation ---
