@@ -83,6 +83,10 @@ pub enum Commands {
     #[command(alias = "fg")]
     FillGap(FillGapArgs),
 
+    /// Manage point-in-time events
+    #[command(subcommand, alias = "ev")]
+    Event(EventCommands),
+
     /// Manage comments on time entries
     #[command(subcommand, alias = "c")]
     Comment(CommentCommands),
@@ -494,6 +498,73 @@ pub struct CommentEditArgs {
 pub struct CommentDeleteArgs {
     /// Comment ID or UUID prefix
     pub id: String,
+    /// Skip confirmation prompt
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+// ── Event subcommands ─────────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+pub enum EventCommands {
+    /// Record a point-in-time event
+    #[command(alias = "a")]
+    Add(EventAddArgs),
+    /// Edit an existing event
+    #[command(alias = "e")]
+    Edit(EventEditArgs),
+    /// Delete an event
+    #[command(aliases = ["d", "rm"])]
+    Delete(EventDeleteArgs),
+}
+
+#[derive(Args)]
+pub struct EventAddArgs {
+    /// Timestamp of the event — natural language or ISO 8601 (default: now)
+    #[arg(long)]
+    pub at: Option<String>,
+
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
+    pub project: Option<String>,
+
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
+    pub task: Option<String>,
+
+    #[arg(short, long)]
+    pub note: Option<String>,
+
+    #[arg(long, value_delimiter = ',')]
+    pub tags: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct EventEditArgs {
+    /// Event ID or UUID prefix
+    pub id: String,
+
+    /// New timestamp — natural language or ISO 8601
+    #[arg(long)]
+    pub at: Option<String>,
+
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
+    pub project: Option<String>,
+
+    #[arg(short, long, add = ArgValueCompleter::new(complete_tasks))]
+    pub task: Option<String>,
+
+    #[arg(short, long)]
+    pub note: Option<String>,
+
+    /// Replace all tags (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Args)]
+pub struct EventDeleteArgs {
+    /// Event ID or UUID prefix
+    pub id: String,
+
     /// Skip confirmation prompt
     #[arg(long, short = 'y')]
     pub yes: bool,

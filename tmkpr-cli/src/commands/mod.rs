@@ -1,5 +1,6 @@
 pub mod comment;
 pub mod completion;
+pub mod event;
 pub mod delete;
 pub mod edit;
 pub mod export;

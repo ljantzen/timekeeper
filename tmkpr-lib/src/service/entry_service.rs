@@ -120,6 +120,27 @@ impl<'a> EntryService<'a> {
         })
     }
 
+    /// Create a point-in-time event (started_at == finished_at).
+    pub fn log_event(
+        &self,
+        project_name: Option<&str>,
+        task_name: Option<&str>,
+        note: Option<String>,
+        tags: Vec<String>,
+        at: DateTime<Utc>,
+    ) -> TmkprResult<Entry> {
+        let (project_id, task_id) = self.resolve_project_task(project_name, task_name)?;
+        self.storage.create_entry(NewEntry {
+            user_id: self.user_id.to_string(),
+            project_id,
+            task_id,
+            note,
+            started_at: at,
+            finished_at: Some(at),
+            tags,
+        })
+    }
+
     /// Create a finished entry directly without starting/stopping.
     pub fn log(
         &self,
