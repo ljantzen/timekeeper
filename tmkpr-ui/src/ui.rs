@@ -78,6 +78,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ModeKind::EditModal => render_edit_modal(frame, app, area),
         ModeKind::EditEventModal => render_edit_event_modal(frame, app, area),
         ModeKind::AddManualEntry => render_add_manual_entry(frame, app, area),
+        ModeKind::AddEventModal => render_add_event_modal(frame, app, area),
         ModeKind::ConfirmDelete => render_confirm_delete(frame, app, area),
         ModeKind::AddProject => render_add_project(frame, app, area),
         ModeKind::ManageProjects => render_manage_projects(frame, app, area),
@@ -439,7 +440,7 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(Span::styled(msg.clone(), style))
         }
         None => Line::from(Span::styled(
-            " [s]tart  [S]tart selected  [x]stop  [e]dit  [d]el  [m]erge  [g]ap-fill  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]rojects  [:]command  [?]",
+            " [s]tart  [S]tart selected  [x]stop  [n] add entry  [v] add event  [e]dit  [d]el  [m]erge  [g]ap-fill  [f]ilter  [o]rder  [T/Y/W]  [c]omments  [p]rojects  [:]command  [?]",
             Style::default().fg(app.theme.dim),
         )),
     };
@@ -632,6 +633,12 @@ fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
 fn render_edit_event_modal(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditEventModal { form, .. } = &app.mode {
         render_form_modal(frame, area, " Edit Event ", 85, form, &app.theme);
+    }
+}
+
+fn render_add_event_modal(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::AddEventModal(form) = &app.mode {
+        render_form_modal(frame, area, " Add Event ", 85, form, &app.theme);
     }
 }
 
@@ -1007,6 +1014,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled("  n      ", bold),
                 Span::raw("Add manual entry (with specific times)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  v      ", bold),
+                Span::raw("Add point-in-time event (defaults to now)"),
             ]),
             Line::from(vec![
                 Span::styled("  x      ", bold),

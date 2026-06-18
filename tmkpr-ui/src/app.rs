@@ -94,6 +94,14 @@ pub mod form_fields {
         pub const TAGS: usize = 4;
     }
 
+    pub mod add_event_modal {
+        pub const PROJECT: usize = 0;
+        pub const TASK: usize = 1;
+        pub const NOTE: usize = 2;
+        pub const TIME: usize = 3;
+        pub const TAGS: usize = 4;
+    }
+
     pub mod add_manual_entry {
         pub const PROJECT: usize = 0;
         pub const TASK: usize = 1;
@@ -392,6 +400,7 @@ pub enum AppMode {
         name: String,
     },
     AddManualEntry(Form),
+    AddEventModal(Form),
     Help {
         scroll: u16,
     },
@@ -432,6 +441,7 @@ pub enum ModeKind {
     ConfirmCreate,
     ConfirmDeleteProject,
     AddManualEntry,
+    AddEventModal,
     Help,
     Settings,
 }
@@ -460,6 +470,7 @@ impl AppMode {
             AppMode::ConfirmCreate { .. } => ModeKind::ConfirmCreate,
             AppMode::ConfirmDeleteProject { .. } => ModeKind::ConfirmDeleteProject,
             AppMode::AddManualEntry(_) => ModeKind::AddManualEntry,
+            AppMode::AddEventModal(_) => ModeKind::AddEventModal,
             AppMode::Help { .. } => ModeKind::Help,
             AppMode::Settings { .. } => ModeKind::Settings,
         }
@@ -1215,6 +1226,68 @@ impl App {
                 focused: 0,
             },
         };
+    }
+
+    pub fn open_add_event_modal(&mut self) {
+        let projects = self.project_names();
+        let project_colors = self.project_colors();
+        let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
+        let now_val = Local::now().format("%Y-%m-%d %H:%M").to_string();
+        self.mode = AppMode::AddEventModal(Form {
+            fields: vec![
+                Field::new("Project", "")
+                    .with_completions(projects)
+                    .with_completion_colors(project_colors),
+                Field::new("Task", "")
+                    .with_completions(tasks)
+                    .with_completion_colors(task_colors),
+                Field::new("Note", ""),
+                Field::new("Time (YYYY-MM-DD HH:MM)", now_val).into_timestamp(),
+                Field::new("Tags (comma-separated)", ""),
+            ],
+            focused: 0,
+        });
+    }
+
+    pub fn add_event_entry(
+        &mut self,
+        project: &str,
+        task: &str,
+        note: &str,
+        time_str: &str,
+        tags_str: &str,
+    ) -> anyhow::Result<()> {
+        let now = Utc::now();
+        let at = if time_str.is_empty() {
+            now
+        } else {
+            parse_datetime(time_str, now, TimeFormat::H24)
+                .map_err(|e| anyhow::anyhow!("Invalid time '{}': {}", time_str, e))?
+        };
+
+        let tags: Vec<String> = tags_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let project_name = if project.is_empty() {
+            None
+        } else {
+            Some(project)
+        };
+        let task_name = if task.is_empty() { None } else { Some(task) };
+        let note_val = if note.is_empty() {
+            None
+        } else {
+            Some(note.to_string())
+        };
+
+        let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+        svc.log_event(project_name, task_name, note_val, tags, at)?;
+        self.refresh()?;
+        Ok(())
     }
 
     pub fn edit_event_entry(

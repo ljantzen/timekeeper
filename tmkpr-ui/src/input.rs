@@ -31,6 +31,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::ConfirmCreate => handle_confirm_create(app, key),
         ModeKind::ConfirmDeleteProject => handle_confirm_delete_project(app, key),
         ModeKind::AddManualEntry => handle_add_manual_entry(app, key),
+        ModeKind::AddEventModal => handle_add_event_modal(app, key),
         ModeKind::Settings => handle_settings(app, key),
         ModeKind::Help => handle_help(app, key),
     }
@@ -63,6 +64,9 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             } else {
                 app.status = Some(("Already tracking. Stop first with [x].".into(), true));
             }
+        }
+        KeyCode::Char('v') => {
+            app.open_add_event_modal();
         }
         KeyCode::Char('x') => {
             if app.active_entry.is_some() {
@@ -674,6 +678,61 @@ fn handle_edit_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .value
                     .clone();
                 if let Err(e) = app.edit_event_entry(&id, &project, &task, &note, &time, &tags) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_add_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::AddEventModal(form) => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    let project_name = if let AppMode::AddEventModal(form) = &app.mode {
+        form.fields[form_fields::add_event_modal::PROJECT]
+            .value
+            .clone()
+    } else {
+        String::new()
+    };
+
+    if !project_name.is_empty() {
+        let tasks = app.task_names_for_project(&project_name);
+        let task_colors = app.task_colors_for_project(&project_name);
+        if let AppMode::AddEventModal(form) = &mut app.mode {
+            form.fields[form_fields::add_event_modal::TASK].completions = tasks;
+            form.fields[form_fields::add_event_modal::TASK].completion_colors = task_colors;
+        }
+    }
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.mode = AppMode::Normal;
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::AddEventModal(form) = old {
+                let project = form.fields[form_fields::add_event_modal::PROJECT]
+                    .value
+                    .clone();
+                let task = form.fields[form_fields::add_event_modal::TASK]
+                    .value
+                    .clone();
+                let note = form.fields[form_fields::add_event_modal::NOTE]
+                    .value
+                    .clone();
+                let time = form.fields[form_fields::add_event_modal::TIME]
+                    .value
+                    .clone();
+                let tags = form.fields[form_fields::add_event_modal::TAGS]
+                    .value
+                    .clone();
+                if let Err(e) = app.add_event_entry(&project, &task, &note, &time, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
             }
