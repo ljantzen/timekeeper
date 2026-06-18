@@ -1,8 +1,8 @@
 pub mod comment;
 pub mod completion;
-pub mod event;
 pub mod delete;
 pub mod edit;
+pub mod event;
 pub mod export;
 pub mod fill_gap;
 pub mod import;

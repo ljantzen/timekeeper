@@ -6,12 +6,7 @@ use tmkpr_lib::storage::Storage;
 
 use crate::cli::DeleteArgs;
 
-pub fn run(
-    args: DeleteArgs,
-    storage: &dyn Storage,
-    user_id: &str,
-    config: &Config,
-) -> Result<()> {
+pub fn run(args: DeleteArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
     let entry = svc.get(&args.id)?;
 

@@ -29,11 +29,14 @@ pub fn add(
         .transpose()?;
 
     let task = match (args.task.as_deref(), &project) {
-        (Some(input), Some(proj)) => {
-            Some(prompt::resolve_or_create_task(storage, user_id, proj, input)?)
-        }
+        (Some(input), Some(proj)) => Some(prompt::resolve_or_create_task(
+            storage, user_id, proj, input,
+        )?),
         (Some(name), None) => {
-            return Err(anyhow::anyhow!("task `{}` requires a project (use -p)", name));
+            return Err(anyhow::anyhow!(
+                "task `{}` requires a project (use -p)",
+                name
+            ));
         }
         _ => None,
     };
@@ -94,7 +97,11 @@ pub fn edit(
         Some(input) => {
             let pid = match &project_id {
                 Some(Some(id)) => Some(id.clone()),
-                _ => EntryService::new(storage, user_id).get(&args.id)?.project_id,
+                _ => {
+                    EntryService::new(storage, user_id)
+                        .get(&args.id)?
+                        .project_id
+                }
             };
             match pid {
                 Some(pid) => {

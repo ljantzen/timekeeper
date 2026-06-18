@@ -329,7 +329,9 @@ fn render_week(frame: &mut Frame, app: &App, area: Rect) {
             let mut total_with_active = report.total_secs;
             if let Some(active) = &app.active_entry {
                 let active_start = active.started_at.with_timezone(&Local).date_naive();
-                if active_start.iso_week() == today_date.iso_week() && active_start.year() == today_date.year() {
+                if active_start.iso_week() == today_date.iso_week()
+                    && active_start.year() == today_date.year()
+                {
                     total_with_active += active.elapsed().num_seconds();
                 }
             }
@@ -524,7 +526,11 @@ fn render_form_modal(
                 let before = &field.value[..field.cursor];
                 let remaining = &field.value[field.cursor..];
                 let char_at_cursor = remaining.chars().next().unwrap_or(' ');
-                let char_len = if remaining.is_empty() { 0 } else { char_at_cursor.len_utf8() };
+                let char_len = if remaining.is_empty() {
+                    0
+                } else {
+                    char_at_cursor.len_utf8()
+                };
                 let after = &remaining[char_len..];
 
                 let mut spans = vec![];
@@ -551,7 +557,9 @@ fn render_form_modal(
                 Line::from(spans)
             } else {
                 match value_color {
-                    Some(c) => Line::from(Span::styled(field.value.clone(), Style::default().fg(c))),
+                    Some(c) => {
+                        Line::from(Span::styled(field.value.clone(), Style::default().fg(c)))
+                    }
                     None => Line::from(field.value.clone()),
                 }
             }
@@ -1108,7 +1116,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
             ]),
             Line::from(vec![Span::styled("  q/Esc  ", bold), Span::raw("Quit")]),
             Line::from(""),
-            Line::from(Span::styled("j/k or ↑↓ scroll  •  any other key to close", dim)),
+            Line::from(Span::styled(
+                "j/k or ↑↓ scroll  •  any other key to close",
+                dim,
+            )),
         ])
         .scroll((scroll, 0)),
         inner,

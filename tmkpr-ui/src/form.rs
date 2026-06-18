@@ -156,6 +156,108 @@ impl Field {
     }
 }
 
+impl Form {
+    fn filtered_count(&self, idx: usize) -> usize {
+        let f = &self.fields[idx];
+        let q = f.value.to_lowercase();
+        f.completions
+            .iter()
+            .filter(|c| q.is_empty() || c.to_lowercase().contains(&q))
+            .count()
+    }
+
+    pub fn handle_key(&mut self, key: KeyEvent) -> FormResult {
+        match key.code {
+            KeyCode::Esc => FormResult::Cancel,
+
+            KeyCode::Down => {
+                let has_completions = !self.fields[self.focused].completions.is_empty();
+                if has_completions {
+                    let count = self.filtered_count(self.focused);
+                    if count > 0 {
+                        let f = &mut self.fields[self.focused];
+                        f.ac_index = Some(match f.ac_index {
+                            None => 0,
+                            Some(i) => (i + 1) % count,
+                        });
+                    }
+                } else {
+                    // No completions: Down navigates to the next field.
+                    self.fields[self.focused].ac_index = None;
+                    self.focused = (self.focused + 1) % self.fields.len();
+                }
+                FormResult::None
+            }
+
+            KeyCode::Up => {
+                if self.fields[self.focused].ac_index.is_some() {
+                    // Navigate backwards within an open autocomplete list.
+                    let count = self.filtered_count(self.focused);
+                    let f = &mut self.fields[self.focused];
+                    f.ac_index = Some(match f.ac_index {
+                        None => count.saturating_sub(1),
+                        Some(0) => count.saturating_sub(1),
+                        Some(i) => i - 1,
+                    });
+                } else {
+                    // No active autocomplete: Up navigates to the previous field.
+                    self.fields[self.focused].ac_index = None;
+                    self.focused = if self.focused == 0 {
+                        self.fields.len() - 1
+                    } else {
+                        self.focused - 1
+                    };
+                }
+                FormResult::None
+            }
+
+            KeyCode::Enter => {
+                if self.fields[self.focused].ac_index.is_some() {
+                    self.fields[self.focused].apply_selected();
+                    if self.focused < self.fields.len() - 1 {
+                        self.focused += 1;
+                    }
+                    FormResult::None
+                } else if self.focused == self.fields.len() - 1 {
+                    FormResult::Submit
+                } else {
+                    self.focused += 1;
+                    FormResult::None
+                }
+            }
+
+            KeyCode::Tab => {
+                if self.fields[self.focused].ac_index.is_some() {
+                    self.fields[self.focused].apply_selected();
+                }
+                self.fields[self.focused].ac_index = None;
+                self.focused = (self.focused + 1) % self.fields.len();
+                FormResult::None
+            }
+
+            KeyCode::BackTab => {
+                self.fields[self.focused].ac_index = None;
+                self.focused = if self.focused == 0 {
+                    self.fields.len() - 1
+                } else {
+                    self.focused - 1
+                };
+                FormResult::None
+            }
+
+            _ => {
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key.modifiers.contains(KeyModifiers::ALT)
+                {
+                    self.fields[self.focused].handle_key(key.code);
+                    self.fields[self.focused].ac_index = None;
+                }
+                FormResult::None
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,15 +439,13 @@ mod tests {
 
     #[test]
     fn suggestions_returns_all_when_query_empty() {
-        let f = Field::new("label", "")
-            .with_completions(vec!["alpha".into(), "beta".into()]);
+        let f = Field::new("label", "").with_completions(vec!["alpha".into(), "beta".into()]);
         assert_eq!(f.suggestions_colored().len(), 2);
     }
 
     #[test]
     fn suggestions_filters_by_query() {
-        let f = Field::new("label", "al")
-            .with_completions(vec!["alpha".into(), "beta".into()]);
+        let f = Field::new("label", "al").with_completions(vec!["alpha".into(), "beta".into()]);
         let s = f.suggestions_colored();
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].0, "alpha");
@@ -353,8 +453,7 @@ mod tests {
 
     #[test]
     fn apply_selected_fills_value_and_clears_index() {
-        let mut f = Field::new("label", "")
-            .with_completions(vec!["alpha".into(), "beta".into()]);
+        let mut f = Field::new("label", "").with_completions(vec!["alpha".into(), "beta".into()]);
         f.ac_index = Some(1);
         let applied = f.apply_selected();
         assert!(applied);
@@ -365,8 +464,7 @@ mod tests {
 
     #[test]
     fn apply_selected_noop_when_no_index() {
-        let mut f = Field::new("label", "")
-            .with_completions(vec!["alpha".into()]);
+        let mut f = Field::new("label", "").with_completions(vec!["alpha".into()]);
         let applied = f.apply_selected();
         assert!(!applied);
     }
@@ -408,8 +506,11 @@ mod tests {
     #[test]
     fn up_navigates_autocomplete_backwards_when_ac_index_set() {
         let mut form = Form {
-            fields: vec![Field::new("label", "a")
-                .with_completions(vec!["alpha".into(), "beta".into(), "gamma".into()])],
+            fields: vec![Field::new("label", "a").with_completions(vec![
+                "alpha".into(),
+                "beta".into(),
+                "gamma".into(),
+            ])],
             focused: 0,
         };
         form.fields[0].ac_index = Some(2);
@@ -421,8 +522,11 @@ mod tests {
     #[test]
     fn up_wraps_autocomplete_to_last_from_zero() {
         let mut form = Form {
-            fields: vec![Field::new("label", "")
-                .with_completions(vec!["alpha".into(), "beta".into(), "gamma".into()])],
+            fields: vec![Field::new("label", "").with_completions(vec![
+                "alpha".into(),
+                "beta".into(),
+                "gamma".into(),
+            ])],
             focused: 0,
         };
         form.fields[0].ac_index = Some(0);
@@ -500,107 +604,5 @@ mod tests {
         form.handle_key(key(KeyCode::Char('x')));
         assert_eq!(form.fields[0].value, "x");
         assert_eq!(form.fields[1].value, "");
-    }
-}
-
-impl Form {
-    fn filtered_count(&self, idx: usize) -> usize {
-        let f = &self.fields[idx];
-        let q = f.value.to_lowercase();
-        f.completions
-            .iter()
-            .filter(|c| q.is_empty() || c.to_lowercase().contains(&q))
-            .count()
-    }
-
-    pub fn handle_key(&mut self, key: KeyEvent) -> FormResult {
-        match key.code {
-            KeyCode::Esc => FormResult::Cancel,
-
-            KeyCode::Down => {
-                let has_completions = !self.fields[self.focused].completions.is_empty();
-                if has_completions {
-                    let count = self.filtered_count(self.focused);
-                    if count > 0 {
-                        let f = &mut self.fields[self.focused];
-                        f.ac_index = Some(match f.ac_index {
-                            None => 0,
-                            Some(i) => (i + 1) % count,
-                        });
-                    }
-                } else {
-                    // No completions: Down navigates to the next field.
-                    self.fields[self.focused].ac_index = None;
-                    self.focused = (self.focused + 1) % self.fields.len();
-                }
-                FormResult::None
-            }
-
-            KeyCode::Up => {
-                if self.fields[self.focused].ac_index.is_some() {
-                    // Navigate backwards within an open autocomplete list.
-                    let count = self.filtered_count(self.focused);
-                    let f = &mut self.fields[self.focused];
-                    f.ac_index = Some(match f.ac_index {
-                        None => count.saturating_sub(1),
-                        Some(0) => count.saturating_sub(1),
-                        Some(i) => i - 1,
-                    });
-                } else {
-                    // No active autocomplete: Up navigates to the previous field.
-                    self.fields[self.focused].ac_index = None;
-                    self.focused = if self.focused == 0 {
-                        self.fields.len() - 1
-                    } else {
-                        self.focused - 1
-                    };
-                }
-                FormResult::None
-            }
-
-            KeyCode::Enter => {
-                if self.fields[self.focused].ac_index.is_some() {
-                    self.fields[self.focused].apply_selected();
-                    if self.focused < self.fields.len() - 1 {
-                        self.focused += 1;
-                    }
-                    FormResult::None
-                } else if self.focused == self.fields.len() - 1 {
-                    FormResult::Submit
-                } else {
-                    self.focused += 1;
-                    FormResult::None
-                }
-            }
-
-            KeyCode::Tab => {
-                if self.fields[self.focused].ac_index.is_some() {
-                    self.fields[self.focused].apply_selected();
-                }
-                self.fields[self.focused].ac_index = None;
-                self.focused = (self.focused + 1) % self.fields.len();
-                FormResult::None
-            }
-
-            KeyCode::BackTab => {
-                self.fields[self.focused].ac_index = None;
-                self.focused = if self.focused == 0 {
-                    self.fields.len() - 1
-                } else {
-                    self.focused - 1
-                };
-                FormResult::None
-            }
-
-            _ => {
-                if !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !key.modifiers.contains(KeyModifiers::ALT)
-                {
-                    self.fields[self.focused].handle_key(key.code);
-                    self.fields[self.focused].ac_index = None;
-                }
-                FormResult::None
-            }
-        }
     }
 }

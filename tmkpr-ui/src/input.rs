@@ -634,7 +634,9 @@ fn handle_edit_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     };
 
     let project_name = if let AppMode::EditEventModal { form, .. } = &app.mode {
-        form.fields[form_fields::edit_event_modal::PROJECT].value.clone()
+        form.fields[form_fields::edit_event_modal::PROJECT]
+            .value
+            .clone()
     } else {
         String::new()
     };
@@ -656,11 +658,21 @@ fn handle_edit_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::EditEventModal { id, form } = old {
-                let project = form.fields[form_fields::edit_event_modal::PROJECT].value.clone();
-                let task = form.fields[form_fields::edit_event_modal::TASK].value.clone();
-                let note = form.fields[form_fields::edit_event_modal::NOTE].value.clone();
-                let time = form.fields[form_fields::edit_event_modal::TIME].value.clone();
-                let tags = form.fields[form_fields::edit_event_modal::TAGS].value.clone();
+                let project = form.fields[form_fields::edit_event_modal::PROJECT]
+                    .value
+                    .clone();
+                let task = form.fields[form_fields::edit_event_modal::TASK]
+                    .value
+                    .clone();
+                let note = form.fields[form_fields::edit_event_modal::NOTE]
+                    .value
+                    .clone();
+                let time = form.fields[form_fields::edit_event_modal::TIME]
+                    .value
+                    .clone();
+                let tags = form.fields[form_fields::edit_event_modal::TAGS]
+                    .value
+                    .clone();
                 if let Err(e) = app.edit_event_entry(&id, &project, &task, &note, &time, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
@@ -678,7 +690,9 @@ fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 
     // Update task completions based on selected project
     let project_name = if let AppMode::AddManualEntry(form) = &app.mode {
-        form.fields[form_fields::add_manual_entry::PROJECT].value.clone()
+        form.fields[form_fields::add_manual_entry::PROJECT]
+            .value
+            .clone()
     } else {
         String::new()
     };
@@ -700,13 +714,26 @@ fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Submit => {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::AddManualEntry(form) = old {
-                let project = form.fields[form_fields::add_manual_entry::PROJECT].value.clone();
-                let task = form.fields[form_fields::add_manual_entry::TASK].value.clone();
-                let note = form.fields[form_fields::add_manual_entry::NOTE].value.clone();
-                let start = form.fields[form_fields::add_manual_entry::START].value.clone();
-                let end = form.fields[form_fields::add_manual_entry::END].value.clone();
-                let tags = form.fields[form_fields::add_manual_entry::TAGS].value.clone();
-                let snap_to_existing = form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].is_on();
+                let project = form.fields[form_fields::add_manual_entry::PROJECT]
+                    .value
+                    .clone();
+                let task = form.fields[form_fields::add_manual_entry::TASK]
+                    .value
+                    .clone();
+                let note = form.fields[form_fields::add_manual_entry::NOTE]
+                    .value
+                    .clone();
+                let start = form.fields[form_fields::add_manual_entry::START]
+                    .value
+                    .clone();
+                let end = form.fields[form_fields::add_manual_entry::END]
+                    .value
+                    .clone();
+                let tags = form.fields[form_fields::add_manual_entry::TAGS]
+                    .value
+                    .clone();
+                let snap_to_existing =
+                    form.fields[form_fields::add_manual_entry::SNAP_TO_EXISTING].is_on();
 
                 let create_project = !project.is_empty()
                     && !app
@@ -726,7 +753,15 @@ fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                         create_project,
                         create_task,
                     };
-                } else if let Err(e) = app.add_manual_entry(&project, &task, &note, &start, &end, &tags, snap_to_existing) {
+                } else if let Err(e) = app.add_manual_entry(
+                    &project,
+                    &task,
+                    &note,
+                    &start,
+                    &end,
+                    &tags,
+                    snap_to_existing,
+                ) {
                     app.status = Some((e.to_string(), true));
                 }
             }
@@ -865,7 +900,6 @@ fn handle_help(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 }
 
 fn handle_settings(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
-
     // Text-editing sub-mode: intercept all keys before normal navigation.
     if let AppMode::Settings {
         cursor,
@@ -893,9 +927,15 @@ fn handle_settings(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     }
                 }
                 KeyCode::Backspace => match cursor {
-                    4 => { obs_vault.pop(); }
-                    5 => { obs_activity.pop(); }
-                    6 => { obs_comment.pop(); }
+                    4 => {
+                        obs_vault.pop();
+                    }
+                    5 => {
+                        obs_activity.pop();
+                    }
+                    6 => {
+                        obs_comment.pop();
+                    }
                     _ => {}
                 },
                 _ => {}
@@ -981,17 +1021,12 @@ fn settings_adjust(app: &mut App, delta: i64) {
             }
             1 => {
                 let n = crate::app::DATE_FORMAT_PRESETS.len();
-                *date_fmt_idx =
-                    ((*date_fmt_idx as i64 + delta).rem_euclid(n as i64)) as usize;
+                *date_fmt_idx = ((*date_fmt_idx as i64 + delta).rem_euclid(n as i64)) as usize;
                 None
             }
             2 => {
-                let idx = WEEKDAYS
-                    .iter()
-                    .position(|&d| d == *week_start)
-                    .unwrap_or(0);
-                *week_start =
-                    WEEKDAYS[((idx as i64 + delta).rem_euclid(7)) as usize];
+                let idx = WEEKDAYS.iter().position(|&d| d == *week_start).unwrap_or(0);
+                *week_start = WEEKDAYS[((idx as i64 + delta).rem_euclid(7)) as usize];
                 None
             }
             3 => {

@@ -110,7 +110,9 @@ fn run_app(
                                 KeyCode::Esc => app.new_task_cancel(),
                                 _ => {}
                             }
-                        } else if app.edit_mode() == app::EditMode::EditProject || app.edit_mode() == app::EditMode::EditTask {
+                        } else if app.edit_mode() == app::EditMode::EditProject
+                            || app.edit_mode() == app::EditMode::EditTask
+                        {
                             match key.code {
                                 KeyCode::Char(c) => app.edit_push(c),
                                 KeyCode::Backspace => app.edit_pop(),
@@ -131,9 +133,13 @@ fn run_app(
                                 KeyCode::Char('c') => app.task_complete_toggle()?,
                                 KeyCode::Char('n') => app.new_task_begin(),
                                 KeyCode::Char('P') => app.new_project_begin(),
-                                KeyCode::Char('e') if !app.tasks().is_empty() => app.edit_task_begin(),
+                                KeyCode::Char('e') if !app.tasks().is_empty() => {
+                                    app.edit_task_begin()
+                                }
                                 KeyCode::Char('e') => app.edit_project_begin(),
-                                KeyCode::Char('d') if !app.tasks().is_empty() => app.delete_task_begin(),
+                                KeyCode::Char('d') if !app.tasks().is_empty() => {
+                                    app.delete_task_begin()
+                                }
                                 KeyCode::Char('d') => app.delete_project_begin(),
                                 KeyCode::Char('h') => app.toggle_hide_completed_tasks()?,
                                 KeyCode::Char('+') => app.add_selected_task_to_queue(),

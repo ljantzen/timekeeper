@@ -102,11 +102,7 @@ impl ObsidianLogger {
     }
 
     /// Log a project action to Obsidian. Only logs if Obsidian integration is enabled.
-    pub fn log_project(
-        &self,
-        project_name: &str,
-        action: ProjectAction,
-    ) -> TmkprResult<()> {
+    pub fn log_project(&self, project_name: &str, action: ProjectAction) -> TmkprResult<()> {
         if !self.config.enabled {
             return Ok(());
         }
@@ -256,7 +252,11 @@ impl ObsidianLogger {
             return Ok(());
         }
 
-        let action = if task.completed { "COMPLETED" } else { "UPDATED" };
+        let action = if task.completed {
+            "COMPLETED"
+        } else {
+            "UPDATED"
+        };
         let message = format!("[{}] {} / {}", action, project_name, task.name);
         log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
@@ -529,7 +529,8 @@ mod tests {
             updated_at: Utc::now(),
         };
 
-        let message = format_entry_message(&entry, Some("Project A"), None, ActivityAction::Started);
+        let message =
+            format_entry_message(&entry, Some("Project A"), None, ActivityAction::Started);
         assert!(message.contains("[STARTED]"));
         assert!(message.contains("Project A / Review PR"));
         assert!(message.contains("30m"));
@@ -591,7 +592,8 @@ mod tests {
             updated_at: Utc::now(),
         };
 
-        let message = format_entry_message(&entry, Some("Project X"), None, ActivityAction::Started);
+        let message =
+            format_entry_message(&entry, Some("Project X"), None, ActivityAction::Started);
         assert!(message.contains("[STARTED]"));
         assert!(message.contains("Project X"));
         assert!(message.contains("15m"));
@@ -753,7 +755,12 @@ mod tests {
             updated_at: Utc::now(),
         };
 
-        let message = format_entry_message(&entry, Some("teamaktiviteter"), Some("standup"), ActivityAction::Started);
+        let message = format_entry_message(
+            &entry,
+            Some("teamaktiviteter"),
+            Some("standup"),
+            ActivityAction::Started,
+        );
         assert!(message.contains("[STARTED]"));
         assert!(message.contains("teamaktiviteter / standup"));
         assert!(message.contains("45m"));

@@ -8,7 +8,12 @@ use tmkpr_lib::storage::Storage;
 use crate::cli::{ProjectAddArgs, ProjectDeleteArgs, ProjectEditArgs, ProjectListArgs};
 use crate::output;
 
-pub fn add(args: ProjectAddArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn add(
+    args: ProjectAddArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let svc = ProjectService::new(storage, user_id);
     let project = svc.add(args.name, args.description, args.color)?;
     // Log to Obsidian if enabled
@@ -47,7 +52,12 @@ pub fn list(
     Ok(())
 }
 
-pub fn edit(args: ProjectEditArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn edit(
+    args: ProjectEditArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let update = UpdateProject {
         name: args.name,
         description: match args.description.as_deref() {
@@ -69,7 +79,12 @@ pub fn edit(args: ProjectEditArgs, storage: &dyn Storage, user_id: &str, config:
     Ok(())
 }
 
-pub fn delete(args: ProjectDeleteArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn delete(
+    args: ProjectDeleteArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let svc = ProjectService::new(storage, user_id);
     svc.delete(&args.name, args.hard)?;
     // Log to Obsidian if enabled

@@ -392,7 +392,9 @@ pub enum AppMode {
         name: String,
     },
     AddManualEntry(Form),
-    Help { scroll: u16 },
+    Help {
+        scroll: u16,
+    },
     Settings {
         cursor: usize,
         theme_names: Vec<String>,
@@ -1465,7 +1467,11 @@ impl App {
         Ok(())
     }
 
-    fn find_nearby_activities(&self, time: chrono::DateTime<Utc>, window_minutes: i64) -> Vec<(&Entry, &'static str)> {
+    fn find_nearby_activities(
+        &self,
+        time: chrono::DateTime<Utc>,
+        window_minutes: i64,
+    ) -> Vec<(&Entry, &'static str)> {
         let window = Duration::minutes(window_minutes);
         let start = time - window;
         let end = time + window;
@@ -1482,13 +1488,21 @@ impl App {
             }
         }
         nearby.sort_by_key(|(e, kind)| {
-            let time_val = if *kind == "start" { e.started_at } else { e.finished_at.unwrap_or(e.started_at) };
+            let time_val = if *kind == "start" {
+                e.started_at
+            } else {
+                e.finished_at.unwrap_or(e.started_at)
+            };
             (time_val - time).abs()
         });
         nearby
     }
 
-    fn snap_time_to_activity(&mut self, time_str: &str, snap_enabled: bool) -> anyhow::Result<String> {
+    fn snap_time_to_activity(
+        &mut self,
+        time_str: &str,
+        snap_enabled: bool,
+    ) -> anyhow::Result<String> {
         if !snap_enabled || time_str.is_empty() {
             return Ok(time_str.to_string());
         }
@@ -1510,16 +1524,21 @@ impl App {
                 .map(|p| p.name)
                 .unwrap_or_else(|| "Unnamed".to_string());
 
-            let snapped_str = snapped_time.with_timezone(&Local)
+            let snapped_str = snapped_time
+                .with_timezone(&Local)
                 .format("%Y-%m-%d %H:%M")
                 .to_string();
-            self.status = Some((format!("Snapped to {} ({})", project_name, snapped_str), false));
+            self.status = Some((
+                format!("Snapped to {} ({})", project_name, snapped_str),
+                false,
+            ));
             Ok(snapped_str)
         } else {
             Ok(time_str.to_string())
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add_manual_entry(
         &mut self,
         project: &str,
@@ -1567,7 +1586,14 @@ impl App {
 
         let entry = {
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            svc.log(project_opt, task_opt, note_opt, tags, started_at, finished_at)?
+            svc.log(
+                project_opt,
+                task_opt,
+                note_opt,
+                tags,
+                started_at,
+                finished_at,
+            )?
         };
 
         let _ = obsidian_logger::log_activity_to_obsidian(
@@ -2286,21 +2312,21 @@ impl App {
     }
 
     pub fn delete_selected_task(&mut self) -> anyhow::Result<()> {
-        let (project_name, task_name, task_id) = if let AppMode::ManageTasks { tasks, selected } = &self.mode
-        {
-            if *selected < tasks.len() {
-                let task = &tasks[*selected];
-                (
-                    self.project_name(&task.project_id).to_string(),
-                    task.name.clone(),
-                    task.id.clone(),
-                )
+        let (project_name, task_name, task_id) =
+            if let AppMode::ManageTasks { tasks, selected } = &self.mode {
+                if *selected < tasks.len() {
+                    let task = &tasks[*selected];
+                    (
+                        self.project_name(&task.project_id).to_string(),
+                        task.name.clone(),
+                        task.id.clone(),
+                    )
+                } else {
+                    return Ok(());
+                }
             } else {
                 return Ok(());
-            }
-        } else {
-            return Ok(());
-        };
+            };
 
         // Log to Obsidian if enabled
         if let Ok(task) = self.storage.get_task(&task_id) {
@@ -2468,8 +2494,12 @@ impl App {
     }
 
     pub fn prev_week(&mut self) -> anyhow::Result<()> {
-        let iso_date = NaiveDate::from_isoywd_opt(self.displayed_week_year, self.displayed_week_num, Weekday::Mon)
-            .ok_or_else(|| anyhow::anyhow!("Invalid week"))?;
+        let iso_date = NaiveDate::from_isoywd_opt(
+            self.displayed_week_year,
+            self.displayed_week_num,
+            Weekday::Mon,
+        )
+        .ok_or_else(|| anyhow::anyhow!("Invalid week"))?;
         let prev_iso_date = iso_date - Duration::days(7);
         let prev_iso_week = prev_iso_date.iso_week();
         self.displayed_week_year = prev_iso_week.year();
@@ -2479,8 +2509,12 @@ impl App {
     }
 
     pub fn next_week(&mut self) -> anyhow::Result<()> {
-        let iso_date = NaiveDate::from_isoywd_opt(self.displayed_week_year, self.displayed_week_num, Weekday::Mon)
-            .ok_or_else(|| anyhow::anyhow!("Invalid week"))?;
+        let iso_date = NaiveDate::from_isoywd_opt(
+            self.displayed_week_year,
+            self.displayed_week_num,
+            Weekday::Mon,
+        )
+        .ok_or_else(|| anyhow::anyhow!("Invalid week"))?;
         let next_iso_date = iso_date + Duration::days(7);
         let next_iso_week = next_iso_date.iso_week();
         self.displayed_week_year = next_iso_week.year();
@@ -2491,7 +2525,9 @@ impl App {
 
     fn refresh_week_report(&mut self) -> anyhow::Result<()> {
         let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-        self.week_report = svc.week_report(self.displayed_week_year, self.displayed_week_num, false).ok();
+        self.week_report = svc
+            .week_report(self.displayed_week_year, self.displayed_week_num, false)
+            .ok();
         Ok(())
     }
 
@@ -2584,10 +2620,16 @@ impl App {
         } else {
             Some(std::path::PathBuf::from(&obs_vault))
         };
-        self.config.obsidian.activity_category =
-            if obs_activity.is_empty() { None } else { Some(obs_activity) };
-        self.config.obsidian.comment_category =
-            if obs_comment.is_empty() { None } else { Some(obs_comment) };
+        self.config.obsidian.activity_category = if obs_activity.is_empty() {
+            None
+        } else {
+            Some(obs_activity)
+        };
+        self.config.obsidian.comment_category = if obs_comment.is_empty() {
+            None
+        } else {
+            Some(obs_comment)
+        };
 
         self.config.save()?;
         self.mode = AppMode::Normal;
@@ -3301,7 +3343,12 @@ mod tests {
         let mut app = make_app();
         app.theme_name = "dracula".to_string();
         app.open_settings();
-        let AppMode::Settings { theme_names, theme_idx, .. } = &app.mode else {
+        let AppMode::Settings {
+            theme_names,
+            theme_idx,
+            ..
+        } = &app.mode
+        else {
             panic!("expected Settings mode");
         };
         assert_eq!(theme_names[*theme_idx], "dracula");
@@ -3349,7 +3396,14 @@ mod tests {
         app.config.obsidian.activity_category = Some("Work".to_string());
         app.config.obsidian.comment_category = Some("Notes".to_string());
         app.open_settings();
-        let AppMode::Settings { obs_enabled, obs_vault, obs_activity, obs_comment, .. } = &app.mode else {
+        let AppMode::Settings {
+            obs_enabled,
+            obs_vault,
+            obs_activity,
+            obs_comment,
+            ..
+        } = &app.mode
+        else {
             panic!("expected Settings mode");
         };
         assert!(*obs_enabled);
@@ -3364,7 +3418,14 @@ mod tests {
         let mut app = make_app();
         app.open_settings();
         // Override the draft values without going through input handlers
-        if let AppMode::Settings { theme_names, theme_idx, date_fmt_idx: di, week_start: ws, .. } = &mut app.mode {
+        if let AppMode::Settings {
+            theme_names,
+            theme_idx,
+            date_fmt_idx: di,
+            week_start: ws,
+            ..
+        } = &mut app.mode
+        {
             *theme_idx = theme_names.iter().position(|n| n == theme).unwrap_or(0);
             *di = date_fmt_idx;
             *ws = week_start;
@@ -3415,7 +3476,14 @@ mod tests {
     fn settings_save_nonempty_obsidian_fields_set() {
         let mut app = make_app();
         app.open_settings();
-        if let AppMode::Settings { obs_enabled, obs_vault, obs_activity, obs_comment, .. } = &mut app.mode {
+        if let AppMode::Settings {
+            obs_enabled,
+            obs_vault,
+            obs_activity,
+            obs_comment,
+            ..
+        } = &mut app.mode
+        {
             *obs_enabled = true;
             *obs_vault = "/vault".to_string();
             *obs_activity = "Activity".to_string();
@@ -3423,9 +3491,18 @@ mod tests {
         }
         app.settings_save().unwrap();
         assert!(app.config.obsidian.enabled);
-        assert_eq!(app.config.obsidian.vault_dir, Some(std::path::PathBuf::from("/vault")));
-        assert_eq!(app.config.obsidian.activity_category.as_deref(), Some("Activity"));
-        assert_eq!(app.config.obsidian.comment_category.as_deref(), Some("Comment"));
+        assert_eq!(
+            app.config.obsidian.vault_dir,
+            Some(std::path::PathBuf::from("/vault"))
+        );
+        assert_eq!(
+            app.config.obsidian.activity_category.as_deref(),
+            Some("Activity")
+        );
+        assert_eq!(
+            app.config.obsidian.comment_category.as_deref(),
+            Some("Comment")
+        );
     }
 
     #[test]

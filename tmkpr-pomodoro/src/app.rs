@@ -195,7 +195,9 @@ impl<'a> App<'a> {
             let svc = EntryService::new(self.storage, self.user_id);
             if let Some(proj) = self.selected_project() {
                 if let Some(task) = self.selected_task() {
-                    if let Ok(entry) = svc.start(Some(&proj.name), Some(&task.name), None, vec![], None) {
+                    if let Ok(entry) =
+                        svc.start(Some(&proj.name), Some(&task.name), None, vec![], None)
+                    {
                         // Log to Obsidian if enabled
                         let _ = obsidian_logger::log_activity_to_obsidian(
                             &self.config,
@@ -285,8 +287,16 @@ impl<'a> App<'a> {
             let svc = EntryService::new(self.storage, self.user_id);
             let entry = svc.stop(None)?;
             // Log to Obsidian if enabled
-            let proj_name = if proj.is_empty() { None } else { Some(proj.as_str()) };
-            let task_name = if task.is_empty() { None } else { Some(task.as_str()) };
+            let proj_name = if proj.is_empty() {
+                None
+            } else {
+                Some(proj.as_str())
+            };
+            let task_name = if task.is_empty() {
+                None
+            } else {
+                Some(task.as_str())
+            };
             let _ = obsidian_logger::log_activity_to_obsidian(
                 &self.config,
                 &entry,
@@ -539,8 +549,16 @@ impl<'a> App<'a> {
 
                     let svc = EntryService::new(self.storage, self.user_id);
                     if let Ok(entry) = svc.stop(None) {
-                        let proj_name = if proj.is_empty() { None } else { Some(proj.as_str()) };
-                        let task_name = if task.is_empty() { None } else { Some(task.as_str()) };
+                        let proj_name = if proj.is_empty() {
+                            None
+                        } else {
+                            Some(proj.as_str())
+                        };
+                        let task_name = if task.is_empty() {
+                            None
+                        } else {
+                            Some(task.as_str())
+                        };
                         let _ = obsidian_logger::log_activity_to_obsidian(
                             &self.config,
                             &entry,
@@ -793,7 +811,10 @@ impl<'a> App<'a> {
             color: None,
         };
         self.storage.create_project(new_proj)?;
-        self.projects = self.storage.list_projects(self.user_id, false).unwrap_or_default();
+        self.projects = self
+            .storage
+            .list_projects(self.user_id, false)
+            .unwrap_or_default();
         if let Some(idx) = self.projects.iter().position(|p| p.name == name) {
             self.selected_project_idx = idx;
             self.refresh_tasks();
@@ -828,8 +849,13 @@ impl<'a> App<'a> {
             Some("project") => {
                 if let Some(proj) = self.selected_project() {
                     self.storage.delete_project(&proj.id)?;
-                    self.projects = self.storage.list_projects(self.user_id, false).unwrap_or_default();
-                    self.selected_project_idx = self.selected_project_idx.min(self.projects.len().saturating_sub(1));
+                    self.projects = self
+                        .storage
+                        .list_projects(self.user_id, false)
+                        .unwrap_or_default();
+                    self.selected_project_idx = self
+                        .selected_project_idx
+                        .min(self.projects.len().saturating_sub(1));
                     self.refresh_tasks();
                     self.message = Some("Project deleted.".to_string());
                 }
@@ -912,7 +938,10 @@ impl<'a> App<'a> {
                             ..Default::default()
                         },
                     )?;
-                    self.projects = self.storage.list_projects(self.user_id, false).unwrap_or_default();
+                    self.projects = self
+                        .storage
+                        .list_projects(self.user_id, false)
+                        .unwrap_or_default();
                     self.message = Some("Project updated.".to_string());
                 }
             }
@@ -994,14 +1023,16 @@ impl<'a> App<'a> {
 
     pub fn move_queue_up(&mut self) {
         if !self.task_queue.is_empty() && self.selected_queue_idx > 0 {
-            self.task_queue.swap(self.selected_queue_idx, self.selected_queue_idx - 1);
+            self.task_queue
+                .swap(self.selected_queue_idx, self.selected_queue_idx - 1);
             self.selected_queue_idx -= 1;
         }
     }
 
     pub fn move_queue_down(&mut self) {
         if !self.task_queue.is_empty() && self.selected_queue_idx < self.task_queue.len() - 1 {
-            self.task_queue.swap(self.selected_queue_idx, self.selected_queue_idx + 1);
+            self.task_queue
+                .swap(self.selected_queue_idx, self.selected_queue_idx + 1);
             self.selected_queue_idx += 1;
         }
     }
@@ -1054,7 +1085,9 @@ impl<'a> App<'a> {
                 self.message = Some(msg);
 
                 let svc = EntryService::new(self.storage, self.user_id);
-                if let Ok(_entry) = svc.start(Some(&proj.name), Some(&task.name), None, vec![], None) {
+                if let Ok(_entry) =
+                    svc.start(Some(&proj.name), Some(&task.name), None, vec![], None)
+                {
                     let _ = obsidian_logger::log_activity_to_obsidian(
                         &self.config,
                         &_entry,

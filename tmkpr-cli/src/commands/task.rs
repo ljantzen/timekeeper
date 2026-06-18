@@ -31,7 +31,12 @@ pub fn list(args: TaskListArgs, storage: &dyn Storage, user_id: &str, format: &s
     Ok(())
 }
 
-pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn edit(
+    args: TaskEditArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let project = prompt::resolve_or_create_project(storage, user_id, &args.project)?;
 
     let dest_project_id = args
@@ -59,7 +64,12 @@ pub fn edit(args: TaskEditArgs, storage: &dyn Storage, user_id: &str, config: &C
     Ok(())
 }
 
-pub fn done(args: TaskDoneArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn done(
+    args: TaskDoneArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     let task = TaskService::new(storage, user_id).complete(&project.name, &args.task)?;
     // Log to Obsidian if enabled
@@ -68,7 +78,12 @@ pub fn done(args: TaskDoneArgs, storage: &dyn Storage, user_id: &str, config: &C
     Ok(())
 }
 
-pub fn reactivate(args: TaskReactivateArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn reactivate(
+    args: TaskReactivateArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     let task = TaskService::new(storage, user_id).reactivate(&project.name, &args.task)?;
     // Log to Obsidian if enabled
@@ -77,7 +92,12 @@ pub fn reactivate(args: TaskReactivateArgs, storage: &dyn Storage, user_id: &str
     Ok(())
 }
 
-pub fn delete(args: TaskDeleteArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
+pub fn delete(
+    args: TaskDeleteArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let project = ProjectService::new(storage, user_id).resolve(&args.project)?;
     TaskService::new(storage, user_id).delete(&project.name, &args.name, args.hard)?;
     // Log to Obsidian if enabled

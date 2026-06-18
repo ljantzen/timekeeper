@@ -61,15 +61,32 @@ fn run() -> anyhow::Result<()> {
     let storage = open_sqlite(&db_path)?;
 
     match cli.command.unwrap_or(Commands::Status) {
-        Commands::Start(args) => {
-            commands::track::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
-        }
-        Commands::Stop(args) => {
-            commands::stop::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, &config)?
-        }
-        Commands::Log(args) => {
-            commands::log::run(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
-        }
+        Commands::Start(args) => commands::track::run(
+            args,
+            storage.as_ref(),
+            &user_id,
+            &date_fmt,
+            time_fmt,
+            color,
+            &config,
+        )?,
+        Commands::Stop(args) => commands::stop::run(
+            args,
+            storage.as_ref(),
+            &user_id,
+            &date_fmt,
+            time_fmt,
+            &config,
+        )?,
+        Commands::Log(args) => commands::log::run(
+            args,
+            storage.as_ref(),
+            &user_id,
+            &date_fmt,
+            time_fmt,
+            color,
+            &config,
+        )?,
         Commands::Status => {
             commands::status::run(storage.as_ref(), &user_id, &date_fmt, format, color)?
         }
@@ -86,7 +103,9 @@ fn run() -> anyhow::Result<()> {
             commands::report::run(args, storage.as_ref(), &user_id, time_fmt, format, color)?
         }
         Commands::Project(sub) => match sub {
-            ProjectCommands::Add(args) => commands::project::add(args, storage.as_ref(), &user_id, &config)?,
+            ProjectCommands::Add(args) => {
+                commands::project::add(args, storage.as_ref(), &user_id, &config)?
+            }
             ProjectCommands::List(args) => {
                 commands::project::list(args, storage.as_ref(), &user_id, format, color)?
             }
@@ -98,13 +117,21 @@ fn run() -> anyhow::Result<()> {
             }
         },
         Commands::Task(sub) => match sub {
-            TaskCommands::Add(args) => commands::task::add(args, storage.as_ref(), &user_id, &config)?,
+            TaskCommands::Add(args) => {
+                commands::task::add(args, storage.as_ref(), &user_id, &config)?
+            }
             TaskCommands::List(args) => {
                 commands::task::list(args, storage.as_ref(), &user_id, format)?
             }
-            TaskCommands::Edit(args) => commands::task::edit(args, storage.as_ref(), &user_id, &config)?,
-            TaskCommands::Delete(args) => commands::task::delete(args, storage.as_ref(), &user_id, &config)?,
-            TaskCommands::Done(args) => commands::task::done(args, storage.as_ref(), &user_id, &config)?,
+            TaskCommands::Edit(args) => {
+                commands::task::edit(args, storage.as_ref(), &user_id, &config)?
+            }
+            TaskCommands::Delete(args) => {
+                commands::task::delete(args, storage.as_ref(), &user_id, &config)?
+            }
+            TaskCommands::Done(args) => {
+                commands::task::done(args, storage.as_ref(), &user_id, &config)?
+            }
             TaskCommands::Reactivate(args) => {
                 commands::task::reactivate(args, storage.as_ref(), &user_id, &config)?
             }
