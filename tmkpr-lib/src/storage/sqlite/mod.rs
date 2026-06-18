@@ -502,7 +502,7 @@ impl Storage for SqliteStorage {
         }
         if let Some(until) = filter.until {
             binds.push(Box::new(until));
-            conditions.push(format!("e.started_at <= ?{}", binds.len()));
+            conditions.push(format!("e.started_at < ?{}", binds.len()));
         }
         if !filter.include_active {
             conditions.push("e.finished_at IS NOT NULL".to_string());

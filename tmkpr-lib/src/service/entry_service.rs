@@ -1156,7 +1156,15 @@ mod tests {
     #[test]
     fn fill_gaps_extends_both() {
         let s = storage();
-        let now = Utc::now();
+        // Anchor to local noon so the 3-hour window never crosses midnight
+        // in any timezone (test was flaky near local midnight).
+        let now: DateTime<Utc> = Local::now()
+            .date_naive()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap()
+            .with_timezone(&Utc);
         let t0 = now - Duration::hours(3);
         let t1 = now - Duration::hours(2);
         let t2 = now - Duration::hours(1);

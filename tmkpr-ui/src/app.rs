@@ -2771,6 +2771,15 @@ mod tests {
         app.selected = app.entries.iter().position(|e| e.id == id).unwrap();
     }
 
+    /// Returns noon today in UTC. Use this as an anchor in fill_gaps tests so
+    /// the ±5-hour window never crosses local midnight in any timezone.
+    fn local_noon_utc() -> DateTime<Utc> {
+        Local
+            .from_local_datetime(&Local::now().date_naive().and_hms_opt(12, 0, 0).unwrap())
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
     #[test]
     fn parse_date_filter_empty_returns_none() {
         let (from, until) = parse_date_filter("", chrono::Weekday::Mon).unwrap();
@@ -3120,7 +3129,7 @@ mod tests {
     #[test]
     fn fill_gaps_extends_both_ends() {
         let mut app = make_app();
-        let now = Utc::now();
+        let now = local_noon_utc();
         let t0 = now - Duration::hours(5);
         let t1 = now - Duration::hours(4);
         let t2 = now - Duration::hours(3); // gap
@@ -3144,7 +3153,7 @@ mod tests {
     #[test]
     fn fill_gaps_extends_start_only_when_no_subsequent() {
         let mut app = make_app();
-        let now = Utc::now();
+        let now = local_noon_utc();
         let t0 = now - Duration::hours(3);
         let t1 = now - Duration::hours(2);
         let t2 = now - Duration::hours(1); // gap
@@ -3164,7 +3173,7 @@ mod tests {
     #[test]
     fn fill_gaps_extends_end_only_when_no_prior() {
         let mut app = make_app();
-        let now = Utc::now();
+        let now = local_noon_utc();
         let t0 = now - Duration::hours(3);
         let t1 = now - Duration::hours(2); // gap
         let t2 = now - Duration::hours(1);
@@ -3207,7 +3216,7 @@ mod tests {
     #[test]
     fn fill_gaps_active_extends_start_to_prior_finished_at() {
         let mut app = make_app();
-        let now = Utc::now();
+        let now = local_noon_utc();
         let t0 = now - Duration::hours(3);
         let t1 = now - Duration::hours(2);
         let t2 = now - Duration::hours(1); // gap
@@ -3295,7 +3304,7 @@ mod tests {
     #[test]
     fn fill_gaps_active_uses_active_entry_as_subsequent_for_selected() {
         let mut app = make_app();
-        let now = Utc::now();
+        let now = local_noon_utc();
         let t0 = now - Duration::hours(3);
         let t1 = now - Duration::hours(2);
         let t2 = now - Duration::hours(1); // gap before active
