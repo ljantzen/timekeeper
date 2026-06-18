@@ -86,6 +86,14 @@ pub mod form_fields {
         pub const BODY: usize = 0;
     }
 
+    pub mod edit_event_modal {
+        pub const PROJECT: usize = 0;
+        pub const TASK: usize = 1;
+        pub const NOTE: usize = 2;
+        pub const TIME: usize = 3;
+        pub const TAGS: usize = 4;
+    }
+
     pub mod add_manual_entry {
         pub const PROJECT: usize = 0;
         pub const TASK: usize = 1;
@@ -328,6 +336,10 @@ pub enum AppMode {
         id: String,
         form: Form,
     },
+    EditEventModal {
+        id: String,
+        form: Form,
+    },
     ConfirmDelete {
         id: String,
         display: String,
@@ -401,6 +413,7 @@ pub enum ModeKind {
     Command,
     StartModal,
     EditModal,
+    EditEventModal,
     ConfirmDelete,
     AddProject,
     ManageProjects,
@@ -428,6 +441,7 @@ impl AppMode {
             AppMode::Command { .. } => ModeKind::Command,
             AppMode::StartModal(_) => ModeKind::StartModal,
             AppMode::EditModal { .. } => ModeKind::EditModal,
+            AppMode::EditEventModal { .. } => ModeKind::EditEventModal,
             AppMode::ConfirmDelete { .. } => ModeKind::ConfirmDelete,
             AppMode::AddProject(_) => ModeKind::AddProject,
             AppMode::ManageProjects { .. } => ModeKind::ManageProjects,
@@ -1106,6 +1120,10 @@ impl App {
     }
 
     pub fn open_edit_modal(&mut self) {
+        if self.entries[self.selected].is_event() {
+            self.open_edit_event_modal();
+            return;
+        }
         let entry = &self.entries[self.selected];
         let id = entry.id.clone();
         let project_val = entry
@@ -1152,6 +1170,61 @@ impl App {
                 focused: 0,
             },
         };
+    }
+
+    pub fn open_edit_event_modal(&mut self) {
+        let entry = &self.entries[self.selected];
+        let id = entry.id.clone();
+        let project_val = entry
+            .project_id
+            .as_deref()
+            .map(|pid| self.project_name(pid).to_string())
+            .unwrap_or_default();
+        let task_val = entry
+            .task_id
+            .as_deref()
+            .map(|tid| self.task_name(tid).to_string())
+            .unwrap_or_default();
+        let note_val = entry.note.clone().unwrap_or_default();
+        let time_val = entry
+            .started_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M")
+            .to_string();
+        let tags_val = entry.tags.join(", ");
+        let projects = self.project_names();
+        let project_colors = self.project_colors();
+        let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
+        self.mode = AppMode::EditEventModal {
+            id,
+            form: Form {
+                fields: vec![
+                    Field::new("Project", project_val)
+                        .with_completions(projects)
+                        .with_completion_colors(project_colors),
+                    Field::new("Task", task_val)
+                        .with_completions(tasks)
+                        .with_completion_colors(task_colors),
+                    Field::new("Note", note_val),
+                    Field::new("Time (YYYY-MM-DD HH:MM)", time_val),
+                    Field::new("Tags (comma-separated)", tags_val),
+                ],
+                focused: 0,
+            },
+        };
+    }
+
+    pub fn edit_event_entry(
+        &mut self,
+        id: &str,
+        project: &str,
+        task: &str,
+        note: &str,
+        time_str: &str,
+        tags_str: &str,
+    ) -> anyhow::Result<()> {
+        self.edit_entry(id, project, task, note, time_str, time_str, tags_str)
     }
 
     pub fn open_add_manual_entry_modal(&mut self) {

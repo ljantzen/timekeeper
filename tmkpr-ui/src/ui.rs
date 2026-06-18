@@ -76,6 +76,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     match app.mode.kind() {
         ModeKind::StartModal => render_start_modal(frame, app, area),
         ModeKind::EditModal => render_edit_modal(frame, app, area),
+        ModeKind::EditEventModal => render_edit_event_modal(frame, app, area),
         ModeKind::AddManualEntry => render_add_manual_entry(frame, app, area),
         ModeKind::ConfirmDelete => render_confirm_delete(frame, app, area),
         ModeKind::AddProject => render_add_project(frame, app, area),
@@ -199,24 +200,6 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
             let fmt = &app.date_format;
             let start_local = entry.started_at.with_timezone(&Local);
             let start = start_local.format(fmt).to_string();
-            let end = match entry.finished_at {
-                None => "     ".to_string(),
-                Some(t) => {
-                    let end_local = t.with_timezone(&Local);
-                    if end_local.date_naive() == start_local.date_naive() {
-                        end_local.format("%H:%M").to_string()
-                    } else {
-                        end_local.format(fmt).to_string()
-                    }
-                }
-            };
-
-            let secs = entry.elapsed().num_seconds();
-            let dur = if secs >= 3600 {
-                format!("{}h {:02}m", secs / 3600, (secs % 3600) / 60)
-            } else {
-                format!("{}m", secs / 60)
-            };
 
             let comment_indicator = if app.entry_has_comments(&entry.id) {
                 "c "
@@ -225,8 +208,31 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
             };
 
             let dim = Style::default().fg(app.theme.dim);
+            let time_col = if entry.is_event() {
+                format!("{start}  {:<13}", "●")
+            } else {
+                let end = match entry.finished_at {
+                    None => "     ".to_string(),
+                    Some(t) => {
+                        let end_local = t.with_timezone(&Local);
+                        if end_local.date_naive() == start_local.date_naive() {
+                            end_local.format("%H:%M").to_string()
+                        } else {
+                            end_local.format(fmt).to_string()
+                        }
+                    }
+                };
+                let secs = entry.elapsed().num_seconds();
+                let dur = if secs >= 3600 {
+                    format!("{}h {:02}m", secs / 3600, (secs % 3600) / 60)
+                } else {
+                    format!("{}m", secs / 60)
+                };
+                format!("{start} – {end}  {dur:<8}")
+            };
+
             let mut spans: Vec<Span> = vec![
-                Span::styled(format!("{start} – {end}  {dur:<8}"), dim),
+                Span::styled(time_col, dim),
                 Span::styled(comment_indicator, dim),
             ];
 
@@ -611,7 +617,13 @@ fn render_start_modal(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_edit_modal(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditModal { form, .. } = &app.mode {
-        render_form_modal(frame, area, " Edit Entry ", 85, form, &app.theme);
+        render_form_modal(frame, area, " Edit Activity ", 85, form, &app.theme);
+    }
+}
+
+fn render_edit_event_modal(frame: &mut Frame, app: &App, area: Rect) {
+    if let AppMode::EditEventModal { form, .. } = &app.mode {
+        render_form_modal(frame, area, " Edit Event ", 85, form, &app.theme);
     }
 }
 

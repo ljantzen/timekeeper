@@ -14,6 +14,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         ModeKind::Command => handle_command(app, key),
         ModeKind::StartModal => handle_start_modal(app, key),
         ModeKind::EditModal => handle_edit_modal(app, key),
+        ModeKind::EditEventModal => handle_edit_event_modal(app, key),
         ModeKind::ConfirmDelete => handle_confirm_delete(app, key),
         ModeKind::AddProject => handle_add_project(app, key),
         ModeKind::ManageProjects => handle_manage_projects(app, key),
@@ -618,6 +619,49 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let end = form.fields[form_fields::edit_modal::END].value.clone();
                 let tags = form.fields[form_fields::edit_modal::TAGS].value.clone();
                 if let Err(e) = app.edit_entry(&id, &project, &task, &note, &start, &end, &tags) {
+                    app.status = Some((e.to_string(), true));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_edit_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let result = match &mut app.mode {
+        AppMode::EditEventModal { form, .. } => form.handle_key(key),
+        _ => return Ok(()),
+    };
+
+    let project_name = if let AppMode::EditEventModal { form, .. } = &app.mode {
+        form.fields[form_fields::edit_event_modal::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
+    if !project_name.is_empty() {
+        let tasks = app.task_names_for_project(&project_name);
+        let task_colors = app.task_colors_for_project(&project_name);
+        if let AppMode::EditEventModal { form, .. } = &mut app.mode {
+            form.fields[form_fields::edit_event_modal::TASK].completions = tasks;
+            form.fields[form_fields::edit_event_modal::TASK].completion_colors = task_colors;
+        }
+    }
+
+    match result {
+        FormResult::None => {}
+        FormResult::Cancel => {
+            app.mode = AppMode::Normal;
+        }
+        FormResult::Submit => {
+            let old = std::mem::replace(&mut app.mode, AppMode::Normal);
+            if let AppMode::EditEventModal { id, form } = old {
+                let project = form.fields[form_fields::edit_event_modal::PROJECT].value.clone();
+                let task = form.fields[form_fields::edit_event_modal::TASK].value.clone();
+                let note = form.fields[form_fields::edit_event_modal::NOTE].value.clone();
+                let time = form.fields[form_fields::edit_event_modal::TIME].value.clone();
+                let tags = form.fields[form_fields::edit_event_modal::TAGS].value.clone();
+                if let Err(e) = app.edit_event_entry(&id, &project, &task, &note, &time, &tags) {
                     app.status = Some((e.to_string(), true));
                 }
             }

@@ -31,6 +31,10 @@ impl Entry {
         self.finished_at.is_none()
     }
 
+    pub fn is_event(&self) -> bool {
+        self.finished_at == Some(self.started_at)
+    }
+
     pub fn duration(&self) -> Option<Duration> {
         self.finished_at
             .map(|f| f.signed_duration_since(self.started_at))
