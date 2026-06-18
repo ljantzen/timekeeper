@@ -1361,10 +1361,12 @@ fn render_settings(frame: &mut Frame, app: &App, area: Rect) {
         text_row("Comment category:", obs_comment, 6, *text_editing),
         Line::from(""),
         Line::from(Span::styled(hint, Style::default().fg(dim))),
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("  tmkpr v{}", env!("CARGO_PKG_VERSION")),
+            Style::default().fg(dim),
+        )),
     ];
-
-    // Keep section headers and hint un-bold when a row in that section is selected.
-    // (They are already plain Span::styled with dim color — no change needed.)
 
     frame.render_widget(Paragraph::new(lines), inner);
 }
