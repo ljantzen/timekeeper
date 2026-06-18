@@ -601,7 +601,7 @@ fn render_form_modal(
     if let Some(&hint_area) = field_chunks.get(n) {
         frame.render_widget(
             Paragraph::new(Span::styled(
-                "↓/↑ autocomplete  Tab next field  Enter select/submit  Esc cancel",
+                "↓/↑ field/autocomplete  ←/→ cursor  Tab next  Enter submit  Esc cancel",
                 Style::default().fg(theme.dim),
             )),
             hint_area,

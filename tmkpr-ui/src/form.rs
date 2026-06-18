@@ -373,6 +373,74 @@ mod tests {
 
     // --- Form navigation ---
 
+    // --- Up / Down field navigation ---
+
+    #[test]
+    fn down_navigates_field_when_no_completions() {
+        let mut form = text_form(&["a", "b", "c"]);
+        form.handle_key(key(KeyCode::Down));
+        assert_eq!(form.focused, 1);
+    }
+
+    #[test]
+    fn down_wraps_to_first_field_when_no_completions() {
+        let mut form = text_form(&["a", "b"]);
+        form.focused = 1;
+        form.handle_key(key(KeyCode::Down));
+        assert_eq!(form.focused, 0);
+    }
+
+    #[test]
+    fn up_navigates_to_previous_field_when_no_ac_index() {
+        let mut form = text_form(&["a", "b", "c"]);
+        form.focused = 2;
+        form.handle_key(key(KeyCode::Up));
+        assert_eq!(form.focused, 1);
+    }
+
+    #[test]
+    fn up_wraps_to_last_field_when_no_ac_index() {
+        let mut form = text_form(&["a", "b"]);
+        form.handle_key(key(KeyCode::Up));
+        assert_eq!(form.focused, 1);
+    }
+
+    #[test]
+    fn up_navigates_autocomplete_backwards_when_ac_index_set() {
+        let mut form = Form {
+            fields: vec![Field::new("label", "a")
+                .with_completions(vec!["alpha".into(), "beta".into(), "gamma".into()])],
+            focused: 0,
+        };
+        form.fields[0].ac_index = Some(2);
+        form.handle_key(key(KeyCode::Up));
+        assert_eq!(form.fields[0].ac_index, Some(1));
+        assert_eq!(form.focused, 0); // field did not change
+    }
+
+    #[test]
+    fn up_wraps_autocomplete_to_last_from_zero() {
+        let mut form = Form {
+            fields: vec![Field::new("label", "")
+                .with_completions(vec!["alpha".into(), "beta".into(), "gamma".into()])],
+            focused: 0,
+        };
+        form.fields[0].ac_index = Some(0);
+        form.handle_key(key(KeyCode::Up));
+        assert_eq!(form.fields[0].ac_index, Some(2));
+    }
+
+    #[test]
+    fn down_opens_autocomplete_when_completions_present() {
+        let mut form = Form {
+            fields: vec![Field::new("label", "").with_completions(vec!["alpha".into()])],
+            focused: 0,
+        };
+        form.handle_key(key(KeyCode::Down));
+        assert_eq!(form.fields[0].ac_index, Some(0));
+        assert_eq!(form.focused, 0); // stays on same field
+    }
+
     #[test]
     fn form_tab_advances_focus() {
         let mut form = text_form(&["a", "b", "c"]);
@@ -450,7 +518,8 @@ impl Form {
             KeyCode::Esc => FormResult::Cancel,
 
             KeyCode::Down => {
-                if !self.fields[self.focused].completions.is_empty() {
+                let has_completions = !self.fields[self.focused].completions.is_empty();
+                if has_completions {
                     let count = self.filtered_count(self.focused);
                     if count > 0 {
                         let f = &mut self.fields[self.focused];
@@ -459,19 +528,32 @@ impl Form {
                             Some(i) => (i + 1) % count,
                         });
                     }
+                } else {
+                    // No completions: Down navigates to the next field.
+                    self.fields[self.focused].ac_index = None;
+                    self.focused = (self.focused + 1) % self.fields.len();
                 }
                 FormResult::None
             }
 
             KeyCode::Up => {
                 if self.fields[self.focused].ac_index.is_some() {
+                    // Navigate backwards within an open autocomplete list.
                     let count = self.filtered_count(self.focused);
                     let f = &mut self.fields[self.focused];
                     f.ac_index = Some(match f.ac_index {
-                        None => 0,
+                        None => count.saturating_sub(1),
                         Some(0) => count.saturating_sub(1),
                         Some(i) => i - 1,
                     });
+                } else {
+                    // No active autocomplete: Up navigates to the previous field.
+                    self.fields[self.focused].ac_index = None;
+                    self.focused = if self.focused == 0 {
+                        self.fields.len() - 1
+                    } else {
+                        self.focused - 1
+                    };
                 }
                 FormResult::None
             }
