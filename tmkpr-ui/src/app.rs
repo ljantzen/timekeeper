@@ -1165,8 +1165,8 @@ impl App {
                         .with_completions(tasks)
                         .with_completion_colors(task_colors),
                     Field::new("Note", note_val),
-                    Field::new("Start", start_val),
-                    Field::new("End (blank = active)", end_val),
+                    Field::new("Start", start_val).into_timestamp(),
+                    Field::new("End (blank = active)", end_val).into_timestamp(),
                     Field::new("Tags (comma-separated)", tags_val),
                 ],
                 focused: 0,
@@ -1209,7 +1209,7 @@ impl App {
                         .with_completions(tasks)
                         .with_completion_colors(task_colors),
                     Field::new("Note", note_val),
-                    Field::new("Time (YYYY-MM-DD HH:MM)", time_val),
+                    Field::new("Time (YYYY-MM-DD HH:MM)", time_val).into_timestamp(),
                     Field::new("Tags (comma-separated)", tags_val),
                 ],
                 focused: 0,
@@ -1247,8 +1247,8 @@ impl App {
                     .with_completions(tasks)
                     .with_completion_colors(task_colors),
                 Field::new("Note", ""),
-                Field::new("Start (YYYY-MM-DD HH:MM or HH:MM)", &start_val),
-                Field::new("End (YYYY-MM-DD HH:MM or HH:MM)", ""),
+                Field::new("Start (YYYY-MM-DD HH:MM or HH:MM)", &start_val).into_timestamp(),
+                Field::new("End (YYYY-MM-DD HH:MM or HH:MM)", "").into_timestamp(),
                 Field::new("Tags (comma-separated)", ""),
                 Field::toggle("Snap to existing activities", false),
             ],

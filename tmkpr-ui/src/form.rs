@@ -8,6 +8,10 @@ pub struct Form {
 pub enum FieldKind {
     Text,
     Toggle,
+    /// Fixed-format datetime field (e.g. "YYYY-MM-DD HH:MM").
+    /// Separators (':', '-', ' ') cannot be deleted and are skipped by Left/Right.
+    /// Digits are overwritten in-place; an empty field accepts free-form typing.
+    Timestamp,
 }
 
 pub struct Field {
@@ -55,6 +59,11 @@ impl Field {
 
     pub fn is_on(&self) -> bool {
         self.value == "true"
+    }
+
+    pub fn into_timestamp(mut self) -> Self {
+        self.kind = FieldKind::Timestamp;
+        self
     }
 
     pub fn with_completions(mut self, completions: Vec<String>) -> Self {
@@ -122,6 +131,124 @@ impl Field {
             FieldKind::Toggle => {
                 if matches!(code, KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right) {
                     self.value = if self.is_on() { "false" } else { "true" }.to_string();
+                }
+            }
+            FieldKind::Timestamp => {
+                let is_sep = |c: char| matches!(c, ':' | '-' | ' ');
+                match code {
+                    KeyCode::Left => {
+                        if self.cursor > 0 {
+                            let ch_len = self.value[..self.cursor]
+                                .chars()
+                                .last()
+                                .map(|c| c.len_utf8())
+                                .unwrap_or(1);
+                            self.cursor -= ch_len;
+                            // If we landed on a separator, skip one more
+                            if self.cursor > 0 {
+                                if let Some(c) = self.value[self.cursor..].chars().next() {
+                                    if is_sep(c) {
+                                        let ch_len = self.value[..self.cursor]
+                                            .chars()
+                                            .last()
+                                            .map(|c| c.len_utf8())
+                                            .unwrap_or(1);
+                                        self.cursor -= ch_len;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Right => {
+                        if self.cursor < self.value.len() {
+                            let ch_len = self.value[self.cursor..]
+                                .chars()
+                                .next()
+                                .map(|c| c.len_utf8())
+                                .unwrap_or(1);
+                            self.cursor += ch_len;
+                            // If we landed on a separator, skip one more
+                            if self.cursor < self.value.len() {
+                                if let Some(c) = self.value[self.cursor..].chars().next() {
+                                    if is_sep(c) {
+                                        self.cursor += c.len_utf8();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Delete => {
+                        if self.cursor < self.value.len() {
+                            if let Some(c) = self.value[self.cursor..].chars().next() {
+                                if !is_sep(c) {
+                                    let len = c.len_utf8();
+                                    self.value
+                                        .replace_range(self.cursor..self.cursor + len, "_");
+                                    // cursor stays put
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        // Move left (skipping a separator), then blank the digit there.
+                        if self.cursor > 0 {
+                            let ch_len = self.value[..self.cursor]
+                                .chars()
+                                .last()
+                                .map(|c| c.len_utf8())
+                                .unwrap_or(1);
+                            let mut target = self.cursor - ch_len;
+                            if let Some(c) = self.value[target..].chars().next() {
+                                if is_sep(c) && target > 0 {
+                                    let ch_len2 = self.value[..target]
+                                        .chars()
+                                        .last()
+                                        .map(|c| c.len_utf8())
+                                        .unwrap_or(1);
+                                    target -= ch_len2;
+                                }
+                            }
+                            self.cursor = target;
+                            if let Some(c) = self.value[self.cursor..].chars().next() {
+                                if !is_sep(c) {
+                                    let len = c.len_utf8();
+                                    self.value
+                                        .replace_range(self.cursor..self.cursor + len, "_");
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Char(c) => {
+                        if self.cursor >= self.value.len() {
+                            // Cursor at end: insert mode, for typing a fresh timestamp.
+                            self.insert(c);
+                        } else if c.is_ascii_digit() {
+                            // Cursor within existing value: overwrite current digit position.
+                            if let Some(cur) = self.value[self.cursor..].chars().next() {
+                                if !is_sep(cur) {
+                                    let len = cur.len_utf8();
+                                    self.value.replace_range(
+                                        self.cursor..self.cursor + len,
+                                        &c.to_string(),
+                                    );
+                                    self.cursor += 1;
+                                    // Skip any separator we land on.
+                                    if self.cursor < self.value.len() {
+                                        if let Some(next) = self.value[self.cursor..].chars().next()
+                                        {
+                                            if is_sep(next) {
+                                                self.cursor += next.len_utf8();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Non-digit within filled field, or separator position: no-op.
+                    }
+                    KeyCode::Home => self.cursor = 0,
+                    KeyCode::End => self.cursor = self.value.len(),
+                    _ => {}
                 }
             }
             FieldKind::Text => match code {
@@ -271,6 +398,120 @@ mod tests {
             fields: fields.iter().map(|v| Field::new("label", *v)).collect(),
             focused: 0,
         }
+    }
+
+    fn ts(value: &str) -> Field {
+        Field::new("label", value).into_timestamp()
+    }
+
+    // --- Timestamp field ---
+
+    #[test]
+    fn ts_left_skips_separator() {
+        let mut f = ts("12:34");
+        f.cursor = 3; // on '3'
+        f.handle_key(KeyCode::Left);
+        assert_eq!(f.cursor, 1); // on '2', skipped ':'
+    }
+
+    #[test]
+    fn ts_right_skips_separator() {
+        let mut f = ts("12:34");
+        f.cursor = 1; // on '2'
+        f.handle_key(KeyCode::Right);
+        assert_eq!(f.cursor, 3); // on '3', skipped ':'
+    }
+
+    #[test]
+    fn ts_left_at_first_char_is_noop() {
+        let mut f = ts("12:34");
+        f.cursor = 0;
+        f.handle_key(KeyCode::Left);
+        assert_eq!(f.cursor, 0);
+    }
+
+    #[test]
+    fn ts_right_at_last_char_stops_at_end() {
+        let mut f = ts("12:34");
+        f.cursor = 4; // on '4'
+        f.handle_key(KeyCode::Right);
+        assert_eq!(f.cursor, 5); // past end
+    }
+
+    #[test]
+    fn ts_delete_blanks_digit() {
+        let mut f = ts("12:34");
+        f.cursor = 1; // on '2'
+        f.handle_key(KeyCode::Delete);
+        assert_eq!(f.value, "1_:34");
+        assert_eq!(f.cursor, 1); // stays put
+    }
+
+    #[test]
+    fn ts_delete_on_separator_is_noop() {
+        let mut f = ts("12:34");
+        f.cursor = 2; // on ':'
+        f.handle_key(KeyCode::Delete);
+        assert_eq!(f.value, "12:34");
+        assert_eq!(f.cursor, 2);
+    }
+
+    #[test]
+    fn ts_backspace_blanks_prev_digit_and_moves_left() {
+        let mut f = ts("12:34");
+        f.cursor = 3; // on '3'
+        f.handle_key(KeyCode::Backspace);
+        assert_eq!(f.value, "1_:34");
+        assert_eq!(f.cursor, 1); // moved to '2' position (now '_')
+    }
+
+    #[test]
+    fn ts_backspace_skips_separator_when_backing_up() {
+        let mut f = ts("12:34");
+        f.cursor = 3; // on '3'; prev char is ':', skip it to reach '2'
+        f.handle_key(KeyCode::Backspace);
+        assert_eq!(f.cursor, 1);
+    }
+
+    #[test]
+    fn ts_char_digit_overwrites_in_place_and_advances() {
+        let mut f = ts("12:34");
+        f.cursor = 1; // on '2'
+        f.handle_key(KeyCode::Char('9'));
+        assert_eq!(f.value, "19:34");
+        assert_eq!(f.cursor, 3); // skipped ':' at 2, now on '3'
+    }
+
+    #[test]
+    fn ts_char_digit_on_separator_is_noop() {
+        let mut f = ts("12:34");
+        f.cursor = 2; // on ':'
+        f.handle_key(KeyCode::Char('9'));
+        assert_eq!(f.value, "12:34");
+        assert_eq!(f.cursor, 2);
+    }
+
+    #[test]
+    fn ts_char_on_empty_field_inserts() {
+        let mut f = ts("");
+        f.handle_key(KeyCode::Char('0'));
+        f.handle_key(KeyCode::Char('9'));
+        f.handle_key(KeyCode::Char(':'));
+        f.handle_key(KeyCode::Char('3'));
+        f.handle_key(KeyCode::Char('0'));
+        assert_eq!(f.value, "09:30");
+    }
+
+    #[test]
+    fn ts_full_datetime_left_right_skips_all_seps() {
+        // "2024-06-19 09:30": '-' at 4, '-' at 7, ' ' at 10, ':' at 13
+        let mut f = ts("2024-06-19 09:30");
+        f.cursor = 5; // on '0' of '06'
+        f.handle_key(KeyCode::Left);
+        assert_eq!(f.cursor, 3); // on '4' of '2024', skipped '-'
+        f.cursor = 9; // on '9' of '19'
+        f.handle_key(KeyCode::Right);
+        assert_eq!(f.cursor, 11); // on '0' of '09', skipped ' '
     }
 
     // --- Toggle field ---
