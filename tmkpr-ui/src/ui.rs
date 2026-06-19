@@ -1028,6 +1028,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("Edit selected entry"),
             ]),
             Line::from(vec![
+                Span::styled("  E      ", bold),
+                Span::raw("Edit active (currently running) entry"),
+            ]),
+            Line::from(vec![
                 Span::styled("  d      ", bold),
                 Span::raw("Delete selected entry"),
             ]),
@@ -1052,6 +1056,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("View / add comments on active entry"),
             ]),
             Line::from(vec![Span::styled("  r      ", bold), Span::raw("Refresh")]),
+            Line::from(vec![
+                Span::styled("  < / >  ", bold),
+                Span::raw("Previous / next week in week report"),
+            ]),
             Line::from(""),
             Line::from(Span::styled("Filtering & sorting", bold)),
             Line::from(vec![
@@ -1085,6 +1093,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("Edit selected project"),
             ]),
             Line::from(vec![
+                Span::styled("  d      ", bold),
+                Span::raw("Delete selected project"),
+            ]),
+            Line::from(vec![
                 Span::styled("  s      ", bold),
                 Span::raw("Cycle sort"),
             ]),
@@ -1101,6 +1113,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("Delete selected task"),
             ]),
             Line::from(vec![
+                Span::styled("  c      ", bold),
+                Span::raw("Toggle complete / incomplete"),
+            ]),
+            Line::from(vec![
                 Span::styled("  s      ", bold),
                 Span::raw("Cycle sort"),
             ]),
@@ -1112,6 +1128,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("Add comment"),
             ]),
             Line::from(vec![
+                Span::styled("  e      ", bold),
+                Span::raw("Edit selected comment"),
+            ]),
+            Line::from(vec![
                 Span::styled("  d      ", bold),
                 Span::raw("Delete selected comment"),
             ]),
@@ -1120,6 +1140,10 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled("  i      ", bold),
                 Span::raw("Settings (theme, date format, Obsidian, …)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  :      ", bold),
+                Span::raw("Command mode (quit, theme, set date-format, …)"),
             ]),
             Line::from(vec![
                 Span::styled("  ?      ", bold),
@@ -1374,7 +1398,12 @@ fn render_settings(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(Span::styled(hint, Style::default().fg(dim))),
         Line::from(""),
         Line::from(Span::styled(
-            format!("  tmkpr v{}", env!("CARGO_PKG_VERSION")),
+            format!(
+                "  tmkpr v{}  commit:{}  built:{}",
+                env!("CARGO_PKG_VERSION"),
+                env!("BUILD_GIT_HASH"),
+                env!("BUILD_DATE"),
+            ),
             Style::default().fg(dim),
         )),
     ];
