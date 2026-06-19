@@ -1284,8 +1284,17 @@ impl App {
             Some(note.to_string())
         };
 
-        let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-        svc.log_event(project_name, task_name, note_val, tags, at)?;
+        let entry = {
+            let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
+            svc.log_event(project_name, task_name, note_val, tags, at)?
+        };
+        let _ = obsidian_logger::log_activity_to_obsidian(
+            &self.config,
+            &entry,
+            project_name,
+            task_name,
+            obsidian_logger::ActivityAction::EventLogged,
+        );
         self.refresh()?;
         Ok(())
     }
@@ -1299,7 +1308,69 @@ impl App {
         time_str: &str,
         tags_str: &str,
     ) -> anyhow::Result<()> {
-        self.edit_entry(id, project, task, note, time_str, time_str, tags_str)
+        self.edit_entry(id, project, task, note, time_str, time_str, tags_str)?;
+        let project_opt = if project.is_empty() { None } else { Some(project) };
+        let task_opt = if task.is_empty() { None } else { Some(task) };
+        if let Ok(entry) = self.storage.get_entry(id) {
+            let _ = obsidian_logger::log_activity_to_obsidian(
+                &self.config,
+                &entry,
+                project_opt,
+                task_opt,
+                obsidian_logger::ActivityAction::Edited,
+            );
+        }
+        Ok(())
+    }
+
+    pub fn open_edit_active_modal(&mut self) {
+        let entry = match &self.active_entry {
+            Some(e) => e.clone(),
+            None => {
+                self.status = Some(("No active entry.".into(), true));
+                return;
+            }
+        };
+        let id = entry.id.clone();
+        let project_val = entry
+            .project_id
+            .as_deref()
+            .map(|pid| self.project_name(pid).to_string())
+            .unwrap_or_default();
+        let task_val = entry
+            .task_id
+            .as_deref()
+            .map(|tid| self.task_name(tid).to_string())
+            .unwrap_or_default();
+        let note_val = entry.note.clone().unwrap_or_default();
+        let start_val = entry
+            .started_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M")
+            .to_string();
+        let tags_val = entry.tags.join(", ");
+        let projects = self.project_names();
+        let project_colors = self.project_colors();
+        let tasks = self.task_names();
+        let task_colors = self.task_colors_all();
+        self.mode = AppMode::EditModal {
+            id,
+            form: Form {
+                fields: vec![
+                    Field::new("Project", project_val)
+                        .with_completions(projects)
+                        .with_completion_colors(project_colors),
+                    Field::new("Task", task_val)
+                        .with_completions(tasks)
+                        .with_completion_colors(task_colors),
+                    Field::new("Note", note_val),
+                    Field::new("Start", start_val).into_timestamp(),
+                    Field::new("End (blank = active)", "").into_timestamp(),
+                    Field::new("Tags (comma-separated)", tags_val),
+                ],
+                focused: 0,
+            },
+        };
     }
 
     pub fn open_add_manual_entry_modal(&mut self) {

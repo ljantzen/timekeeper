@@ -80,6 +80,9 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('e') if !app.entries.is_empty() => {
             app.open_edit_modal();
         }
+        KeyCode::Char('E') => {
+            app.open_edit_active_modal();
+        }
         KeyCode::Char('d') if !app.entries.is_empty() => {
             app.open_confirm_delete();
         }
