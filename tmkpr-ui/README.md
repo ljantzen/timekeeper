@@ -50,8 +50,10 @@ The dashboard shows:
 | `s` | Start tracking (opens form) |
 | `S` | Start tracking pre-filled from selected entry |
 | `n` | Add a manual entry (opens form) |
+| `v` | Add a point-in-time event (defaults to now) |
 | `x` | Stop active entry |
 | `e` | Edit selected entry |
+| `E` | Edit active (currently running) entry |
 | `d` | Delete selected entry (prompts for confirmation) |
 | `c` | Open comments for selected entry |
 | `C` | Open comments for active entry |

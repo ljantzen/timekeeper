@@ -38,7 +38,9 @@ tmkpr status
 tmkpr log   [-s START] [-e END] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
 ```
 
-`log` (alias: `record`) adds a completed entry directly without a start/stop cycle. `--end` defaults to now if omitted. If `--start` is omitted, tmkpr will suggest the end time of the last entry logged today.
+`log` (alias: `record`) adds a completed entry directly without a start/stop cycle. `--end` defaults to now if omitted. If `--start` is omitted, tmkpr prompts with the end time of the last entry logged today; if there is no such entry, you must provide `--start` explicitly.
+
+Pass `--start continue` (or `--start cont`) to start exactly where the last entry ended, with no prompt.
 
 **Handing off between tasks:** if a session is already running when you run `start`, you will be prompted to stop it first. When `--start` is provided, the active entry is stopped at that time and the new entry starts at the same time — so there is no gap and no overlap:
 
@@ -60,12 +62,14 @@ tmkpr log -s "yesterday 9am" -e "yesterday 5pm" -p myproject -n "deep work"
 ### Entries
 
 ```
-tmkpr list   [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG] [--gaps] [--min-gap MINUTES]
-tmkpr report [--from TIME] [--until TIME] [-p PROJECT]
-tmkpr report --week [N] [--year YEAR]
-tmkpr report --wweek [N] [--year YEAR]
-tmkpr edit   <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
-tmkpr delete <ID> [-y]
+tmkpr list     [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG] [--gaps] [--min-gap MINUTES]
+tmkpr report   [--from TIME] [--until TIME] [-p PROJECT]
+tmkpr report   --week [N] [--year YEAR]
+tmkpr report   --wweek [N] [--year YEAR]
+tmkpr edit     <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
+tmkpr delete   <ID> [-y]
+tmkpr merge    <ID>
+tmkpr fill-gap [ID]
 ```
 
 `--week` shows a full 7-day ISO week (Mon–Sun). `--wweek` shows only Mon–Fri. Both accept an optional week number and a `--year` flag:
@@ -83,6 +87,10 @@ tmkpr report --week 12 --year 2025
 tmkpr list --from "last monday"
 tmkpr list --from "2025-01-01"
 ```
+
+`merge` (alias: `m`) joins an entry into the chronologically next entry that shares its project and task.
+
+`fill-gap` (alias: `fg`) extends an entry's start and/or end times to abut adjacent entries on the same day. Omit `ID` to operate on the active entry.
 
 Entry IDs can be abbreviated to any unambiguous prefix (8+ chars).
 
@@ -102,13 +110,17 @@ Deleting a project archives it by default. Use `--hard` to permanently remove it
 ### Tasks
 
 ```
-tmkpr task add <NAME> -p PROJECT [-d DESCRIPTION]
-tmkpr task list -p PROJECT [--archived]
-tmkpr task edit <NAME|ID> -p PROJECT [--name NAME] [-d DESCRIPTION] [--move-to PROJECT]
-tmkpr task delete <NAME|ID> -p PROJECT [--hard]
+tmkpr task add        <NAME> -p PROJECT [-d DESCRIPTION]
+tmkpr task list       -p PROJECT [--archived]
+tmkpr task edit       <NAME|ID> -p PROJECT [--name NAME] [-d DESCRIPTION] [--move-to PROJECT]
+tmkpr task delete     <NAME|ID> -p PROJECT [--hard]
+tmkpr task done       <NAME|ID> -p PROJECT
+tmkpr task reactivate <NAME|ID> -p PROJECT
 ```
 
 `-p` identifies the project the task currently belongs to. Use `--move-to` to reassign it to a different project.
+
+`task delete` archives by default; use `--hard` to permanently remove. `task done` marks a task completed; `task reactivate` reverses that.
 
 ### Comments
 
@@ -123,6 +135,18 @@ tmkpr comment delete <ID> [-y]
 ```
 
 Aliases: `c` for the subcommand, `a` / `ls` / `e` / `d` for the actions. Comment IDs can be abbreviated to any unambiguous prefix (8+ chars).
+
+### Events
+
+Point-in-time events are entries with no duration — useful for marking moments (deploys, meetings, etc.).
+
+```
+tmkpr event add    [--at TIME] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
+tmkpr event edit   <ID> [--at TIME] [-p PROJECT] [-t TASK] [-n NOTE] [--tags t1,t2]
+tmkpr event delete <ID> [-y]
+```
+
+`--at` accepts natural language or ISO 8601 and defaults to now. Events appear in `tmkpr list` alongside regular entries.
 
 ### Import / Export
 
