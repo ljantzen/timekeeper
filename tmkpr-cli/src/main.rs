@@ -144,13 +144,13 @@ fn run() -> anyhow::Result<()> {
         Commands::FillGap(args) => commands::fill_gap::run(args, storage.as_ref(), &user_id)?,
         Commands::Event(sub) => match sub {
             EventCommands::Add(args) => {
-                commands::event::add(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
+                commands::event::add(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
             }
             EventCommands::Edit(args) => {
-                commands::event::edit(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color)?
+                commands::event::edit(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
             }
             EventCommands::Delete(args) => {
-                commands::event::delete(args, storage.as_ref(), &user_id)?
+                commands::event::delete(args, storage.as_ref(), &user_id, &config)?
             }
         },
         Commands::Comment(sub) => match sub {

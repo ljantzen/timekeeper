@@ -14,6 +14,7 @@ pub enum ActivityAction {
     Completed,
     Merged,
     Deleted,
+    EventLogged,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -382,25 +383,30 @@ fn format_entry_message(
         ActivityAction::Completed => "COMPLETED",
         ActivityAction::Merged => "MERGED",
         ActivityAction::Deleted => "DELETED",
+        ActivityAction::EventLogged => "EVENT",
     };
 
-    let duration = entry
-        .duration()
-        .map(|d| {
-            let mins = d.num_minutes();
-            if mins >= 60 {
-                let hours = mins / 60;
-                let remainder = mins % 60;
-                if remainder == 0 {
-                    format!("{}h", hours)
+    let duration = if entry.is_event() {
+        "event".to_string()
+    } else {
+        entry
+            .duration()
+            .map(|d| {
+                let mins = d.num_minutes();
+                if mins >= 60 {
+                    let hours = mins / 60;
+                    let remainder = mins % 60;
+                    if remainder == 0 {
+                        format!("{}h", hours)
+                    } else {
+                        format!("{}h {}m", hours, remainder)
+                    }
                 } else {
-                    format!("{}h {}m", hours, remainder)
+                    format!("{}m", mins)
                 }
-            } else {
-                format!("{}m", mins)
-            }
-        })
-        .unwrap_or_else(|| "active".to_string());
+            })
+            .unwrap_or_else(|| "active".to_string())
+    };
 
     let activity_name = match (project_name, task_name) {
         (Some(proj), Some(task)) => {

@@ -1,7 +1,9 @@
 use anyhow::Result;
 use chrono::Local;
+use tmkpr_lib::config::Config;
 use tmkpr_lib::models::entry::UpdateEntry;
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
+use tmkpr_lib::obsidian_logger;
 use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
@@ -16,6 +18,7 @@ pub fn add(
     date_fmt: &str,
     time_fmt: TimeFormat,
     color: bool,
+    config: &Config,
 ) -> Result<()> {
     let at = match args.at.as_deref() {
         Some(s) => parse_datetime_now(s, time_fmt)?,
@@ -49,6 +52,14 @@ pub fn add(
         at,
     )?;
 
+    let _ = obsidian_logger::log_activity_to_obsidian(
+        config,
+        &entry,
+        project.as_ref().map(|p| p.name.as_str()),
+        task.as_ref().map(|t| t.name.as_str()),
+        obsidian_logger::ActivityAction::EventLogged,
+    );
+
     let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
     let all_tasks: Vec<_> = storage
         .list_projects(user_id, true)
@@ -75,6 +86,7 @@ pub fn edit(
     date_fmt: &str,
     time_fmt: TimeFormat,
     color: bool,
+    config: &Config,
 ) -> Result<()> {
     let at = args
         .at
@@ -134,6 +146,24 @@ pub fn edit(
     let svc = EntryService::new(storage, user_id);
     let entry = svc.update(&args.id, update)?;
 
+    let project_name = entry
+        .project_id
+        .as_ref()
+        .and_then(|pid| storage.get_project(pid).ok())
+        .map(|p| p.name);
+    let task_name = entry
+        .task_id
+        .as_ref()
+        .and_then(|tid| storage.get_task(tid).ok())
+        .map(|t| t.name);
+    let _ = obsidian_logger::log_activity_to_obsidian(
+        config,
+        &entry,
+        project_name.as_deref(),
+        task_name.as_deref(),
+        obsidian_logger::ActivityAction::Edited,
+    );
+
     let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
     let all_tasks: Vec<_> = storage
         .list_projects(user_id, true)
@@ -153,7 +183,12 @@ pub fn edit(
     Ok(())
 }
 
-pub fn delete(args: EventDeleteArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
+pub fn delete(
+    args: EventDeleteArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    config: &Config,
+) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
     let entry = svc.get(&args.id)?;
 
@@ -170,6 +205,24 @@ pub fn delete(args: EventDeleteArgs, storage: &dyn Storage, user_id: &str) -> Re
         println!("Cancelled.");
         return Ok(());
     }
+
+    let project_name = entry
+        .project_id
+        .as_ref()
+        .and_then(|pid| storage.get_project(pid).ok())
+        .map(|p| p.name);
+    let task_name = entry
+        .task_id
+        .as_ref()
+        .and_then(|tid| storage.get_task(tid).ok())
+        .map(|t| t.name);
+    let _ = obsidian_logger::log_activity_to_obsidian(
+        config,
+        &entry,
+        project_name.as_deref(),
+        task_name.as_deref(),
+        obsidian_logger::ActivityAction::Deleted,
+    );
 
     svc.delete(&args.id)?;
     println!("Deleted event {}.", &entry.id[..entry.id.len().min(8)]);
