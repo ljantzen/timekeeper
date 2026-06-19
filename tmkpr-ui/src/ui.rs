@@ -210,7 +210,7 @@ fn render_entries(frame: &mut Frame, app: &mut App, area: Rect) {
 
             let dim = Style::default().fg(app.theme.dim);
             let time_col = if entry.is_event() {
-                format!("{start}  {:<13}", "●")
+                format!("{start}  {:<16}", "●")
             } else {
                 let end = match entry.finished_at {
                     None => "     ".to_string(),
