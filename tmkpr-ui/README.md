@@ -63,10 +63,11 @@ The dashboard shows:
 | `f` | Open filter |
 | `T` | Filter to today |
 | `Y` | Filter to yesterday |
-| `W` | Filter to this week |
+| `P` | Filter to previous week |
+| `N` | Filter to next week |
 | `o` | Cycle entry sort order |
-| `<` | View previous week |
-| `>` | View next week |
+| `<` | View previous week in week report |
+| `>` | View next week in week report |
 | `p` | Manage projects |
 | `t` | Manage tasks |
 | `r` | Refresh data |
