@@ -2637,6 +2637,44 @@ impl App {
         Ok(())
     }
 
+    pub fn filter_prev_week(&mut self) -> anyhow::Result<()> {
+        let anchor = self
+            .entry_filter
+            .from
+            .map(|dt| dt.with_timezone(&Local).date_naive())
+            .unwrap_or_else(|| Local::now().date_naive());
+        let start_num = self.week_start.num_days_from_monday();
+        let current_num = anchor.weekday().num_days_from_monday();
+        let days_since_start = (current_num + 7 - start_num) % 7;
+        let week_begin = anchor - Duration::days(days_since_start as i64 + 7);
+        let week_end = week_begin + Duration::days(7);
+        let date_str = format!(
+            "{}..{}",
+            week_begin.format("%Y-%m-%d"),
+            week_end.format("%Y-%m-%d")
+        );
+        self.apply_filter(&self.entry_filter.project_name.clone(), &date_str)
+    }
+
+    pub fn filter_next_week(&mut self) -> anyhow::Result<()> {
+        let anchor = self
+            .entry_filter
+            .from
+            .map(|dt| dt.with_timezone(&Local).date_naive())
+            .unwrap_or_else(|| Local::now().date_naive());
+        let start_num = self.week_start.num_days_from_monday();
+        let current_num = anchor.weekday().num_days_from_monday();
+        let days_since_start = (current_num + 7 - start_num) % 7;
+        let week_begin = anchor - Duration::days(days_since_start as i64) + Duration::days(7);
+        let week_end = week_begin + Duration::days(7);
+        let date_str = format!(
+            "{}..{}",
+            week_begin.format("%Y-%m-%d"),
+            week_end.format("%Y-%m-%d")
+        );
+        self.apply_filter(&self.entry_filter.project_name.clone(), &date_str)
+    }
+
     pub fn prev_week(&mut self) -> anyhow::Result<()> {
         let iso_date = NaiveDate::from_isoywd_opt(
             self.displayed_week_year,

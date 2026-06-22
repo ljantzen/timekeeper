@@ -1138,8 +1138,8 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw("Quick filter: Yesterday"),
             ]),
             Line::from(vec![
-                Span::styled("  W      ", bold),
-                Span::raw("Quick filter: This week"),
+                Span::styled("  P / N  ", bold),
+                Span::raw("Filter: previous / next week"),
             ]),
             Line::from(""),
             Line::from(Span::styled("Projects  [p]", bold)),

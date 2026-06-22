@@ -105,8 +105,13 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 app.status = Some((e.to_string(), true));
             }
         }
-        KeyCode::Char('W') => {
-            if let Err(e) = app.apply_filter("", "this week") {
+        KeyCode::Char('P') => {
+            if let Err(e) = app.filter_prev_week() {
+                app.status = Some((e.to_string(), true));
+            }
+        }
+        KeyCode::Char('N') => {
+            if let Err(e) = app.filter_next_week() {
                 app.status = Some((e.to_string(), true));
             }
         }
