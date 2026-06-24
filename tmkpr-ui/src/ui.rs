@@ -525,7 +525,10 @@ fn render_form_modal(
             let (cursor_line_idx, cursor_col) = if focused {
                 let before = &field.value[..field.cursor];
                 let lidx = before.chars().filter(|&c| c == '\n').count();
-                let col = before.rfind('\n').map(|i| field.cursor - i - 1).unwrap_or(field.cursor);
+                let col = before
+                    .rfind('\n')
+                    .map(|i| field.cursor - i - 1)
+                    .unwrap_or(field.cursor);
                 (lidx, col)
             } else {
                 (0, 0)
@@ -543,8 +546,11 @@ fn render_form_modal(
                         } else {
                             remaining.chars().next().unwrap_or(' ')
                         };
-                        let char_len =
-                            if remaining.is_empty() { 0 } else { char_at.len_utf8() };
+                        let char_len = if remaining.is_empty() {
+                            0
+                        } else {
+                            char_at.len_utf8()
+                        };
                         let after = &remaining[char_len..];
                         let mut spans = vec![];
                         if !before.is_empty() {
@@ -563,10 +569,7 @@ fn render_form_modal(
                     }
                 })
                 .collect();
-            frame.render_widget(
-                Paragraph::new(rendered).block(field_block),
-                field_chunks[i],
-            );
+            frame.render_widget(Paragraph::new(rendered).block(field_block), field_chunks[i]);
         } else {
             let value_color = field
                 .completions

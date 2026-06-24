@@ -391,9 +391,7 @@ impl Form {
         match key.code {
             KeyCode::Esc => FormResult::Cancel,
 
-            KeyCode::Enter if key.modifiers.contains(KeyModifiers::ALT) => {
-                FormResult::Submit
-            }
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::ALT) => FormResult::Submit,
 
             KeyCode::Down => {
                 let focused_is_multiline =

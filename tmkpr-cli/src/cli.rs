@@ -510,6 +510,9 @@ pub enum EventCommands {
     /// Record a point-in-time event
     #[command(alias = "a")]
     Add(EventAddArgs),
+    /// List events
+    #[command(alias = "ls")]
+    List(EventListArgs),
     /// Edit an existing event
     #[command(alias = "e")]
     Edit(EventEditArgs),
@@ -535,6 +538,29 @@ pub struct EventAddArgs {
 
     #[arg(long, value_delimiter = ',')]
     pub tags: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct EventListArgs {
+    /// Start of date range (natural language or ISO 8601)
+    #[arg(long)]
+    pub from: Option<String>,
+
+    /// End of date range (natural language or ISO 8601)
+    #[arg(long)]
+    pub until: Option<String>,
+
+    /// Filter by project name
+    #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]
+    pub project: Option<String>,
+
+    /// Filter by tag (can be specified multiple times)
+    #[arg(long)]
+    pub tag: Vec<String>,
+
+    /// Maximum number of events to show
+    #[arg(short, long)]
+    pub limit: Option<u32>,
 }
 
 #[derive(Args)]

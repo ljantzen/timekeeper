@@ -1,15 +1,81 @@
 use anyhow::Result;
 use chrono::Local;
 use tmkpr_lib::config::Config;
-use tmkpr_lib::models::entry::UpdateEntry;
+use tmkpr_lib::models::entry::{EntryFilter, UpdateEntry};
 use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
 use tmkpr_lib::obsidian_logger;
-use tmkpr_lib::service::EntryService;
+use tmkpr_lib::service::{EntryService, ProjectService};
 use tmkpr_lib::storage::Storage;
 
-use crate::cli::{EventAddArgs, EventDeleteArgs, EventEditArgs};
+use crate::cli::{EventAddArgs, EventDeleteArgs, EventEditArgs, EventListArgs};
 use crate::output::{self, ProjectIndex, TaskIndex};
 use crate::prompt;
+
+pub fn list(
+    args: EventListArgs,
+    storage: &dyn Storage,
+    user_id: &str,
+    date_fmt: &str,
+    time_fmt: TimeFormat,
+    format: &str,
+    color: bool,
+) -> Result<()> {
+    let from = args
+        .from
+        .as_deref()
+        .map(|s| parse_datetime_now(s, time_fmt))
+        .transpose()?;
+    let until = args
+        .until
+        .as_deref()
+        .map(|s| parse_datetime_now(s, time_fmt))
+        .transpose()?;
+
+    let project_id = match args.project.as_deref() {
+        Some(input) => Some(ProjectService::new(storage, user_id).resolve(input)?.id),
+        None => None,
+    };
+
+    let mut entries = EntryService::new(storage, user_id).list(EntryFilter {
+        user_id: user_id.to_string(),
+        project_id,
+        task_id: None,
+        from,
+        until,
+        tags: args.tag,
+        limit: args.limit,
+        include_active: false,
+    })?;
+
+    entries.retain(|e| e.is_event());
+
+    if entries.is_empty() {
+        match format {
+            "json" => println!("[]"),
+            "csv" => println!("id,project,task,note,tags,started,finished,duration_secs"),
+            _ => println!("No events found."),
+        }
+        return Ok(());
+    }
+
+    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
+    let all_tasks: Vec<_> = storage
+        .list_projects(user_id, true)
+        .unwrap_or_default()
+        .iter()
+        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
+        .collect();
+
+    output::print_entries(
+        &entries,
+        &projects,
+        &TaskIndex(all_tasks),
+        date_fmt,
+        format,
+        color,
+    );
+    Ok(())
+}
 
 pub fn add(
     args: EventAddArgs,

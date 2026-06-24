@@ -143,12 +143,33 @@ fn run() -> anyhow::Result<()> {
         Commands::Merge(args) => commands::merge::run(args, storage.as_ref(), &user_id, &config)?,
         Commands::FillGap(args) => commands::fill_gap::run(args, storage.as_ref(), &user_id)?,
         Commands::Event(sub) => match sub {
-            EventCommands::Add(args) => {
-                commands::event::add(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
-            }
-            EventCommands::Edit(args) => {
-                commands::event::edit(args, storage.as_ref(), &user_id, &date_fmt, time_fmt, color, &config)?
-            }
+            EventCommands::Add(args) => commands::event::add(
+                args,
+                storage.as_ref(),
+                &user_id,
+                &date_fmt,
+                time_fmt,
+                color,
+                &config,
+            )?,
+            EventCommands::List(args) => commands::event::list(
+                args,
+                storage.as_ref(),
+                &user_id,
+                &date_fmt,
+                time_fmt,
+                format,
+                color,
+            )?,
+            EventCommands::Edit(args) => commands::event::edit(
+                args,
+                storage.as_ref(),
+                &user_id,
+                &date_fmt,
+                time_fmt,
+                color,
+                &config,
+            )?,
             EventCommands::Delete(args) => {
                 commands::event::delete(args, storage.as_ref(), &user_id, &config)?
             }

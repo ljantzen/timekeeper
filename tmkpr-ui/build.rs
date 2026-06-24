@@ -20,7 +20,14 @@ fn main() {
 
 fn jj_commit_hash() -> Option<String> {
     let out = std::process::Command::new("jj")
-        .args(["log", "--no-graph", "-r", "@", "--template", "commit_id.short(7)"])
+        .args([
+            "log",
+            "--no-graph",
+            "-r",
+            "@",
+            "--template",
+            "commit_id.short(7)",
+        ])
         .output()
         .ok()?;
     if !out.status.success() {
@@ -28,7 +35,11 @@ fn jj_commit_hash() -> Option<String> {
     }
     let s = String::from_utf8(out.stdout).ok()?;
     let trimmed = s.trim().to_string();
-    if trimmed.is_empty() { None } else { Some(trimmed) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }
 
 fn git_commit_hash() -> Option<String> {
@@ -41,5 +52,9 @@ fn git_commit_hash() -> Option<String> {
     }
     let s = String::from_utf8(out.stdout).ok()?;
     let trimmed = s.trim().to_string();
-    if trimmed.is_empty() { None } else { Some(trimmed) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }

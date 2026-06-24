@@ -1309,7 +1309,11 @@ impl App {
         tags_str: &str,
     ) -> anyhow::Result<()> {
         self.edit_entry(id, project, task, note, time_str, time_str, tags_str)?;
-        let project_opt = if project.is_empty() { None } else { Some(project) };
+        let project_opt = if project.is_empty() {
+            None
+        } else {
+            Some(project)
+        };
         let task_opt = if task.is_empty() { None } else { Some(task) };
         if let Ok(entry) = self.storage.get_entry(id) {
             let _ = obsidian_logger::log_activity_to_obsidian(
