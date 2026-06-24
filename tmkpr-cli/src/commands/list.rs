@@ -103,14 +103,7 @@ pub fn run(
 
     let (projects, tasks) = output::build_indexes(storage, user_id);
 
-    output::print_entries(
-        &entries,
-        &projects,
-        &tasks,
-        date_fmt,
-        format,
-        color,
-    );
+    output::print_entries(&entries, &projects, &tasks, date_fmt, format, color);
     Ok(())
 }
 

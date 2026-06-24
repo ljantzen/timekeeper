@@ -31,22 +31,14 @@ pub fn list(
 pub fn edit(args: CommentEditArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let body = args.body.join(" ");
     let comment = CommentService::new(storage, user_id).edit(&args.id, body)?;
-    println!(
-        "Updated comment {}.",
-        output::short_id(&comment.id)
-    );
+    println!("Updated comment {}.", output::short_id(&comment.id));
     Ok(())
 }
 
 pub fn delete(args: CommentDeleteArgs, storage: &dyn Storage, user_id: &str) -> Result<()> {
     let svc = CommentService::new(storage, user_id);
 
-    if !args.yes
-        && !prompt::confirm(&format!(
-            "Delete comment {}?",
-            output::short_id(&args.id)
-        ))
-    {
+    if !args.yes && !prompt::confirm(&format!("Delete comment {}?", output::short_id(&args.id))) {
         println!("Cancelled.");
         return Ok(());
     }

@@ -70,6 +70,30 @@ pub fn resolve_or_create_project(
     }
 }
 
+/// Resolve optional --project and --task CLI args to model objects.
+/// Returns `(None, None)` when both args are absent.
+/// Errors if a task name is given without a project, or if resolution/creation fails.
+pub fn resolve_project_and_task(
+    storage: &dyn Storage,
+    user_id: &str,
+    project_arg: Option<&str>,
+    task_arg: Option<&str>,
+) -> Result<(Option<Project>, Option<Task>)> {
+    let project = project_arg
+        .map(|input| resolve_or_create_project(storage, user_id, input))
+        .transpose()?;
+    let task = match (task_arg, &project) {
+        (Some(input), Some(proj)) => Some(resolve_or_create_task(storage, user_id, proj, input)?),
+        (Some(name), None) => {
+            return Err(
+                TmkprError::Config(format!("task `{}` requires a project (use -p)", name)).into(),
+            )
+        }
+        _ => None,
+    };
+    Ok((project, task))
+}
+
 /// Resolves a task by name or numeric ID within a project.
 /// If the input is a name and no task is found, prompts the user to create it.
 pub fn resolve_or_create_task(

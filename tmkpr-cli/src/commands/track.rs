@@ -27,25 +27,12 @@ pub fn run(
         None => Utc::now(),
     };
 
-    let project = args
-        .project
-        .as_deref()
-        .map(|input| prompt::resolve_or_create_project(storage, user_id, input))
-        .transpose()?;
-
-    let task = match (args.task.as_deref(), &project) {
-        (Some(input), Some(proj)) => Some(prompt::resolve_or_create_task(
-            storage, user_id, proj, input,
-        )?),
-        (Some(name), None) => {
-            return Err(tmkpr_lib::error::TmkprError::Config(format!(
-                "task `{}` requires a project (use -p)",
-                name
-            ))
-            .into())
-        }
-        _ => None,
-    };
+    let (project, task) = prompt::resolve_project_and_task(
+        storage,
+        user_id,
+        args.project.as_deref(),
+        args.task.as_deref(),
+    )?;
 
     let svc = EntryService::new(storage, user_id);
 

@@ -51,10 +51,7 @@ pub(crate) fn entry_names(
 }
 
 /// Build ProjectIndex + TaskIndex covering all projects/tasks (including archived).
-pub(crate) fn build_indexes(
-    storage: &dyn Storage,
-    user_id: &str,
-) -> (ProjectIndex, TaskIndex) {
+pub(crate) fn build_indexes(storage: &dyn Storage, user_id: &str) -> (ProjectIndex, TaskIndex) {
     let projects = storage.list_projects(user_id, true).unwrap_or_default();
     let all_tasks: Vec<_> = projects
         .iter()

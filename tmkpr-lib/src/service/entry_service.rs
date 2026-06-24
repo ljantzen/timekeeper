@@ -430,6 +430,25 @@ impl<'a> EntryService<'a> {
     }
 
     /// Merge `id_or_prefix` into the chronologically next entry with the same project and task.
+    fn merge_notes(a: &Option<String>, b: &Option<String>) -> Option<String> {
+        match (a, b) {
+            (Some(x), Some(y)) if x == y => Some(y.clone()),
+            (Some(x), Some(y)) => Some(format!("{}\n{}", x, y)),
+            (Some(x), None) => Some(x.clone()),
+            (None, note) => note.clone(),
+        }
+    }
+
+    fn move_comments(&self, from_id: &str, to_id: &str) -> TmkprResult<()> {
+        for comment in self.storage.list_comments(from_id)? {
+            self.storage.create_comment(NewComment {
+                entry_id: to_id.to_string(),
+                body: comment.body,
+            })?;
+        }
+        Ok(())
+    }
+
     /// Returns the surviving (merged) entry.
     pub fn merge_into_next(&self, id_or_prefix: &str) -> TmkprResult<Entry> {
         let first_id = self.storage.resolve_entry_id(self.user_id, id_or_prefix)?;
@@ -455,21 +474,8 @@ impl<'a> EntryService<'a> {
             )
         })?;
 
-        let merged_note = match (&first.note, &second.note) {
-            (Some(a), Some(b)) if a == b => Some(b.clone()),
-            (Some(a), Some(b)) => Some(format!("{}\n{}", a, b)),
-            (Some(a), None) => Some(a.clone()),
-            (None, note) => note.clone(),
-        };
-
-        // Move comments from first to second
-        let comments = self.storage.list_comments(&first.id)?;
-        for comment in comments {
-            self.storage.create_comment(NewComment {
-                entry_id: second.id.clone(),
-                body: comment.body,
-            })?;
-        }
+        let merged_note = Self::merge_notes(&first.note, &second.note);
+        self.move_comments(&first.id, &second.id)?;
 
         // Update second and delete first
         let merged = self.storage.update_entry(
@@ -511,21 +517,8 @@ impl<'a> EntryService<'a> {
             )
         })?;
 
-        let merged_note = match (&first.note, &second.note) {
-            (Some(a), Some(b)) if a == b => Some(b.clone()),
-            (Some(a), Some(b)) => Some(format!("{}\n{}", a, b)),
-            (Some(a), None) => Some(a.clone()),
-            (None, note) => note.clone(),
-        };
-
-        // Move comments from second to first
-        let comments = self.storage.list_comments(&second.id)?;
-        for comment in comments {
-            self.storage.create_comment(NewComment {
-                entry_id: first.id.clone(),
-                body: comment.body,
-            })?;
-        }
+        let merged_note = Self::merge_notes(&first.note, &second.note);
+        self.move_comments(&second.id, &first.id)?;
 
         // Update first to extend to second's end, delete second
         let merged = self.storage.update_entry(
