@@ -12,6 +12,8 @@ pub enum FieldKind {
     /// Separators (':', '-', ' ') cannot be deleted and are skipped by Left/Right.
     /// Digits are overwritten in-place; an empty field accepts free-form typing.
     Timestamp,
+    /// Multi-line text. Enter inserts a newline; Alt+Enter submits the form.
+    MultilineText,
 }
 
 pub struct Field {
@@ -63,6 +65,11 @@ impl Field {
 
     pub fn into_timestamp(mut self) -> Self {
         self.kind = FieldKind::Timestamp;
+        self
+    }
+
+    pub fn into_multiline(mut self) -> Self {
+        self.kind = FieldKind::MultilineText;
         self
     }
 
@@ -251,6 +258,93 @@ impl Field {
                     _ => {}
                 }
             }
+            FieldKind::MultilineText => match code {
+                KeyCode::Char(c) => self.insert(c),
+                KeyCode::Enter => self.insert('\n'),
+                KeyCode::Backspace => self.delete_back(),
+                KeyCode::Delete if self.cursor < self.value.len() => {
+                    let ch_len = self.value[self.cursor..]
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    self.value.drain(self.cursor..self.cursor + ch_len);
+                }
+                KeyCode::Left if self.cursor > 0 => {
+                    let before = &self.value[..self.cursor];
+                    let ch_len = before.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                    self.cursor -= ch_len;
+                }
+                KeyCode::Right if self.cursor < self.value.len() => {
+                    let ch_len = self.value[self.cursor..]
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    self.cursor += ch_len;
+                }
+                KeyCode::Home => {
+                    let line_start = self.value[..self.cursor]
+                        .rfind('\n')
+                        .map(|i| i + 1)
+                        .unwrap_or(0);
+                    self.cursor = line_start;
+                }
+                KeyCode::End => {
+                    let line_end = self.value[self.cursor..]
+                        .find('\n')
+                        .map(|i| self.cursor + i)
+                        .unwrap_or(self.value.len());
+                    self.cursor = line_end;
+                }
+                KeyCode::Up => {
+                    let line_start = self.value[..self.cursor]
+                        .rfind('\n')
+                        .map(|i| i + 1)
+                        .unwrap_or(0);
+                    if line_start == 0 {
+                        self.cursor = 0;
+                    } else {
+                        let col = self.cursor - line_start;
+                        let prev_nl = line_start - 1;
+                        let prev_line_start = self.value[..prev_nl]
+                            .rfind('\n')
+                            .map(|i| i + 1)
+                            .unwrap_or(0);
+                        let prev_line_len = prev_nl - prev_line_start;
+                        self.cursor = prev_line_start + col.min(prev_line_len);
+                        while self.cursor < self.value.len()
+                            && !self.value.is_char_boundary(self.cursor)
+                        {
+                            self.cursor += 1;
+                        }
+                    }
+                }
+                KeyCode::Down => {
+                    let line_start = self.value[..self.cursor]
+                        .rfind('\n')
+                        .map(|i| i + 1)
+                        .unwrap_or(0);
+                    let col = self.cursor - line_start;
+                    if let Some(offset) = self.value[self.cursor..].find('\n') {
+                        let next_line_start = self.cursor + offset + 1;
+                        let next_line_end = self.value[next_line_start..]
+                            .find('\n')
+                            .map(|i| next_line_start + i)
+                            .unwrap_or(self.value.len());
+                        let next_line_len = next_line_end - next_line_start;
+                        self.cursor = next_line_start + col.min(next_line_len);
+                        while self.cursor < self.value.len()
+                            && !self.value.is_char_boundary(self.cursor)
+                        {
+                            self.cursor += 1;
+                        }
+                    } else {
+                        self.cursor = self.value.len();
+                    }
+                }
+                _ => {}
+            },
             FieldKind::Text => match code {
                 KeyCode::Char(c) => self.insert(c),
                 KeyCode::Backspace => self.delete_back(),
@@ -297,27 +391,41 @@ impl Form {
         match key.code {
             KeyCode::Esc => FormResult::Cancel,
 
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::ALT) => {
+                FormResult::Submit
+            }
+
             KeyCode::Down => {
-                let has_completions = !self.fields[self.focused].completions.is_empty();
-                if has_completions {
-                    let count = self.filtered_count(self.focused);
-                    if count > 0 {
-                        let f = &mut self.fields[self.focused];
-                        f.ac_index = Some(match f.ac_index {
-                            None => 0,
-                            Some(i) => (i + 1) % count,
-                        });
-                    }
+                let focused_is_multiline =
+                    matches!(self.fields[self.focused].kind, FieldKind::MultilineText);
+                if focused_is_multiline {
+                    self.fields[self.focused].handle_key(KeyCode::Down);
                 } else {
-                    // No completions: Down navigates to the next field.
-                    self.fields[self.focused].ac_index = None;
-                    self.focused = (self.focused + 1) % self.fields.len();
+                    let has_completions = !self.fields[self.focused].completions.is_empty();
+                    if has_completions {
+                        let count = self.filtered_count(self.focused);
+                        if count > 0 {
+                            let f = &mut self.fields[self.focused];
+                            f.ac_index = Some(match f.ac_index {
+                                None => 0,
+                                Some(i) => (i + 1) % count,
+                            });
+                        }
+                    } else {
+                        // No completions: Down navigates to the next field.
+                        self.fields[self.focused].ac_index = None;
+                        self.focused = (self.focused + 1) % self.fields.len();
+                    }
                 }
                 FormResult::None
             }
 
             KeyCode::Up => {
-                if self.fields[self.focused].ac_index.is_some() {
+                let focused_is_multiline =
+                    matches!(self.fields[self.focused].kind, FieldKind::MultilineText);
+                if focused_is_multiline {
+                    self.fields[self.focused].handle_key(KeyCode::Up);
+                } else if self.fields[self.focused].ac_index.is_some() {
                     // Navigate backwards within an open autocomplete list.
                     let count = self.filtered_count(self.focused);
                     let f = &mut self.fields[self.focused];
@@ -339,7 +447,12 @@ impl Form {
             }
 
             KeyCode::Enter => {
-                if self.fields[self.focused].ac_index.is_some() {
+                let focused_is_multiline =
+                    matches!(self.fields[self.focused].kind, FieldKind::MultilineText);
+                if focused_is_multiline {
+                    self.fields[self.focused].handle_key(KeyCode::Enter);
+                    FormResult::None
+                } else if self.fields[self.focused].ac_index.is_some() {
                     self.fields[self.focused].apply_selected();
                     if self.focused < self.fields.len() - 1 {
                         self.focused += 1;

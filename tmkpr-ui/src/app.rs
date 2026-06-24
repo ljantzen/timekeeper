@@ -1864,7 +1864,7 @@ impl App {
             self.mode = AppMode::AddComment {
                 entry_id,
                 form: Form {
-                    fields: vec![Field::new("Comment", "")],
+                    fields: vec![Field::new("Comment", "").into_multiline()],
                     focused: 0,
                 },
             };
@@ -1938,7 +1938,7 @@ impl App {
                 entry_id: entry_id.clone(),
                 comment_id: comment.id.clone(),
                 form: Form {
-                    fields: vec![Field::new("Comment", &comment.body)],
+                    fields: vec![Field::new("Comment", &comment.body).into_multiline()],
                     focused: 0,
                 },
             };

@@ -487,9 +487,14 @@ fn render_form_modal(
     frame.render_widget(block, popup_area);
 
     let n = form.fields.len();
-    let constraints: Vec<Constraint> = (0..n)
-        .map(|_| Constraint::Length(3))
-        .chain(std::iter::once(Constraint::Min(0)))
+    let constraints: Vec<Constraint> = form
+        .fields
+        .iter()
+        .map(|f| match f.kind {
+            FieldKind::MultilineText => Constraint::Fill(1),
+            _ => Constraint::Length(3),
+        })
+        .chain(std::iter::once(Constraint::Length(1)))
         .collect();
 
     let field_chunks = Layout::default()
@@ -510,10 +515,58 @@ fn render_form_modal(
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let display = if matches!(field.kind, FieldKind::Toggle) {
+        if matches!(field.kind, FieldKind::Toggle) {
             let state = if field.is_on() { "[✓] On" } else { "[ ] Off" };
             let hint = if focused { "  Space to toggle" } else { "" };
-            Line::from(format!("{}{}", state, hint))
+            let display = Line::from(format!("{}{}", state, hint));
+            frame.render_widget(Paragraph::new(display).block(field_block), field_chunks[i]);
+        } else if matches!(field.kind, FieldKind::MultilineText) {
+            let text_lines: Vec<&str> = field.value.split('\n').collect();
+            let (cursor_line_idx, cursor_col) = if focused {
+                let before = &field.value[..field.cursor];
+                let lidx = before.chars().filter(|&c| c == '\n').count();
+                let col = before.rfind('\n').map(|i| field.cursor - i - 1).unwrap_or(field.cursor);
+                (lidx, col)
+            } else {
+                (0, 0)
+            };
+            let rendered: Vec<Line> = text_lines
+                .iter()
+                .enumerate()
+                .map(|(lidx, line)| {
+                    if focused && lidx == cursor_line_idx {
+                        let col_clamped = cursor_col.min(line.len());
+                        let before = &line[..col_clamped];
+                        let remaining = &line[col_clamped..];
+                        let char_at = if remaining.starts_with('\n') || remaining.is_empty() {
+                            ' '
+                        } else {
+                            remaining.chars().next().unwrap_or(' ')
+                        };
+                        let char_len =
+                            if remaining.is_empty() { 0 } else { char_at.len_utf8() };
+                        let after = &remaining[char_len..];
+                        let mut spans = vec![];
+                        if !before.is_empty() {
+                            spans.push(Span::raw(before));
+                        }
+                        spans.push(Span::styled(
+                            char_at.to_string(),
+                            Style::default().reversed(),
+                        ));
+                        if !after.is_empty() {
+                            spans.push(Span::raw(after));
+                        }
+                        Line::from(spans)
+                    } else {
+                        Line::from(*line)
+                    }
+                })
+                .collect();
+            frame.render_widget(
+                Paragraph::new(rendered).block(field_block),
+                field_chunks[i],
+            );
         } else {
             let value_color = field
                 .completions
@@ -523,7 +576,7 @@ fn render_form_modal(
                 .and_then(|c| c.as_deref())
                 .and_then(parse_hex_color);
 
-            if focused {
+            let display = if focused {
                 let before = &field.value[..field.cursor];
                 let remaining = &field.value[field.cursor..];
                 let char_at_cursor = remaining.chars().next().unwrap_or(' ');
@@ -563,10 +616,10 @@ fn render_form_modal(
                     }
                     None => Line::from(field.value.clone()),
                 }
-            }
-        };
+            };
 
-        frame.render_widget(Paragraph::new(display).block(field_block), field_chunks[i]);
+            frame.render_widget(Paragraph::new(display).block(field_block), field_chunks[i]);
+        }
     }
 
     // Second pass: render autocomplete dropdown on top of all fields so it
@@ -608,11 +661,17 @@ fn render_form_modal(
     }
 
     if let Some(&hint_area) = field_chunks.get(n) {
+        let has_multiline = form
+            .fields
+            .iter()
+            .any(|f| matches!(f.kind, FieldKind::MultilineText));
+        let hint = if has_multiline {
+            "↓/↑ move line  ←/→ cursor  Enter newline  Alt+Enter submit  Esc cancel"
+        } else {
+            "↓/↑ field/autocomplete  ←/→ cursor  Tab next  Enter submit  Esc cancel"
+        };
         frame.render_widget(
-            Paragraph::new(Span::styled(
-                "↓/↑ field/autocomplete  ←/→ cursor  Tab next  Enter submit  Esc cancel",
-                Style::default().fg(theme.dim),
-            )),
+            Paragraph::new(Span::styled(hint, Style::default().fg(theme.dim))),
             hint_area,
         );
     }
@@ -1272,7 +1331,7 @@ fn render_add_comment(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::AddComment { entry_id, form } = &app.mode {
         let display = app.entry_display(entry_id);
         let title = format!(" Add Comment: {display} ");
-        render_form_modal(frame, area, &title, 35, form, &app.theme);
+        render_form_modal(frame, area, &title, 65, form, &app.theme);
     }
 }
 
@@ -1280,7 +1339,7 @@ fn render_edit_comment(frame: &mut Frame, app: &App, area: Rect) {
     if let AppMode::EditComment { entry_id, form, .. } = &app.mode {
         let display = app.entry_display(entry_id);
         let title = format!(" Edit Comment: {display} ");
-        render_form_modal(frame, area, &title, 35, form, &app.theme);
+        render_form_modal(frame, area, &title, 65, form, &app.theme);
     }
 }
 
