@@ -69,7 +69,7 @@ tmkpr report   --week [N] [--year YEAR] [--tag TAG]
 tmkpr report   --wweek [N] [--year YEAR] [--tag TAG]
 tmkpr edit     <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2 | --add-tag TAG --remove-tag TAG]
 tmkpr delete   <ID> [-y]
-tmkpr merge    <ID>
+tmkpr merge    <ID> [--prev]
 tmkpr fill-gap [ID]
 ```
 
@@ -89,7 +89,7 @@ tmkpr list --from "last monday"
 tmkpr list --from "2025-01-01"
 ```
 
-`merge` (alias: `m`) joins an entry into the chronologically next entry that shares its project and task.
+`merge` (alias: `m`) joins an entry into the chronologically next entry that shares its project and task. Pass `--prev` to merge into the previous entry instead.
 
 `fill-gap` (alias: `fg`) extends an entry's start and/or end times to abut adjacent entries on the same day. Omit `ID` to operate on the active entry.
 

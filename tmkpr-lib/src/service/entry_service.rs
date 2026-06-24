@@ -485,6 +485,62 @@ impl<'a> EntryService<'a> {
         Ok(merged)
     }
 
+    /// Merge `id_or_prefix` into the previous entry with the same project and task.
+    /// The previous entry survives, extended to cover both spans. Returns the surviving entry.
+    pub fn merge_into_prev(&self, id_or_prefix: &str) -> TmkprResult<Entry> {
+        let second_id = self.storage.resolve_entry_id(self.user_id, id_or_prefix)?;
+        let second = self.storage.get_entry(&second_id)?;
+
+        // Find the most recent preceding entry with same project+task
+        let mut candidates = self.storage.list_entries(&EntryFilter {
+            user_id: self.user_id.to_string(),
+            until: Some(second.started_at),
+            include_active: false,
+            ..Default::default()
+        })?;
+        candidates.retain(|e| {
+            e.id != second.id
+                && e.project_id == second.project_id
+                && e.task_id == second.task_id
+                && e.started_at < second.started_at
+        });
+        candidates.sort_by_key(|e| e.started_at);
+        let first = candidates.into_iter().last().ok_or_else(|| {
+            TmkprError::Config(
+                "no preceding entry with the same project and task found".to_string(),
+            )
+        })?;
+
+        let merged_note = match (&first.note, &second.note) {
+            (Some(a), Some(b)) if a == b => Some(b.clone()),
+            (Some(a), Some(b)) => Some(format!("{}\n{}", a, b)),
+            (Some(a), None) => Some(a.clone()),
+            (None, note) => note.clone(),
+        };
+
+        // Move comments from second to first
+        let comments = self.storage.list_comments(&second.id)?;
+        for comment in comments {
+            self.storage.create_comment(NewComment {
+                entry_id: first.id.clone(),
+                body: comment.body,
+            })?;
+        }
+
+        // Update first to extend to second's end, delete second
+        let merged = self.storage.update_entry(
+            &first.id,
+            UpdateEntry {
+                note: Some(merged_note),
+                finished_at: Some(second.finished_at),
+                ..Default::default()
+            },
+        )?;
+        self.storage.delete_entry(&second.id)?;
+
+        Ok(merged)
+    }
+
     /// Extend `id_or_prefix`'s start/end to fill gaps with adjacent entries on the same day.
     /// Returns `true` when at least one bound was adjusted, `false` when no adjacent entries exist.
     pub fn fill_gaps(&self, id_or_prefix: &str) -> TmkprResult<bool> {
@@ -1161,6 +1217,91 @@ mod tests {
             .unwrap();
 
         let err = svc(&s).merge_into_next(&entry.id).unwrap_err();
+        assert!(matches!(err, TmkprError::Config(_)));
+    }
+
+    #[test]
+    fn merge_into_prev_basic() {
+        let s = storage();
+        let (proj, task) = setup(&s);
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        let task_id = s.get_task_by_name(&proj_id, &task).unwrap().unwrap().id;
+
+        let first = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id.clone()),
+                task_id: Some(task_id.clone()),
+                note: Some("first".into()),
+                started_at: t0,
+                finished_at: Some(t1),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let second = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id),
+                task_id: Some(task_id),
+                note: Some("second".into()),
+                started_at: t1,
+                finished_at: Some(t2),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let merged = svc(&s).merge_into_prev(&second.id).unwrap();
+        assert_eq!(merged.id, first.id);
+        assert_eq!(merged.finished_at, Some(t2));
+        assert_eq!(merged.note.as_deref(), Some("first\nsecond"));
+
+        let remaining = svc(&s)
+            .list(EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, first.id);
+    }
+
+    #[test]
+    fn merge_into_prev_no_predecessor_errors() {
+        let s = storage();
+        let (proj, task) = setup(&s);
+        let now = Utc::now();
+
+        let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        let task_id = s.get_task_by_name(&proj_id, &task).unwrap().unwrap().id;
+
+        let entry = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id),
+                task_id: Some(task_id),
+                note: None,
+                started_at: now - Duration::hours(1),
+                finished_at: Some(now),
+                tags: vec![],
+            })
+            .unwrap();
+
+        let err = svc(&s).merge_into_prev(&entry.id).unwrap_err();
         assert!(matches!(err, TmkprError::Config(_)));
     }
 

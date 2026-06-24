@@ -8,7 +8,11 @@ use crate::cli::MergeArgs;
 
 pub fn run(args: MergeArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
-    let merged = svc.merge_into_next(&args.id)?;
+    let merged = if args.prev {
+        svc.merge_into_prev(&args.id)?
+    } else {
+        svc.merge_into_next(&args.id)?
+    };
     let short_first = &args.id[..args.id.len().min(8)];
     let short_merged = &merged.id[..merged.id.len().min(8)];
 

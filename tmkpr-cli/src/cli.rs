@@ -465,6 +465,10 @@ pub struct DeleteArgs {
 pub struct MergeArgs {
     /// Entry ID or UUID prefix
     pub id: String,
+
+    /// Merge into the previous same-project/task entry instead of the next one
+    #[arg(short, long)]
+    pub prev: bool,
 }
 
 // ── Fill Gap ───────────────────────────────────────────────────────────────────
