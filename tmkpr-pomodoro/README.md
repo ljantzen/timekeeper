@@ -32,9 +32,21 @@ Terminal-based Pomodoro timer integrated with the tmkpr time tracking database. 
 
 ## Installation
 
-### System dependencies
+### Building
 
-Audio playback requires platform audio libraries when building from source.
+```bash
+# Without audio (no system dependencies required)
+cargo build -p tmkpr-pomodoro --release
+
+# With audio support
+cargo build -p tmkpr-pomodoro --release --features audio
+```
+
+The binary will be at `target/release/tmkpr-pomodoro`.
+
+### Audio feature — system dependencies
+
+Audio playback is opt-in via the `audio` feature flag. If you build with `--features audio`, platform audio libraries are required.
 
 **Linux** — install ALSA development headers before building:
 
@@ -49,14 +61,6 @@ sudo apt install libasound2-dev
 **macOS** — CoreAudio is used; no extra packages needed.
 
 **Windows** — WASAPI is used; no extra packages needed.
-
-### Building
-
-```bash
-cargo build -p tmkpr-pomodoro --release
-```
-
-The binary will be at `target/release/tmkpr-pomodoro`.
 
 ## Usage
 
@@ -263,10 +267,12 @@ The timer integrates with the tmkpr SQLite database:
 ## Notifications
 
 ### Audio
+- Requires the `audio` feature flag at build time (`--features audio`)
 - Plays an audio file when sessions transition
 - Configure separate files for work→break and break→work transitions
 - Supports WAV, MP3, OGG Vorbis, and FLAC
 - Omit the setting (or leave it empty) to disable sound for that transition
+- Without the `audio` feature, the terminal bell is emitted on every transition instead
 
 ### Desktop Notifications
 - Shows system notification when session ends/starts
@@ -285,6 +291,7 @@ The timer integrates with the tmkpr SQLite database:
 
 ```bash
 cargo build -p tmkpr-pomodoro
+cargo build -p tmkpr-pomodoro --features audio  # with audio
 ```
 
 ### Testing
@@ -311,7 +318,7 @@ RUST_LOG=debug cargo run -p tmkpr-pomodoro
 - **crossterm**: Terminal event handling
 - **chrono**: Time handling
 - **notify-rust**: Cross-platform desktop notifications
-- **rodio**: Audio playback (WAV, MP3, OGG, FLAC via symphonia)
+- **rodio** *(optional, `audio` feature)*: Audio playback (WAV, MP3, OGG, FLAC via symphonia)
 - **tmkpr-lib**: Shared database and configuration
 
 ## Troubleshooting

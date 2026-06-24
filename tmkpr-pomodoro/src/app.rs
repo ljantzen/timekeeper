@@ -334,12 +334,26 @@ impl<'a> App<'a> {
         self.paused_at = None;
     }
 
-    fn notify(&mut self, title: &str, body: &str, sound: Option<&str>) {
+    fn notify(
+        &mut self,
+        title: &str,
+        body: &str,
+        #[cfg_attr(not(feature = "audio"), allow(unused_variables))] sound: Option<&str>,
+    ) {
         self.message = Some(body.to_string());
         self.message_set_at = Some(Instant::now());
 
+        #[cfg(feature = "audio")]
         if let Some(path) = sound {
             play_sound(path);
+        }
+
+        #[cfg(not(feature = "audio"))]
+        {
+            use std::io::Write;
+            let _ = std::io::stderr()
+                .write_all(b"\x07")
+                .and_then(|()| std::io::stderr().flush());
         }
 
         if self.notify_desktop {
@@ -351,6 +365,7 @@ impl<'a> App<'a> {
     }
 }
 
+#[cfg(feature = "audio")]
 fn play_sound(path: &str) {
     let path = path.to_string();
     std::thread::spawn(move || {

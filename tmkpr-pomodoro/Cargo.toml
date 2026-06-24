@@ -18,6 +18,9 @@ ratatui.workspace = true
 serde.workspace = true
 tmkpr-lib.workspace = true
 notify-rust.workspace = true
-rodio.workspace = true
+rodio = { workspace = true, optional = true }
+
+[features]
+audio = ["rodio"]
 
 [dev-dependencies]
