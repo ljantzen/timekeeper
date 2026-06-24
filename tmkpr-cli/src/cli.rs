@@ -91,6 +91,10 @@ pub enum Commands {
     #[command(subcommand, alias = "c")]
     Comment(CommentCommands),
 
+    /// List tags in use across all entries
+    #[command(subcommand)]
+    Tag(TagCommands),
+
     /// Generate shell completion scripts
     Completion(CompletionArgs),
 
@@ -426,9 +430,17 @@ pub struct EditArgs {
     #[arg(long)]
     pub end: Option<String>,
 
-    /// Replace all tags (comma-separated)
-    #[arg(long, value_delimiter = ',')]
+    /// Replace all tags (comma-separated; conflicts with --add-tag and --remove-tag)
+    #[arg(long, value_delimiter = ',', conflicts_with_all = ["add_tag", "remove_tag"])]
     pub tags: Option<Vec<String>>,
+
+    /// Add a tag without replacing existing tags (conflicts with --tags)
+    #[arg(long, conflicts_with = "tags")]
+    pub add_tag: Vec<String>,
+
+    /// Remove a tag without affecting other existing tags (conflicts with --tags)
+    #[arg(long, conflicts_with = "tags")]
+    pub remove_tag: Vec<String>,
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -603,6 +615,18 @@ pub struct EventDeleteArgs {
     #[arg(long, short = 'y')]
     pub yes: bool,
 }
+
+// ── Tag subcommands ───────────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+pub enum TagCommands {
+    /// List all tags in use across entries
+    #[command(alias = "ls")]
+    List(TagListArgs),
+}
+
+#[derive(Args)]
+pub struct TagListArgs {}
 
 // ── Completion ────────────────────────────────────────────────────────────────
 

@@ -705,6 +705,53 @@ pub fn print_week_report(report: &WeekReport, format: &str) {
     println!("{table}");
 }
 
+// ── Tag list ──────────────────────────────────────────────────────────────────
+
+pub fn print_tags(tags: &[(String, usize)], format: &str) {
+    if tags.is_empty() {
+        match format {
+            "json" => println!("[]"),
+            "csv" => println!("tag,entries"),
+            _ => println!("No tags found."),
+        }
+        return;
+    }
+    match format {
+        "json" => {
+            let items: Vec<serde_json::Value> = tags
+                .iter()
+                .map(|(t, c)| serde_json::json!({"tag": t, "entries": c}))
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        }
+        "csv" => {
+            println!("tag,entries");
+            for (t, c) in tags {
+                println!("{},{}", csv_escape(t), c);
+            }
+        }
+        "markdown" => {
+            println!("| Tag | Entries |");
+            println!("|-----|--------:|");
+            for (t, c) in tags {
+                println!("| {} | {} |", t, c);
+            }
+        }
+        _ => {
+            let mut table = Table::new();
+            table.load_preset(UTF8_FULL);
+            table.set_header(vec!["Tag", "Entries"]);
+            for (t, c) in tags {
+                table.add_row(vec![
+                    Cell::new(t),
+                    Cell::new(c).set_alignment(CellAlignment::Right),
+                ]);
+            }
+            println!("{table}");
+        }
+    }
+}
+
 fn csv_escape(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') {
         format!("\"{}\"", s.replace('"', "\"\""))

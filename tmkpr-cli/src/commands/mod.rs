@@ -13,5 +13,6 @@ pub mod project;
 pub mod report;
 pub mod status;
 pub mod stop;
+pub mod tag;
 pub mod task;
 pub mod track;

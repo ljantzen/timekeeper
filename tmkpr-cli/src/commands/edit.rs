@@ -70,13 +70,29 @@ pub fn run(
         None => None,
     };
 
+    let tags = if !args.add_tag.is_empty() || !args.remove_tag.is_empty() {
+        let current = EntryService::new(storage, user_id).get(&args.id)?.tags;
+        let mut updated: Vec<String> = current
+            .into_iter()
+            .filter(|t| !args.remove_tag.contains(t))
+            .collect();
+        for t in args.add_tag {
+            if !updated.contains(&t) {
+                updated.push(t);
+            }
+        }
+        Some(updated)
+    } else {
+        args.tags
+    };
+
     let update = UpdateEntry {
         project_id,
         task_id,
         note: args.note.map(Some),
         started_at,
         finished_at: finished_at.map(Some),
-        tags: args.tags,
+        tags,
     };
 
     let svc = EntryService::new(storage, user_id);

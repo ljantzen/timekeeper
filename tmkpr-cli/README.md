@@ -67,7 +67,7 @@ tmkpr list     [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [-
 tmkpr report   [--from TIME] [--until TIME] [-p PROJECT] [--tag TAG]
 tmkpr report   --week [N] [--year YEAR] [--tag TAG]
 tmkpr report   --wweek [N] [--year YEAR] [--tag TAG]
-tmkpr edit     <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
+tmkpr edit     <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2 | --add-tag TAG --remove-tag TAG]
 tmkpr delete   <ID> [-y]
 tmkpr merge    <ID>
 tmkpr fill-gap [ID]
@@ -94,6 +94,13 @@ tmkpr list --from "2025-01-01"
 `fill-gap` (alias: `fg`) extends an entry's start and/or end times to abut adjacent entries on the same day. Omit `ID` to operate on the active entry.
 
 Entry IDs can be abbreviated to any unambiguous prefix (8+ chars).
+
+`edit --tags` replaces all tags on an entry. To add or remove individual tags without specifying the full set, use `--add-tag` and `--remove-tag` (can each be given multiple times; both conflict with `--tags`):
+
+```
+tmkpr edit abc12345 --add-tag billable
+tmkpr edit abc12345 --remove-tag wip --add-tag done
+```
 
 ### Projects
 
@@ -122,6 +129,14 @@ tmkpr task reactivate <NAME|ID> -p PROJECT
 `-p` identifies the project the task currently belongs to. Use `--move-to` to reassign it to a different project.
 
 `task delete` archives by default; use `--hard` to permanently remove. `task done` marks a task completed; `task reactivate` reverses that.
+
+### Tags
+
+```
+tmkpr tag list
+```
+
+Lists all tags in use across entries, with entry counts. Accepts `--format` like any other list command.
 
 ### Comments
 

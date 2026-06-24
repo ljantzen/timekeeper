@@ -47,6 +47,10 @@ pub trait Storage: Send + Sync {
     /// Resolve a UUID prefix to a full entry ID. Errors if 0 or >1 match.
     fn resolve_entry_id(&self, user_id: &str, prefix: &str) -> TmkprResult<String>;
 
+    // ── Tags ─────────────────────────────────────────────────────────────────
+    /// Returns all tags in use across finished entries, sorted by count desc then name asc.
+    fn list_tags(&self, user_id: &str) -> TmkprResult<Vec<(String, usize)>>;
+
     // ── Comments ─────────────────────────────────────────────────────────────
     fn create_comment(&self, comment: NewComment) -> TmkprResult<Comment>;
     fn get_comment(&self, id: &str) -> TmkprResult<Comment>;

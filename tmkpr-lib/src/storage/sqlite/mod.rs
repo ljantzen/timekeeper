@@ -626,6 +626,28 @@ impl Storage for SqliteStorage {
         }
     }
 
+    // ── Tags ──────────────────────────────────────────────────────────────────
+
+    fn list_tags(&self, user_id: &str) -> TmkprResult<Vec<(String, usize)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT value, COUNT(*) AS cnt
+                 FROM entries, json_each(entries.tags)
+                 WHERE entries.user_id = ?1 AND entries.tags IS NOT NULL
+                 GROUP BY value
+                 ORDER BY cnt DESC, value ASC",
+            )
+            .map_err(TmkprError::Database)?;
+        let rows = stmt
+            .query_map(params![user_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
+            })
+            .map_err(TmkprError::Database)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(TmkprError::Database)
+    }
+
     // ── Comments ──────────────────────────────────────────────────────────────
 
     fn create_comment(&self, c: NewComment) -> TmkprResult<Comment> {

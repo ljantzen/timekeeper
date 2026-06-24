@@ -10,7 +10,9 @@ use clap_complete::CompleteEnv;
 use tmkpr_lib::config::Config;
 use tmkpr_lib::storage::open_sqlite;
 
-use cli::{Cli, Commands, CommentCommands, EventCommands, ProjectCommands, TaskCommands};
+use cli::{
+    Cli, Commands, CommentCommands, EventCommands, ProjectCommands, TagCommands, TaskCommands,
+};
 
 fn main() {
     CompleteEnv::with_factory(Cli::command).complete();
@@ -184,6 +186,11 @@ fn run() -> anyhow::Result<()> {
             }
             CommentCommands::Delete(args) => {
                 commands::comment::delete(args, storage.as_ref(), &user_id)?
+            }
+        },
+        Commands::Tag(sub) => match sub {
+            TagCommands::List(args) => {
+                commands::tag::list(args, storage.as_ref(), &user_id, format)?
             }
         },
         Commands::Completion(args) => commands::completion::run(args)?,
