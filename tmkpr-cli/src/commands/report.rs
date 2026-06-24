@@ -30,7 +30,7 @@ pub fn run(
                 .map_err(|_| anyhow::anyhow!("invalid week number: {}", week_str))?;
             (year, w)
         };
-        let week_report = svc.week_report(year, week, args.wweek)?;
+        let week_report = svc.week_report(year, week, args.wweek, args.tag)?;
         output::print_week_report(&week_report, format);
         return Ok(());
     }
@@ -46,7 +46,7 @@ pub fn run(
         .map(|s| parse_datetime_now(s, time_fmt))
         .transpose()?;
 
-    let report = svc.report(from, until, args.project.as_deref())?;
+    let report = svc.report(from, until, args.project.as_deref(), args.tag)?;
 
     let proj_svc = ProjectService::new(storage, user_id);
     let projects = proj_svc.list(false)?;

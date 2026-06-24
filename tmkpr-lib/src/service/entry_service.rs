@@ -199,7 +199,13 @@ impl<'a> EntryService<'a> {
         self.storage.delete_entry(&id)
     }
 
-    pub fn week_report(&self, year: i32, week: u32, work_week: bool) -> TmkprResult<WeekReport> {
+    pub fn week_report(
+        &self,
+        year: i32,
+        week: u32,
+        work_week: bool,
+        tags: Vec<String>,
+    ) -> TmkprResult<WeekReport> {
         let monday = NaiveDate::from_isoywd_opt(year, week, Weekday::Mon).ok_or_else(|| {
             TmkprError::Config(format!("invalid ISO week {week} for year {year}"))
         })?;
@@ -213,6 +219,7 @@ impl<'a> EntryService<'a> {
             from: Some(from),
             until: Some(until),
             include_active: true,
+            tags,
             ..Default::default()
         })?;
 
@@ -304,6 +311,7 @@ impl<'a> EntryService<'a> {
         from: Option<DateTime<Utc>>,
         until: Option<DateTime<Utc>>,
         project_name: Option<&str>,
+        tags: Vec<String>,
     ) -> TmkprResult<ReportData> {
         let project_id = match project_name {
             Some(input) => Some(
@@ -320,6 +328,7 @@ impl<'a> EntryService<'a> {
             from,
             until,
             include_active: false,
+            tags,
             ..Default::default()
         };
 
@@ -786,7 +795,7 @@ mod tests {
             .unwrap();
         }
 
-        let report = svc(&s).report(None, None, None).unwrap();
+        let report = svc(&s).report(None, None, None, vec![]).unwrap();
         assert_eq!(report.total_secs, 3 * 3600);
         assert_eq!(report.by_project.len(), 1);
         assert_eq!(report.by_project[0].project_name, proj);
@@ -827,7 +836,7 @@ mod tests {
         })
         .unwrap();
 
-        let report = svc(&s).report(None, None, Some(&proj)).unwrap();
+        let report = svc(&s).report(None, None, Some(&proj), vec![]).unwrap();
         assert_eq!(report.by_project.len(), 1);
         assert_eq!(report.total_secs, 3600);
     }
@@ -963,7 +972,9 @@ mod tests {
     #[test]
     fn report_unknown_project_errors() {
         let s = storage();
-        let err = svc(&s).report(None, None, Some("ghost")).unwrap_err();
+        let err = svc(&s)
+            .report(None, None, Some("ghost"), vec![])
+            .unwrap_err();
         assert!(matches!(
             err,
             TmkprError::NotFound {
@@ -1001,7 +1012,7 @@ mod tests {
         })
         .unwrap();
 
-        let report = svc(&s).report(None, None, None).unwrap();
+        let report = svc(&s).report(None, None, None, vec![]).unwrap();
         assert_eq!(report.by_project.len(), 1);
         assert_eq!(report.by_project[0].project_name, "(no project)");
         assert_eq!(report.by_project[0].by_task[0].task_name, "(no task)");

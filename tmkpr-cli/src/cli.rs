@@ -244,6 +244,10 @@ pub struct ReportArgs {
     /// Working-week report (Mon–Fri only); use alone for the current week or combine with --week
     #[arg(long)]
     pub wweek: bool,
+
+    /// Filter by tag (can be specified multiple times)
+    #[arg(long)]
+    pub tag: Vec<String>,
 }
 
 // ── Project subcommands ───────────────────────────────────────────────────────

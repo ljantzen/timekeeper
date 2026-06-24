@@ -63,9 +63,9 @@ tmkpr log -s "yesterday 9am" -e "yesterday 5pm" -p myproject -n "deep work"
 
 ```
 tmkpr list     [--from TIME] [--until TIME] [-p PROJECT] [-t TASK] [-l LIMIT] [--tag TAG] [--gaps] [--min-gap MINUTES]
-tmkpr report   [--from TIME] [--until TIME] [-p PROJECT]
-tmkpr report   --week [N] [--year YEAR]
-tmkpr report   --wweek [N] [--year YEAR]
+tmkpr report   [--from TIME] [--until TIME] [-p PROJECT] [--tag TAG]
+tmkpr report   --week [N] [--year YEAR] [--tag TAG]
+tmkpr report   --wweek [N] [--year YEAR] [--tag TAG]
 tmkpr edit     <ID> [-p PROJECT] [-t TASK] [-n NOTE] [--start TIME] [--end TIME] [--tags t1,t2]
 tmkpr delete   <ID> [-y]
 tmkpr merge    <ID>

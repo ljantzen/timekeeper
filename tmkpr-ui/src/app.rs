@@ -977,7 +977,7 @@ impl App {
             let now = Local::now();
             let iso = now.iso_week();
             let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
-            self.week_report = svc.week_report(iso.year(), iso.week(), false).ok();
+            self.week_report = svc.week_report(iso.year(), iso.week(), false, vec![]).ok();
         }
         {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
@@ -2712,7 +2712,12 @@ impl App {
     fn refresh_week_report(&mut self) -> anyhow::Result<()> {
         let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
         self.week_report = svc
-            .week_report(self.displayed_week_year, self.displayed_week_num, false)
+            .week_report(
+                self.displayed_week_year,
+                self.displayed_week_num,
+                false,
+                vec![],
+            )
             .ok();
         Ok(())
     }
