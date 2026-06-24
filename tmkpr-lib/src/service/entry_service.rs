@@ -1425,4 +1425,349 @@ mod tests {
         assert_eq!(report.total_secs, 3600);
         assert_eq!(report.by_project[0].by_task[0].entry_count, 1);
     }
+
+    // ── Gap 5: report() with from/until bounds ────────────────────────────────
+
+    #[test]
+    fn report_respects_from_until() {
+        let s = storage();
+        let now = Utc::now();
+        // Recent entry: within range
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(2),
+            finished_at: Some(now - Duration::hours(1)),
+            tags: vec![],
+        })
+        .unwrap();
+        // Old entry: outside range
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(10),
+            finished_at: Some(now - Duration::hours(9)),
+            tags: vec![],
+        })
+        .unwrap();
+
+        let from = Some(now - Duration::hours(3));
+        let report = svc(&s).report(from, None, None, vec![]).unwrap();
+        assert_eq!(report.total_secs, 3600);
+        assert_eq!(report.by_project[0].by_task[0].entry_count, 1);
+    }
+
+    // ── Gap 1: week_report() ──────────────────────────────────────────────────
+
+    #[test]
+    fn week_report_basic() {
+        use chrono::TimeZone;
+        let s = storage();
+        // ISO week 2024-W03: Mon 2024-01-15 .. Sun 2024-01-21
+        let mon_utc = chrono::Local
+            .from_local_datetime(
+                &chrono::NaiveDate::from_ymd_opt(2024, 1, 15)
+                    .unwrap()
+                    .and_hms_opt(10, 0, 0)
+                    .unwrap(),
+            )
+            .unwrap()
+            .with_timezone(&Utc);
+        let wed_utc = chrono::Local
+            .from_local_datetime(
+                &chrono::NaiveDate::from_ymd_opt(2024, 1, 17)
+                    .unwrap()
+                    .and_hms_opt(14, 0, 0)
+                    .unwrap(),
+            )
+            .unwrap()
+            .with_timezone(&Utc);
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: mon_utc,
+            finished_at: Some(mon_utc + Duration::hours(2)),
+            tags: vec![],
+        })
+        .unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: wed_utc,
+            finished_at: Some(wed_utc + Duration::hours(1)),
+            tags: vec![],
+        })
+        .unwrap();
+
+        let report = svc(&s).week_report(2024, 3, false, vec![]).unwrap();
+        assert_eq!(report.year, 2024);
+        assert_eq!(report.week, 3);
+        assert_eq!(report.total_secs, 3 * 3600);
+        assert_eq!(report.days.len(), 7);
+        // Monday (offset 0) has 2h, Wednesday (offset 2) has 1h
+        assert_eq!(report.days[0].total_secs, 7200);
+        assert_eq!(report.days[2].total_secs, 3600);
+    }
+
+    #[test]
+    fn week_report_work_week_strips_weekend() {
+        use chrono::TimeZone;
+        let s = storage();
+        // ISO week 2024-W03
+        let fri_utc = chrono::Local
+            .from_local_datetime(
+                &chrono::NaiveDate::from_ymd_opt(2024, 1, 19)
+                    .unwrap()
+                    .and_hms_opt(10, 0, 0)
+                    .unwrap(),
+            )
+            .unwrap()
+            .with_timezone(&Utc);
+        let sat_utc = chrono::Local
+            .from_local_datetime(
+                &chrono::NaiveDate::from_ymd_opt(2024, 1, 20)
+                    .unwrap()
+                    .and_hms_opt(10, 0, 0)
+                    .unwrap(),
+            )
+            .unwrap()
+            .with_timezone(&Utc);
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: fri_utc,
+            finished_at: Some(fri_utc + Duration::hours(2)),
+            tags: vec![],
+        })
+        .unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: sat_utc,
+            finished_at: Some(sat_utc + Duration::hours(3)),
+            tags: vec![],
+        })
+        .unwrap();
+
+        // Without work_week: both entries counted
+        let full = svc(&s).week_report(2024, 3, false, vec![]).unwrap();
+        assert_eq!(full.total_secs, 5 * 3600);
+
+        // With work_week: only Mon–Fri; Saturday entry excluded
+        let ww = svc(&s).week_report(2024, 3, true, vec![]).unwrap();
+        assert_eq!(ww.total_secs, 2 * 3600);
+        assert_eq!(ww.days.len(), 5);
+    }
+
+    #[test]
+    fn week_report_tag_filter() {
+        use chrono::TimeZone;
+        let s = storage();
+        let mon_utc = chrono::Local
+            .from_local_datetime(
+                &chrono::NaiveDate::from_ymd_opt(2024, 1, 15)
+                    .unwrap()
+                    .and_hms_opt(10, 0, 0)
+                    .unwrap(),
+            )
+            .unwrap()
+            .with_timezone(&Utc);
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: mon_utc,
+            finished_at: Some(mon_utc + Duration::hours(1)),
+            tags: vec!["billable".to_string()],
+        })
+        .unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: mon_utc + Duration::hours(2),
+            finished_at: Some(mon_utc + Duration::hours(3)),
+            tags: vec!["internal".to_string()],
+        })
+        .unwrap();
+
+        let report = svc(&s)
+            .week_report(2024, 3, false, vec!["billable".to_string()])
+            .unwrap();
+        assert_eq!(report.total_secs, 3600);
+    }
+
+    #[test]
+    fn week_report_empty_week() {
+        let s = storage();
+        let report = svc(&s).week_report(2024, 3, false, vec![]).unwrap();
+        assert_eq!(report.total_secs, 0);
+        assert!(report.totals_by_project.is_empty());
+        assert!(report.days.iter().all(|d| d.total_secs == 0));
+    }
+
+    // ── Gap 3: merge_notes equal-notes deduplication ──────────────────────────
+
+    #[test]
+    fn merge_into_next_identical_notes() {
+        let s = storage();
+        let (proj, task) = setup(&s);
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        let task_id = s.get_task_by_name(&proj_id, &task).unwrap().unwrap().id;
+
+        let first = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id.clone()),
+                task_id: Some(task_id.clone()),
+                note: Some("same".into()),
+                started_at: t0,
+                finished_at: Some(t1),
+                tags: vec![],
+            })
+            .unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: Some(proj_id),
+            task_id: Some(task_id),
+            note: Some("same".into()),
+            started_at: t1,
+            finished_at: Some(t2),
+            tags: vec![],
+        })
+        .unwrap();
+
+        let merged = svc(&s).merge_into_next(&first.id).unwrap();
+        assert_eq!(merged.note.as_deref(), Some("same"));
+    }
+
+    // ── Gap 4: move_comments through merge ────────────────────────────────────
+
+    #[test]
+    fn merge_into_next_moves_comments() {
+        let s = storage();
+        let (proj, task) = setup(&s);
+        let now = Utc::now();
+        let t0 = now - Duration::hours(3);
+        let t1 = now - Duration::hours(2);
+        let t2 = now - Duration::hours(1);
+
+        let proj_id = ProjectService::new(&s, LOCAL_USER_ID)
+            .get_by_name(&proj)
+            .unwrap()
+            .unwrap()
+            .id;
+        let task_id = s.get_task_by_name(&proj_id, &task).unwrap().unwrap().id;
+
+        let first = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id.clone()),
+                task_id: Some(task_id.clone()),
+                note: None,
+                started_at: t0,
+                finished_at: Some(t1),
+                tags: vec![],
+            })
+            .unwrap();
+        let second = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: Some(proj_id),
+                task_id: Some(task_id),
+                note: None,
+                started_at: t1,
+                finished_at: Some(t2),
+                tags: vec![],
+            })
+            .unwrap();
+
+        s.create_comment(crate::models::comment::NewComment {
+            entry_id: first.id.clone(),
+            body: "important note".to_string(),
+        })
+        .unwrap();
+
+        let merged = svc(&s).merge_into_next(&first.id).unwrap();
+        assert_eq!(merged.id, second.id);
+
+        let comments = s.list_comments(&second.id).unwrap();
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].body, "important note");
+    }
+
+    // ── Gap 6: fill_gaps active-entry neighbor ────────────────────────────────
+
+    #[test]
+    fn fill_gaps_extends_end_to_active_entry_start() {
+        let s = storage();
+        // Anchor to local noon to avoid midnight crossings
+        let now: DateTime<Utc> = chrono::Local::now()
+            .date_naive()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_local_timezone(chrono::Local)
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let t_minus_2h = now - Duration::hours(2);
+        let t_minus_1h = now - Duration::hours(1);
+        let t_minus_30m = now - Duration::minutes(30);
+
+        let target = s
+            .create_entry(NewEntry {
+                user_id: LOCAL_USER_ID.to_string(),
+                project_id: None,
+                task_id: None,
+                note: None,
+                started_at: t_minus_2h,
+                finished_at: Some(t_minus_1h),
+                tags: vec![],
+            })
+            .unwrap();
+
+        // Active entry started 30min ago (no finished_at)
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: t_minus_30m,
+            finished_at: None,
+            tags: vec![],
+        })
+        .unwrap();
+
+        let changed = svc(&s).fill_gaps(&target.id).unwrap();
+        assert!(changed);
+
+        let updated = svc(&s).get(&target.id).unwrap();
+        assert_eq!(updated.finished_at, Some(t_minus_30m));
+    }
 }

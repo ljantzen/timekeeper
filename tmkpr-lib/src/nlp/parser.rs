@@ -312,4 +312,19 @@ mod tests {
     fn duration_garbage_errors() {
         assert!(parse_duration("xyz").is_err());
     }
+
+    #[test]
+    fn duration_bare_seconds_integer() {
+        assert_eq!(parse_duration("3600").unwrap().num_seconds(), 3600);
+    }
+
+    #[test]
+    fn duration_seconds_unit() {
+        assert_eq!(parse_duration("30s").unwrap().num_seconds(), 30);
+    }
+
+    #[test]
+    fn duration_seconds_unit_spelled_out() {
+        assert_eq!(parse_duration("30sec").unwrap().num_seconds(), 30);
+    }
 }

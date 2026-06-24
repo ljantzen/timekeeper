@@ -320,4 +320,46 @@ mod tests {
         let gaps = compute_gaps(&[e1, e2], t(9, 0), t(17, 0));
         assert_eq!(gaps, vec![(t(10, 0), t(11, 0)), (t(12, 0), t(17, 0))]);
     }
+
+    // ── Gap 7: min_gap filter + strip-leading-gap ─────────────────────────────
+
+    #[test]
+    fn min_gap_filters_short_gaps() {
+        // Gap 1: 30s (t(10,0)..t(10,0)+30s), Gap 2: 5min (t(11,0)..t(11,5))
+        let short_end = t(10, 0) + Duration::seconds(30);
+        let e1 = make_entry(t(9, 0), Some(t(10, 0)));
+        let e2 = make_entry(short_end, Some(t(11, 0)));
+        let e3 = make_entry(t(11, 5), Some(t(12, 0)));
+        let gaps = compute_gaps(&[e1, e2, e3], t(9, 0), t(12, 0));
+        // Two gaps before filter: (10:00..10:00:30) = 30s, (11:00..11:05) = 300s
+        assert_eq!(gaps.len(), 2);
+
+        let min_gap_secs: i64 = 60;
+        let filtered: Vec<_> = gaps
+            .into_iter()
+            .filter(|(s, e)| (*e - *s).num_seconds() > min_gap_secs)
+            .collect();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0], (t(11, 0), t(11, 5)));
+    }
+
+    #[test]
+    fn strip_leading_gap_removed_when_starts_at_window() {
+        // Window starts at 9:00. First entry starts at 9:30 — gap at window open.
+        let e1 = make_entry(t(9, 30), Some(t(10, 0)));
+        let gaps = compute_gaps(&[e1], t(9, 0), t(17, 0));
+        // Raw gaps: (9:00..9:30) at window start, (10:00..17:00) after entry
+        assert_eq!(gaps.len(), 2);
+        assert_eq!(gaps[0].0, t(9, 0));
+
+        // Strip the leading gap (simulate !explicit_from logic from run())
+        let mut gaps = gaps;
+        if let Some(first) = gaps.first() {
+            if first.0 == t(9, 0) {
+                gaps.remove(0);
+            }
+        }
+        assert_eq!(gaps.len(), 1);
+        assert_eq!(gaps[0], (t(10, 0), t(17, 0)));
+    }
 }

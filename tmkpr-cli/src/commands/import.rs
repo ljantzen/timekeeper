@@ -956,6 +956,29 @@ mod tests {
         assert!(format!("{err:#}").contains("start"), "{err:#}");
     }
 
+    // ── Gap 9: JSON duration field ────────────────────────────────────────────
+
+    #[test]
+    fn json_duration_field_creates_entry_with_correct_duration() {
+        let s = mem();
+        json_run(
+            r#"[{"start":"2024-01-15 09:00","duration":"1:30:00"}]"#,
+            false,
+            &s,
+        )
+        .unwrap();
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        let dur = entries[0].finished_at.unwrap() - entries[0].started_at;
+        assert_eq!(dur.num_seconds(), 5400);
+    }
+
     #[test]
     fn json_format_flag_selects_json_parser() {
         // Same content but file has .csv extension; --format json must select JSON path.
