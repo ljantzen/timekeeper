@@ -155,9 +155,13 @@ pub struct LogArgs {
     #[arg(short, long)]
     pub start: Option<String>,
 
-    /// End time — natural language or ISO 8601 (defaults to now)
-    #[arg(short, long)]
+    /// End time — natural language or ISO 8601 (defaults to now; conflicts with --duration)
+    #[arg(short, long, conflicts_with = "duration")]
     pub end: Option<String>,
+
+    /// Duration instead of end time (e.g. "1h30m", "90m", "1:30:00"; conflicts with --end)
+    #[arg(short, long, conflicts_with = "end")]
+    pub duration: Option<String>,
 
     /// Project name or numeric ID
     #[arg(short, long, add = ArgValueCompleter::new(complete_projects))]

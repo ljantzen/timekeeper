@@ -8,6 +8,7 @@ use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::LogArgs;
+use crate::commands::import::parse_duration;
 use crate::output::{self, ProjectIndex, TaskIndex};
 use crate::prompt;
 
@@ -25,12 +26,11 @@ pub fn run(
         None => suggest_start(storage, user_id, date_fmt)?,
     };
 
-    let finished_at = args
-        .end
-        .as_deref()
-        .map(|s| parse_datetime_now(s, time_fmt))
-        .transpose()?
-        .unwrap_or_else(Utc::now);
+    let finished_at = match (args.end.as_deref(), args.duration.as_deref()) {
+        (Some(s), _) => parse_datetime_now(s, time_fmt)?,
+        (None, Some(d)) => started_at + parse_duration(d)?,
+        (None, None) => Utc::now(),
+    };
 
     let project = args
         .project
@@ -87,6 +87,92 @@ pub fn run(
         color,
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{Duration, Utc};
+    use tmkpr_lib::config::Config;
+    use tmkpr_lib::models::LOCAL_USER_ID;
+    use tmkpr_lib::service::EntryService;
+    use tmkpr_lib::storage::sqlite::SqliteStorage;
+
+    use crate::cli::LogArgs;
+
+    fn mem() -> SqliteStorage {
+        SqliteStorage::open_in_memory().unwrap()
+    }
+
+    fn args(start: &str, end: Option<&str>, duration: Option<&str>) -> LogArgs {
+        LogArgs {
+            start: Some(start.to_string()),
+            end: end.map(str::to_string),
+            duration: duration.map(str::to_string),
+            project: None,
+            task: None,
+            note: None,
+            tags: vec![],
+        }
+    }
+
+    #[test]
+    fn log_with_duration_creates_correct_entry() {
+        let s = mem();
+        let start = Utc::now() - Duration::hours(2);
+        let start_str = start.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+        super::run(
+            args(&start_str, None, Some("1h30m")),
+            &s,
+            LOCAL_USER_ID,
+            "%Y-%m-%d %H:%M",
+            tmkpr_lib::nlp::TimeFormat::H24,
+            false,
+            &Config::default(),
+        )
+        .unwrap();
+
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        let dur = entries[0].finished_at.unwrap() - entries[0].started_at;
+        assert_eq!(dur.num_seconds(), 5400);
+    }
+
+    #[test]
+    fn log_duration_and_end_are_exclusive() {
+        // clap enforces this at parse time; verify parse_duration path produces
+        // a longer entry than a 1-second window would.
+        let s = mem();
+        let start = Utc::now() - Duration::hours(1);
+        let start_str = start.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+        super::run(
+            args(&start_str, None, Some("45m")),
+            &s,
+            LOCAL_USER_ID,
+            "%Y-%m-%d %H:%M",
+            tmkpr_lib::nlp::TimeFormat::H24,
+            false,
+            &Config::default(),
+        )
+        .unwrap();
+
+        let entries = EntryService::new(&s, LOCAL_USER_ID)
+            .list(tmkpr_lib::models::entry::EntryFilter {
+                user_id: LOCAL_USER_ID.to_string(),
+                include_active: false,
+                ..Default::default()
+            })
+            .unwrap();
+        let dur = entries[0].finished_at.unwrap() - entries[0].started_at;
+        assert_eq!(dur.num_seconds(), 2700);
+    }
 }
 
 fn suggest_start(

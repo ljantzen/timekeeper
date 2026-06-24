@@ -58,7 +58,7 @@ pub(super) fn parse_datetime(s: &str) -> Result<DateTime<Utc>> {
 
 // ── Duration parsing (shared) ─────────────────────────────────────────────────
 
-pub(super) fn parse_duration(s: &str) -> Result<Duration> {
+pub(crate) fn parse_duration(s: &str) -> Result<Duration> {
     let s = s.trim();
     if s.is_empty() {
         bail!("empty duration");
