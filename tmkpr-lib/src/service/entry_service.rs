@@ -1245,4 +1245,50 @@ mod tests {
         let changed = svc(&s).fill_gaps(&entry.id).unwrap();
         assert!(!changed);
     }
+
+    #[test]
+    fn log_event_creates_point_in_time_entry() {
+        let s = storage();
+        let at = Utc::now();
+        let entry = svc(&s)
+            .log_event(None, None, Some("deploy".into()), vec![], at)
+            .unwrap();
+        assert!(entry.is_event());
+        assert_eq!(entry.started_at, at);
+        assert_eq!(entry.finished_at, Some(at));
+        assert_eq!(entry.note.as_deref(), Some("deploy"));
+    }
+
+    #[test]
+    fn report_filters_by_tag() {
+        let s = storage();
+        let now = Utc::now();
+
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(2),
+            finished_at: Some(now - Duration::hours(1)),
+            tags: vec!["billable".to_string()],
+        })
+        .unwrap();
+        s.create_entry(NewEntry {
+            user_id: LOCAL_USER_ID.to_string(),
+            project_id: None,
+            task_id: None,
+            note: None,
+            started_at: now - Duration::hours(4),
+            finished_at: Some(now - Duration::hours(3)),
+            tags: vec![],
+        })
+        .unwrap();
+
+        let report = svc(&s)
+            .report(None, None, None, vec!["billable".to_string()])
+            .unwrap();
+        assert_eq!(report.total_secs, 3600);
+        assert_eq!(report.by_project[0].by_task[0].entry_count, 1);
+    }
 }

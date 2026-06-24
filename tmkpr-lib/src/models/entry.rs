@@ -140,6 +140,27 @@ mod tests {
         let e = make_entry(start, Some(end));
         assert_eq!(e.elapsed(), Duration::hours(1));
     }
+
+    #[test]
+    fn is_event_true_when_started_equals_finished() {
+        let t = Utc.with_ymd_and_hms(2024, 1, 1, 10, 0, 0).unwrap();
+        let e = make_entry(t, Some(t));
+        assert!(e.is_event());
+    }
+
+    #[test]
+    fn is_event_false_for_active_entry() {
+        let e = make_entry(Utc::now(), None);
+        assert!(!e.is_event());
+    }
+
+    #[test]
+    fn is_event_false_when_finished_differs_from_started() {
+        let start = Utc.with_ymd_and_hms(2024, 1, 1, 9, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2024, 1, 1, 10, 0, 0).unwrap();
+        let e = make_entry(start, Some(end));
+        assert!(!e.is_event());
+    }
 }
 
 #[derive(Debug, Clone, Default)]
