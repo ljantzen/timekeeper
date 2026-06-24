@@ -11,7 +11,8 @@ use tmkpr_lib::config::Config;
 use tmkpr_lib::storage::open_sqlite;
 
 use cli::{
-    Cli, Commands, CommentCommands, EventCommands, ProjectCommands, TagCommands, TaskCommands,
+    Cli, Commands, CommentCommands, ConfigCommands, EventCommands, ProjectCommands, TagCommands,
+    TaskCommands,
 };
 
 fn main() {
@@ -53,11 +54,16 @@ fn run() -> anyhow::Result<()> {
     }
 
     let config = Config::load()?;
+    let format = cli.format.as_str();
+
+    // Config show doesn't need storage.
+    if let Some(Commands::Config(ConfigCommands::Show(args))) = cli.command.as_ref() {
+        return commands::config::show(args.clone(), &config, db_override, format);
+    }
     let color = !cli.no_color && config.display.color;
     let date_fmt = config.display.date_format.clone();
     let time_fmt = config.display.time_format;
     let user_id = config.user.user_id.clone();
-    let format = cli.format.as_str();
 
     let db_path = cli.db.unwrap_or_else(|| config.database.path.clone());
     let storage = open_sqlite(&db_path)?;
@@ -199,7 +205,7 @@ fn run() -> anyhow::Result<()> {
             commands::export::run(args, storage.as_ref(), &user_id, time_fmt, format)?
         }
         // Already handled above before storage is opened.
-        Commands::Ui(_) | Commands::Pomodoro(_) => unreachable!(),
+        Commands::Ui(_) | Commands::Pomodoro(_) | Commands::Config(_) => unreachable!(),
     }
 
     Ok(())

@@ -91,6 +91,10 @@ pub enum Commands {
     #[command(subcommand, alias = "c")]
     Comment(CommentCommands),
 
+    /// Show active configuration and config file path
+    #[command(subcommand)]
+    Config(ConfigCommands),
+
     /// List tags in use across all entries
     #[command(subcommand)]
     Tag(TagCommands),
@@ -615,6 +619,17 @@ pub struct EventDeleteArgs {
     #[arg(long, short = 'y')]
     pub yes: bool,
 }
+
+// ── Config subcommands ────────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+pub enum ConfigCommands {
+    /// Print active configuration values and the config file path
+    Show(ConfigShowArgs),
+}
+
+#[derive(Args, Clone)]
+pub struct ConfigShowArgs {}
 
 // ── Tag subcommands ───────────────────────────────────────────────────────────
 

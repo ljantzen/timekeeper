@@ -130,6 +130,14 @@ tmkpr task reactivate <NAME|ID> -p PROJECT
 
 `task delete` archives by default; use `--hard` to permanently remove. `task done` marks a task completed; `task reactivate` reverses that.
 
+### Configuration
+
+```
+tmkpr config show
+```
+
+Prints the active configuration values and the path to the config file. Use `--format json` for machine-readable output (includes a `_config_file` key and a `_db_override` key when `--db` is passed).
+
 ### Tags
 
 ```
