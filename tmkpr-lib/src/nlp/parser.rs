@@ -100,6 +100,113 @@ fn parse_bare_time_24h(input: &str, now: &DateTime<Local>) -> Option<DateTime<Lo
         .and_then(|naive| Local.from_local_datetime(&naive).single())
 }
 
+/// Parse a human-readable duration string into a `chrono::Duration`.
+///
+/// Accepts `HH:MM`, `HH:MM:SS`, unit-suffixed strings like `1h30m`, `90m`,
+/// `45s`, and bare integers (treated as seconds).
+pub fn parse_duration(s: &str) -> TmkprResult<chrono::Duration> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err(TmkprError::DateParse {
+            input: s.to_string(),
+            reason: "empty duration".to_string(),
+        });
+    }
+    let parts: Vec<&str> = s.splitn(3, ':').collect();
+    if parts.len() >= 2
+        && parts
+            .iter()
+            .all(|p| p.chars().all(|c| c.is_ascii_digit() || c == '.'))
+    {
+        let h: i64 = parts[0].parse().map_err(|_| TmkprError::DateParse {
+            input: s.to_string(),
+            reason: "invalid hours in HH:MM duration".to_string(),
+        })?;
+        let m: i64 = parts[1].parse().map_err(|_| TmkprError::DateParse {
+            input: s.to_string(),
+            reason: "invalid minutes in HH:MM duration".to_string(),
+        })?;
+        let sec: i64 = if parts.len() == 3 {
+            parts[2]
+                .split('.')
+                .next()
+                .unwrap_or("0")
+                .parse()
+                .map_err(|_| TmkprError::DateParse {
+                    input: s.to_string(),
+                    reason: "invalid seconds in HH:MM:SS duration".to_string(),
+                })?
+        } else {
+            0
+        };
+        return Ok(chrono::Duration::seconds(h * 3600 + m * 60 + sec));
+    }
+    let lower = s
+        .to_lowercase()
+        .replace("hours", "h")
+        .replace("hour", "h")
+        .replace("minutes", "m")
+        .replace("minute", "m")
+        .replace("mins", "m")
+        .replace("min", "m")
+        .replace("seconds", "s")
+        .replace("second", "s")
+        .replace("secs", "s")
+        .replace("sec", "s");
+    let mut total_secs: i64 = 0;
+    let mut buf = String::new();
+    let mut found_unit = false;
+    for ch in lower.chars() {
+        match ch {
+            '0'..='9' | '.' => buf.push(ch),
+            'h' => {
+                let v: f64 = buf.trim().parse().map_err(|_| TmkprError::DateParse {
+                    input: s.to_string(),
+                    reason: "invalid hours value".to_string(),
+                })?;
+                total_secs += (v * 3600.0) as i64;
+                buf.clear();
+                found_unit = true;
+            }
+            'm' => {
+                let v: f64 = buf.trim().parse().map_err(|_| TmkprError::DateParse {
+                    input: s.to_string(),
+                    reason: "invalid minutes value".to_string(),
+                })?;
+                total_secs += (v * 60.0) as i64;
+                buf.clear();
+                found_unit = true;
+            }
+            's' => {
+                let v: f64 = buf.trim().parse().map_err(|_| TmkprError::DateParse {
+                    input: s.to_string(),
+                    reason: "invalid seconds value".to_string(),
+                })?;
+                total_secs += v as i64;
+                buf.clear();
+                found_unit = true;
+            }
+            ' ' | '_' => {}
+            _ => {
+                return Err(TmkprError::DateParse {
+                    input: s.to_string(),
+                    reason: format!("unexpected character '{ch}'"),
+                })
+            }
+        }
+    }
+    if found_unit {
+        return Ok(chrono::Duration::seconds(total_secs));
+    }
+    if let Ok(secs) = s.parse::<f64>() {
+        return Ok(chrono::Duration::seconds(secs as i64));
+    }
+    Err(TmkprError::DateParse {
+        input: s.to_string(),
+        reason: "cannot parse duration".to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,5 +279,37 @@ mod tests {
         assert_eq!(dt.with_timezone(&Local).hour(), 9);
         let dt2 = parse_datetime("2pm", fixed_now(), TimeFormat::H12).unwrap();
         assert_eq!(dt2.with_timezone(&Local).hour(), 14);
+    }
+
+    #[test]
+    fn duration_hms() {
+        assert_eq!(parse_duration("1:30:00").unwrap().num_seconds(), 5400);
+    }
+
+    #[test]
+    fn duration_hm() {
+        assert_eq!(parse_duration("1:30").unwrap().num_seconds(), 5400);
+    }
+
+    #[test]
+    fn duration_natural_h_m() {
+        assert_eq!(parse_duration("1h30m").unwrap().num_seconds(), 5400);
+        assert_eq!(parse_duration("1h 30m").unwrap().num_seconds(), 5400);
+    }
+
+    #[test]
+    fn duration_minutes_only() {
+        assert_eq!(parse_duration("45m").unwrap().num_seconds(), 2700);
+        assert_eq!(parse_duration("45min").unwrap().num_seconds(), 2700);
+    }
+
+    #[test]
+    fn duration_empty_errors() {
+        assert!(parse_duration("").is_err());
+    }
+
+    #[test]
+    fn duration_garbage_errors() {
+        assert!(parse_duration("xyz").is_err());
     }
 }

@@ -2,13 +2,12 @@ use anyhow::Result;
 use chrono::{Local, TimeZone, Utc};
 use tmkpr_lib::config::Config;
 use tmkpr_lib::models::entry::EntryFilter;
-use tmkpr_lib::nlp::{parse_datetime_now, TimeFormat};
+use tmkpr_lib::nlp::{parse_datetime_now, parse_duration, TimeFormat};
 use tmkpr_lib::obsidian_logger;
 use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::LogArgs;
-use crate::commands::import::parse_duration;
 use crate::output;
 use crate::prompt;
 

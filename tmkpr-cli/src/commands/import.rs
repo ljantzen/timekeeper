@@ -6,6 +6,7 @@ use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Utc}
 use tmkpr_lib::models::entry::NewEntry;
 use tmkpr_lib::models::project::NewProject;
 use tmkpr_lib::models::task::NewTask;
+use tmkpr_lib::nlp::parse_duration;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::ImportArgs;
@@ -54,82 +55,6 @@ pub(super) fn parse_datetime(s: &str) -> Result<DateTime<Utc>> {
         }
     }
     bail!("unrecognised datetime: {:?}", s)
-}
-
-// ── Duration parsing (shared) ─────────────────────────────────────────────────
-
-pub(crate) fn parse_duration(s: &str) -> Result<Duration> {
-    let s = s.trim();
-    if s.is_empty() {
-        bail!("empty duration");
-    }
-    let parts: Vec<&str> = s.splitn(3, ':').collect();
-    if parts.len() >= 2
-        && parts
-            .iter()
-            .all(|p| p.chars().all(|c| c.is_ascii_digit() || c == '.'))
-    {
-        let h: i64 = parts[0].parse().context("hours in duration")?;
-        let m: i64 = parts[1].parse().context("minutes in duration")?;
-        let sec: i64 = if parts.len() == 3 {
-            parts[2]
-                .split('.')
-                .next()
-                .unwrap_or("0")
-                .parse()
-                .context("seconds in duration")?
-        } else {
-            0
-        };
-        return Ok(Duration::seconds(h * 3600 + m * 60 + sec));
-    }
-    let lower = s
-        .to_lowercase()
-        .replace("hours", "h")
-        .replace("hour", "h")
-        .replace("minutes", "m")
-        .replace("minute", "m")
-        .replace("mins", "m")
-        .replace("min", "m")
-        .replace("seconds", "s")
-        .replace("second", "s")
-        .replace("secs", "s")
-        .replace("sec", "s");
-    let mut total_secs: i64 = 0;
-    let mut buf = String::new();
-    let mut found_unit = false;
-    for ch in lower.chars() {
-        match ch {
-            '0'..='9' | '.' => buf.push(ch),
-            'h' => {
-                let v: f64 = buf.trim().parse().context("hours value in duration")?;
-                total_secs += (v * 3600.0) as i64;
-                buf.clear();
-                found_unit = true;
-            }
-            'm' => {
-                let v: f64 = buf.trim().parse().context("minutes value in duration")?;
-                total_secs += (v * 60.0) as i64;
-                buf.clear();
-                found_unit = true;
-            }
-            's' => {
-                let v: f64 = buf.trim().parse().context("seconds value in duration")?;
-                total_secs += v as i64;
-                buf.clear();
-                found_unit = true;
-            }
-            ' ' | '_' => {}
-            _ => bail!("unexpected character '{ch}' in duration: {s:?}"),
-        }
-    }
-    if found_unit {
-        return Ok(Duration::seconds(total_secs));
-    }
-    if let Ok(secs) = s.parse::<f64>() {
-        return Ok(Duration::seconds(secs as i64));
-    }
-    bail!("cannot parse duration: {s:?}")
 }
 
 // ── Shared upsert + insert ────────────────────────────────────────────────────
@@ -786,40 +711,6 @@ mod tests {
     fn datetime_invalid_errors() {
         assert!(parse_datetime("not a date").is_err());
         assert!(parse_datetime("").is_err());
-    }
-
-    // ── parse_duration ────────────────────────────────────────────────────────
-
-    #[test]
-    fn duration_hms() {
-        assert_eq!(parse_duration("1:30:00").unwrap().num_seconds(), 5400);
-    }
-
-    #[test]
-    fn duration_hm() {
-        assert_eq!(parse_duration("1:30").unwrap().num_seconds(), 5400);
-    }
-
-    #[test]
-    fn duration_natural_h_m() {
-        assert_eq!(parse_duration("1h30m").unwrap().num_seconds(), 5400);
-        assert_eq!(parse_duration("1h 30m").unwrap().num_seconds(), 5400);
-    }
-
-    #[test]
-    fn duration_minutes_only() {
-        assert_eq!(parse_duration("45m").unwrap().num_seconds(), 2700);
-        assert_eq!(parse_duration("45min").unwrap().num_seconds(), 2700);
-    }
-
-    #[test]
-    fn duration_empty_errors() {
-        assert!(parse_duration("").is_err());
-    }
-
-    #[test]
-    fn duration_garbage_errors() {
-        assert!(parse_duration("xyz").is_err());
     }
 
     // ── CSV imports ───────────────────────────────────────────────────────────
