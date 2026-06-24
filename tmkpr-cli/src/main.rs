@@ -57,8 +57,8 @@ fn run() -> anyhow::Result<()> {
     let format = cli.format.as_str();
 
     // Config show doesn't need storage.
-    if let Some(Commands::Config(ConfigCommands::Show(args))) = cli.command.as_ref() {
-        return commands::config::show(args.clone(), &config, db_override, format);
+    if let Some(Commands::Config(ConfigCommands::Show(_))) = cli.command.as_ref() {
+        return commands::config::show(&config, db_override, format);
     }
     let color = !cli.no_color && config.display.color;
     let date_fmt = config.display.date_format.clone();

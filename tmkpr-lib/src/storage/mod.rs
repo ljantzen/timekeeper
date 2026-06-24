@@ -8,13 +8,9 @@ use crate::models::{
     entry::{Entry, EntryFilter, NewEntry, UpdateEntry},
     project::{NewProject, Project, UpdateProject},
     task::{NewTask, Task, UpdateTask},
-    user::User,
 };
 
 pub trait Storage: Send + Sync {
-    // ── Users ────────────────────────────────────────────────────────────────
-    fn get_user(&self, user_id: &str) -> TmkprResult<User>;
-
     // ── Projects ─────────────────────────────────────────────────────────────
     fn create_project(&self, project: NewProject) -> TmkprResult<Project>;
     fn get_project(&self, id: &str) -> TmkprResult<Project>;

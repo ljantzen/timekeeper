@@ -28,7 +28,7 @@ pub fn run(
                 .and_then(|pid| storage.list_tasks(pid, false).ok())
                 .unwrap_or_default();
             if format == "json" {
-                output::print_json_entry(&entry);
+                println!("{}", serde_json::to_string_pretty(&entry).unwrap());
             } else {
                 output::print_status(&entry, &projects, &TaskIndex(tasks), date_fmt, color);
             }

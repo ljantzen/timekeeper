@@ -45,7 +45,17 @@ impl ObsidianLogger {
         Self::new(config.obsidian.clone())
     }
 
-    /// Log an activity (entry) to Obsidian. Only logs if Obsidian integration is enabled.
+    fn vault_dir(&self) -> Option<&std::path::Path> {
+        if !self.config.enabled {
+            return None;
+        }
+        let dir = self.config.vault_dir.as_deref()?;
+        if !dir.exists() {
+            return None;
+        }
+        Some(dir)
+    }
+
     pub fn log_activity(
         &self,
         entry: &Entry,
@@ -53,233 +63,114 @@ impl ObsidianLogger {
         task_name: Option<&str>,
         action: ActivityAction,
     ) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let message = format_entry_message(entry, project_name, task_name, action);
+            log_to_obsidian(
+                vault_dir,
+                &message,
+                self.config.activity_category.as_deref(),
+            )?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format_entry_message(entry, project_name, task_name, action);
-        let category = self.config.activity_category.as_deref();
-
-        log_to_obsidian(vault_dir, &message, category)?;
-
         Ok(())
     }
 
-    /// Log a task action to Obsidian. Only logs if Obsidian integration is enabled.
     pub fn log_task(
         &self,
         project_name: &str,
         task_name: &str,
         action: TaskAction,
     ) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let message = format_task_message(project_name, task_name, action);
+            log_to_obsidian(
+                vault_dir,
+                &message,
+                self.config.activity_category.as_deref(),
+            )?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format_task_message(project_name, task_name, action);
-        let category = self.config.activity_category.as_deref();
-
-        log_to_obsidian(vault_dir, &message, category)?;
-
         Ok(())
     }
 
-    /// Log a project action to Obsidian. Only logs if Obsidian integration is enabled.
     pub fn log_project(&self, project_name: &str, action: ProjectAction) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let message = format_project_message(project_name, action);
+            log_to_obsidian(
+                vault_dir,
+                &message,
+                self.config.activity_category.as_deref(),
+            )?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format_project_message(project_name, action);
-        let category = self.config.activity_category.as_deref();
-
-        log_to_obsidian(vault_dir, &message, category)?;
-
         Ok(())
     }
 
-    /// Log a comment to Obsidian. Only logs if Obsidian integration is enabled.
     pub fn log_comment(&self, comment: &Comment) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let message = format!("Comment: {}", &comment.body);
+            log_to_obsidian(vault_dir, &message, self.config.comment_category.as_deref())?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format!("Comment: {}", &comment.body);
-        let category = self.config.comment_category.as_deref();
-
-        log_to_obsidian(vault_dir, &message, category)?;
-
         Ok(())
     }
 
-    /// Log a project creation to Obsidian.
     pub fn log_project_created(&self, project: &Project) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let message = match &project.description {
+                Some(desc) => format!("[CREATED] {} - {}", project.name, desc),
+                None => format!("[CREATED] {}", project.name),
+            };
+            log_to_obsidian(vault_dir, &message, None)?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = if let Some(desc) = &project.description {
-            format!("[CREATED] {} - {}", project.name, desc)
-        } else {
-            format!("[CREATED] {}", project.name)
-        };
-
-        log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
     }
 
-    /// Log a project update to Obsidian.
     pub fn log_project_updated(&self, project: &Project) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            log_to_obsidian(vault_dir, &format!("[UPDATED] {}", project.name), None)?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format!("[UPDATED] {}", project.name);
-        log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
     }
 
-    /// Log a project deletion to Obsidian.
     pub fn log_project_deleted(&self, project_name: &str) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            log_to_obsidian(vault_dir, &format!("[DELETED] {}", project_name), None)?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format!("[DELETED] {}", project_name);
-        log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
     }
 
-    /// Log a task creation to Obsidian.
     pub fn log_task_created(&self, project_name: &str, task: &Task) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let message = match &task.description {
+                Some(desc) => format!("[CREATED] {} / {} - {}", project_name, task.name, desc),
+                None => format!("[CREATED] {} / {}", project_name, task.name),
+            };
+            log_to_obsidian(vault_dir, &message, None)?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = if let Some(desc) = &task.description {
-            format!("[CREATED] {} / {} - {}", project_name, task.name, desc)
-        } else {
-            format!("[CREATED] {} / {}", project_name, task.name)
-        };
-
-        log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
     }
 
-    /// Log a task update to Obsidian.
     pub fn log_task_updated(&self, project_name: &str, task: &Task) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            let action = if task.completed {
+                "COMPLETED"
+            } else {
+                "UPDATED"
+            };
+            log_to_obsidian(
+                vault_dir,
+                &format!("[{}] {} / {}", action, project_name, task.name),
+                None,
+            )?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let action = if task.completed {
-            "COMPLETED"
-        } else {
-            "UPDATED"
-        };
-        let message = format!("[{}] {} / {}", action, project_name, task.name);
-        log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
     }
 
-    /// Log a task deletion to Obsidian.
     pub fn log_task_deleted(&self, project_name: &str, task_name: &str) -> TmkprResult<()> {
-        if !self.config.enabled {
-            return Ok(());
+        if let Some(vault_dir) = self.vault_dir() {
+            log_to_obsidian(
+                vault_dir,
+                &format!("[DELETED] {} / {}", project_name, task_name),
+                None,
+            )?;
         }
-
-        let vault_dir = match &self.config.vault_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
-        };
-
-        if !vault_dir.exists() {
-            return Ok(());
-        }
-
-        let message = format!("[DELETED] {} / {}", project_name, task_name);
-        log_to_obsidian(vault_dir, &message, None)?;
         Ok(())
     }
 }

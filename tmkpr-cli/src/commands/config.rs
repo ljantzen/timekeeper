@@ -1,14 +1,7 @@
 use anyhow::Result;
 use tmkpr_lib::config::{config_path, Config};
 
-use crate::cli::ConfigShowArgs;
-
-pub fn show(
-    _args: ConfigShowArgs,
-    config: &Config,
-    db_override: Option<&std::path::Path>,
-    format: &str,
-) -> Result<()> {
+pub fn show(config: &Config, db_override: Option<&std::path::Path>, format: &str) -> Result<()> {
     match format {
         "json" => {
             let mut val = serde_json::to_value(config)?;

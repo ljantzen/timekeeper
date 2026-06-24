@@ -10,7 +10,6 @@ use crate::models::{
     entry::{Entry, EntryFilter, NewEntry, UpdateEntry},
     project::{NewProject, Project, UpdateProject},
     task::{NewTask, Task, UpdateTask},
-    user::User,
 };
 use crate::storage::Storage;
 
@@ -47,16 +46,6 @@ impl SqliteStorage {
 }
 
 // ── Row mappers ──────────────────────────────────────────────────────────────
-
-fn row_to_user(row: &Row<'_>) -> rusqlite::Result<User> {
-    Ok(User {
-        id: row.get(0)?,
-        username: row.get(1)?,
-        display_name: row.get(2)?,
-        created_at: row.get(3)?,
-        updated_at: row.get(4)?,
-    })
-}
 
 fn row_to_project(row: &Row<'_>) -> rusqlite::Result<Project> {
     let archived: i64 = row.get(5)?;
@@ -131,23 +120,6 @@ fn tags_to_json(tags: &[String]) -> Option<String> {
 // ── Storage impl ─────────────────────────────────────────────────────────────
 
 impl Storage for SqliteStorage {
-    fn get_user(&self, user_id: &str) -> TmkprResult<User> {
-        let conn = self.conn.lock().unwrap();
-        conn.query_row(
-            "SELECT id, username, display_name, created_at, updated_at
-             FROM users WHERE id = ?1",
-            params![user_id],
-            row_to_user,
-        )
-        .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => TmkprError::NotFound {
-                entity: "user",
-                id: user_id.to_string(),
-            },
-            other => TmkprError::Database(other),
-        })
-    }
-
     // ── Projects ─────────────────────────────────────────────────────────────
 
     fn create_project(&self, p: NewProject) -> TmkprResult<Project> {

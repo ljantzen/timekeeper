@@ -632,7 +632,7 @@ pub enum ConfigCommands {
     Show(ConfigShowArgs),
 }
 
-#[derive(Args, Clone)]
+#[derive(Args)]
 pub struct ConfigShowArgs {}
 
 // ── Tag subcommands ───────────────────────────────────────────────────────────

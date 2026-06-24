@@ -526,10 +526,6 @@ fn print_report_markdown(report: &ReportData) {
     );
 }
 
-pub fn print_json_entry(entry: &Entry) {
-    print_json(entry);
-}
-
 // ── Comments table ────────────────────────────────────────────────────────────
 
 pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {

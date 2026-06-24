@@ -12,6 +12,15 @@ impl<'a> TaskService<'a> {
         Self { storage, user_id }
     }
 
+    fn project_by_name(&self, project_name: &str) -> TmkprResult<crate::models::project::Project> {
+        self.storage
+            .get_project_by_name(self.user_id, project_name)?
+            .ok_or_else(|| TmkprError::NotFound {
+                entity: "project",
+                id: project_name.to_string(),
+            })
+    }
+
     /// Resolve a CLI argument to a task within a project: tries numeric ID first, then name.
     pub fn resolve(&self, project_id: &str, input: &str) -> TmkprResult<crate::models::task::Task> {
         let found = if let Ok(n) = input.parse::<u32>() {
@@ -31,14 +40,7 @@ impl<'a> TaskService<'a> {
         name: impl Into<String>,
         description: Option<String>,
     ) -> TmkprResult<Task> {
-        let project = self
-            .storage
-            .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::NotFound {
-                entity: "project",
-                id: project_name.to_string(),
-            })?;
-
+        let project = self.project_by_name(project_name)?;
         self.storage.create_task(NewTask {
             user_id: self.user_id.to_string(),
             project_id: project.id,
@@ -48,14 +50,7 @@ impl<'a> TaskService<'a> {
     }
 
     pub fn list(&self, project_name: &str, include_archived: bool) -> TmkprResult<Vec<Task>> {
-        let project = self
-            .storage
-            .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::NotFound {
-                entity: "project",
-                id: project_name.to_string(),
-            })?;
-
+        let project = self.project_by_name(project_name)?;
         self.storage.list_tasks(&project.id, include_archived)
     }
 
@@ -70,13 +65,7 @@ impl<'a> TaskService<'a> {
     }
 
     pub fn complete(&self, project_name: &str, task_input: &str) -> TmkprResult<Task> {
-        let project = self
-            .storage
-            .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::NotFound {
-                entity: "project",
-                id: project_name.to_string(),
-            })?;
+        let project = self.project_by_name(project_name)?;
         let task = self.resolve(&project.id, task_input)?;
         self.storage.update_task(
             &task.id,
@@ -88,13 +77,7 @@ impl<'a> TaskService<'a> {
     }
 
     pub fn reactivate(&self, project_name: &str, task_input: &str) -> TmkprResult<Task> {
-        let project = self
-            .storage
-            .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::NotFound {
-                entity: "project",
-                id: project_name.to_string(),
-            })?;
+        let project = self.project_by_name(project_name)?;
         let task = self.resolve(&project.id, task_input)?;
         self.storage.update_task(
             &task.id,
@@ -107,14 +90,7 @@ impl<'a> TaskService<'a> {
 
     /// Soft-archive by default; `hard = true` physically deletes.
     pub fn delete(&self, project_name: &str, task_name: &str, hard: bool) -> TmkprResult<()> {
-        let project = self
-            .storage
-            .get_project_by_name(self.user_id, project_name)?
-            .ok_or_else(|| TmkprError::NotFound {
-                entity: "project",
-                id: project_name.to_string(),
-            })?;
-
+        let project = self.project_by_name(project_name)?;
         let task = self
             .storage
             .get_task_by_name(&project.id, task_name)?
