@@ -25,19 +25,7 @@ pub fn run(
     let svc = EntryService::new(storage, user_id);
     let entry = svc.stop(finished_at)?;
 
-    // Retrieve project and task names for logging
-    let project_name = entry
-        .project_id
-        .as_ref()
-        .and_then(|pid| storage.get_project(pid).ok())
-        .map(|p| p.name);
-    let task_name = entry
-        .task_id
-        .as_ref()
-        .and_then(|tid| storage.get_task(tid).ok())
-        .map(|t| t.name);
-
-    // Log to Obsidian if enabled
+    let (project_name, task_name) = output::entry_names(&entry, storage);
     let _ = obsidian_logger::log_activity_to_obsidian(
         config,
         &entry,

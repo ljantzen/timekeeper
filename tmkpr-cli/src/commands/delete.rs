@@ -5,6 +5,7 @@ use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::DeleteArgs;
+use crate::output;
 
 pub fn run(args: DeleteArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
@@ -13,7 +14,7 @@ pub fn run(args: DeleteArgs, storage: &dyn Storage, user_id: &str, config: &Conf
     if !args.yes {
         eprint!(
             "Delete entry {} (started {})? [y/N] ",
-            &entry.id[..entry.id.len().min(8)],
+            output::short_id(&entry.id),
             entry.started_at.format("%Y-%m-%d %H:%M")
         );
         let mut input = String::new();
@@ -24,19 +25,7 @@ pub fn run(args: DeleteArgs, storage: &dyn Storage, user_id: &str, config: &Conf
         }
     }
 
-    // Retrieve project and task names for logging before deletion
-    let project_name = entry
-        .project_id
-        .as_ref()
-        .and_then(|pid| storage.get_project(pid).ok())
-        .map(|p| p.name);
-    let task_name = entry
-        .task_id
-        .as_ref()
-        .and_then(|tid| storage.get_task(tid).ok())
-        .map(|t| t.name);
-
-    // Log to Obsidian if enabled
+    let (project_name, task_name) = output::entry_names(&entry, storage);
     let _ = obsidian_logger::log_activity_to_obsidian(
         config,
         &entry,
@@ -46,6 +35,6 @@ pub fn run(args: DeleteArgs, storage: &dyn Storage, user_id: &str, config: &Conf
     );
 
     svc.delete(&args.id)?;
-    println!("Deleted entry {}.", &entry.id[..entry.id.len().min(8)]);
+    println!("Deleted entry {}.", output::short_id(&entry.id));
     Ok(())
 }

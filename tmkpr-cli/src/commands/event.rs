@@ -8,7 +8,7 @@ use tmkpr_lib::service::{EntryService, ProjectService};
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::{EventAddArgs, EventDeleteArgs, EventEditArgs, EventListArgs};
-use crate::output::{self, ProjectIndex, TaskIndex};
+use crate::output;
 use crate::prompt;
 
 pub fn list(
@@ -58,18 +58,12 @@ pub fn list(
         return Ok(());
     }
 
-    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
-    let all_tasks: Vec<_> = storage
-        .list_projects(user_id, true)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
-        .collect();
+    let (projects, tasks) = output::build_indexes(storage, user_id);
 
     output::print_entries(
         &entries,
         &projects,
-        &TaskIndex(all_tasks),
+        &tasks,
         date_fmt,
         format,
         color,
@@ -126,19 +120,13 @@ pub fn add(
         obsidian_logger::ActivityAction::EventLogged,
     );
 
-    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
-    let all_tasks: Vec<_> = storage
-        .list_projects(user_id, true)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
-        .collect();
+    let (projects, tasks) = output::build_indexes(storage, user_id);
 
-    println!("Logged event {}.", &entry.id[..entry.id.len().min(8)]);
+    println!("Logged event {}.", output::short_id(&entry.id));
     output::print_entries_table(
         std::slice::from_ref(&entry),
         &projects,
-        &TaskIndex(all_tasks),
+        &tasks,
         date_fmt,
         color,
     );
@@ -212,16 +200,7 @@ pub fn edit(
     let svc = EntryService::new(storage, user_id);
     let entry = svc.update(&args.id, update)?;
 
-    let project_name = entry
-        .project_id
-        .as_ref()
-        .and_then(|pid| storage.get_project(pid).ok())
-        .map(|p| p.name);
-    let task_name = entry
-        .task_id
-        .as_ref()
-        .and_then(|tid| storage.get_task(tid).ok())
-        .map(|t| t.name);
+    let (project_name, task_name) = output::entry_names(&entry, storage);
     let _ = obsidian_logger::log_activity_to_obsidian(
         config,
         &entry,
@@ -230,19 +209,13 @@ pub fn edit(
         obsidian_logger::ActivityAction::Edited,
     );
 
-    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
-    let all_tasks: Vec<_> = storage
-        .list_projects(user_id, true)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
-        .collect();
+    let (projects, tasks) = output::build_indexes(storage, user_id);
 
-    println!("Updated event {}.", &entry.id[..entry.id.len().min(8)]);
+    println!("Updated event {}.", output::short_id(&entry.id));
     output::print_entries_table(
         std::slice::from_ref(&entry),
         &projects,
-        &TaskIndex(all_tasks),
+        &tasks,
         date_fmt,
         color,
     );
@@ -261,7 +234,7 @@ pub fn delete(
     if !args.yes
         && !prompt::confirm(&format!(
             "Delete event {} (at {})?",
-            &entry.id[..entry.id.len().min(8)],
+            output::short_id(&entry.id),
             entry
                 .started_at
                 .with_timezone(&Local)
@@ -272,16 +245,7 @@ pub fn delete(
         return Ok(());
     }
 
-    let project_name = entry
-        .project_id
-        .as_ref()
-        .and_then(|pid| storage.get_project(pid).ok())
-        .map(|p| p.name);
-    let task_name = entry
-        .task_id
-        .as_ref()
-        .and_then(|tid| storage.get_task(tid).ok())
-        .map(|t| t.name);
+    let (project_name, task_name) = output::entry_names(&entry, storage);
     let _ = obsidian_logger::log_activity_to_obsidian(
         config,
         &entry,
@@ -291,6 +255,6 @@ pub fn delete(
     );
 
     svc.delete(&args.id)?;
-    println!("Deleted event {}.", &entry.id[..entry.id.len().min(8)]);
+    println!("Deleted event {}.", output::short_id(&entry.id));
     Ok(())
 }

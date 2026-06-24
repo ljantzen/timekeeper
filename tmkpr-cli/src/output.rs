@@ -3,6 +3,7 @@ use colored::Colorize;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, CellAlignment, Color, Table};
 use tmkpr_lib::service::WeekReport;
+use tmkpr_lib::storage::Storage;
 
 use tmkpr_lib::models::{comment::Comment, entry::Entry, project::Project, task::Task};
 use tmkpr_lib::service::entry_service::ReportData;
@@ -27,8 +28,39 @@ pub fn format_datetime(dt: &DateTime<Utc>, fmt: &str) -> String {
     dt.with_timezone(&Local).format(fmt).to_string()
 }
 
-fn short_id(id: &str) -> &str {
+pub(crate) fn short_id(id: &str) -> &str {
     &id[..id.len().min(8)]
+}
+
+/// Resolve an entry's project and task UUIDs to display names for logging.
+pub(crate) fn entry_names(
+    entry: &Entry,
+    storage: &dyn Storage,
+) -> (Option<String>, Option<String>) {
+    let project_name = entry
+        .project_id
+        .as_ref()
+        .and_then(|pid| storage.get_project(pid).ok())
+        .map(|p| p.name);
+    let task_name = entry
+        .task_id
+        .as_ref()
+        .and_then(|tid| storage.get_task(tid).ok())
+        .map(|t| t.name);
+    (project_name, task_name)
+}
+
+/// Build ProjectIndex + TaskIndex covering all projects/tasks (including archived).
+pub(crate) fn build_indexes(
+    storage: &dyn Storage,
+    user_id: &str,
+) -> (ProjectIndex, TaskIndex) {
+    let projects = storage.list_projects(user_id, true).unwrap_or_default();
+    let all_tasks: Vec<_> = projects
+        .iter()
+        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
+        .collect();
+    (ProjectIndex(projects), TaskIndex(all_tasks))
 }
 
 fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {

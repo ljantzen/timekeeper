@@ -6,7 +6,7 @@ use tmkpr_lib::service::{EntryService, ProjectService, TaskService};
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::ListArgs;
-use crate::output::{self, ProjectIndex, TaskIndex};
+use crate::output;
 
 pub fn run(
     args: ListArgs,
@@ -101,18 +101,12 @@ pub fn run(
         return Ok(());
     }
 
-    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
-    let all_tasks: Vec<_> = storage
-        .list_projects(user_id, true)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
-        .collect();
+    let (projects, tasks) = output::build_indexes(storage, user_id);
 
     output::print_entries(
         &entries,
         &projects,
-        &TaskIndex(all_tasks),
+        &tasks,
         date_fmt,
         format,
         color,

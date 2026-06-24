@@ -11,7 +11,7 @@ pub fn add(args: CommentAddArgs, storage: &dyn Storage, user_id: &str) -> Result
     let comment = CommentService::new(storage, user_id).add(args.entry.as_deref(), body)?;
     println!(
         "Added comment {} to active entry.",
-        &comment.id[..comment.id.len().min(8)]
+        output::short_id(&comment.id)
     );
     Ok(())
 }
@@ -33,7 +33,7 @@ pub fn edit(args: CommentEditArgs, storage: &dyn Storage, user_id: &str) -> Resu
     let comment = CommentService::new(storage, user_id).edit(&args.id, body)?;
     println!(
         "Updated comment {}.",
-        &comment.id[..comment.id.len().min(8)]
+        output::short_id(&comment.id)
     );
     Ok(())
 }
@@ -44,7 +44,7 @@ pub fn delete(args: CommentDeleteArgs, storage: &dyn Storage, user_id: &str) -> 
     if !args.yes
         && !prompt::confirm(&format!(
             "Delete comment {}?",
-            &args.id[..args.id.len().min(8)]
+            output::short_id(&args.id)
         ))
     {
         println!("Cancelled.");
@@ -52,6 +52,6 @@ pub fn delete(args: CommentDeleteArgs, storage: &dyn Storage, user_id: &str) -> 
     }
 
     svc.delete(&args.id)?;
-    println!("Deleted comment {}.", &args.id[..args.id.len().min(8)]);
+    println!("Deleted comment {}.", output::short_id(&args.id));
     Ok(())
 }

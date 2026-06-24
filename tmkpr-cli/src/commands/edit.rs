@@ -5,7 +5,7 @@ use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::EditArgs;
-use crate::output::{self, ProjectIndex, TaskIndex};
+use crate::output;
 use crate::prompt;
 
 pub fn run(
@@ -98,19 +98,13 @@ pub fn run(
     let svc = EntryService::new(storage, user_id);
     let entry = svc.update(&args.id, update)?;
 
-    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
-    let all_tasks: Vec<_> = storage
-        .list_projects(user_id, true)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
-        .collect();
+    let (projects, tasks) = output::build_indexes(storage, user_id);
 
-    println!("Updated entry {}.", &args.id[..args.id.len().min(8)]);
+    println!("Updated entry {}.", output::short_id(&args.id));
     output::print_entries_table(
         std::slice::from_ref(&entry),
         &projects,
-        &TaskIndex(all_tasks),
+        &tasks,
         date_fmt,
         color,
     );

@@ -5,6 +5,7 @@ use tmkpr_lib::service::EntryService;
 use tmkpr_lib::storage::Storage;
 
 use crate::cli::MergeArgs;
+use crate::output;
 
 pub fn run(args: MergeArgs, storage: &dyn Storage, user_id: &str, config: &Config) -> Result<()> {
     let svc = EntryService::new(storage, user_id);
@@ -13,22 +14,10 @@ pub fn run(args: MergeArgs, storage: &dyn Storage, user_id: &str, config: &Confi
     } else {
         svc.merge_into_next(&args.id)?
     };
-    let short_first = &args.id[..args.id.len().min(8)];
-    let short_merged = &merged.id[..merged.id.len().min(8)];
+    let short_first = output::short_id(&args.id);
+    let short_merged = output::short_id(&merged.id);
 
-    // Retrieve project and task names for logging
-    let project_name = merged
-        .project_id
-        .as_ref()
-        .and_then(|pid| storage.get_project(pid).ok())
-        .map(|p| p.name);
-    let task_name = merged
-        .task_id
-        .as_ref()
-        .and_then(|tid| storage.get_task(tid).ok())
-        .map(|t| t.name);
-
-    // Log to Obsidian if enabled
+    let (project_name, task_name) = output::entry_names(&merged, storage);
     let _ = obsidian_logger::log_activity_to_obsidian(
         config,
         &merged,

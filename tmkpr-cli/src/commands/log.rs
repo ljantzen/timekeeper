@@ -9,7 +9,7 @@ use tmkpr_lib::storage::Storage;
 
 use crate::cli::LogArgs;
 use crate::commands::import::parse_duration;
-use crate::output::{self, ProjectIndex, TaskIndex};
+use crate::output;
 use crate::prompt;
 
 pub fn run(
@@ -70,19 +70,13 @@ pub fn run(
         obsidian_logger::ActivityAction::Edited,
     );
 
-    let projects = ProjectIndex(storage.list_projects(user_id, true).unwrap_or_default());
-    let all_tasks: Vec<_> = storage
-        .list_projects(user_id, true)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|p| storage.list_tasks(&p.id, true).unwrap_or_default())
-        .collect();
+    let (projects, tasks) = output::build_indexes(storage, user_id);
 
-    println!("Logged entry {}.", &entry.id[..entry.id.len().min(8)]);
+    println!("Logged entry {}.", output::short_id(&entry.id));
     output::print_entries_table(
         std::slice::from_ref(&entry),
         &projects,
-        &TaskIndex(all_tasks),
+        &tasks,
         date_fmt,
         color,
     );
