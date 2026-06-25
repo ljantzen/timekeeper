@@ -501,18 +501,35 @@ fn handle_edit_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 }
 
 fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let prev_project = if let AppMode::StartModal(form) = &app.mode {
+        form.fields[form_fields::start_modal::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
     let result = match &mut app.mode {
         AppMode::StartModal(form) => form.handle_key(key),
         _ => return Ok(()),
     };
 
-    // Update task completions based on selected project
     let project_name = if let AppMode::StartModal(form) = &app.mode {
         form.fields[form_fields::start_modal::PROJECT].value.clone()
     } else {
         String::new()
     };
 
+    if project_name != prev_project {
+        if let AppMode::StartModal(form) = &mut app.mode {
+            let original_project = form.fields[form_fields::start_modal::PROJECT].original_value.clone();
+            let original_task = form.fields[form_fields::start_modal::TASK].original_value.clone();
+            let task = &mut form.fields[form_fields::start_modal::TASK];
+            task.value = if project_name == original_project { original_task } else { String::new() };
+            task.cursor = task.value.len();
+            task.ac_index = None;
+        }
+    }
+
+    // Update task completions based on selected project
     if !project_name.is_empty() {
         let tasks = app.task_names_for_project(&project_name);
         let task_colors = app.task_colors_for_project(&project_name);
@@ -595,18 +612,35 @@ fn handle_confirm_create(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 }
 
 fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let prev_project = if let AppMode::EditModal { form, .. } = &app.mode {
+        form.fields[form_fields::edit_modal::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
     let result = match &mut app.mode {
         AppMode::EditModal { form, .. } => form.handle_key(key),
         _ => return Ok(()),
     };
 
-    // Update task completions based on selected project
     let project_name = if let AppMode::EditModal { form, .. } = &app.mode {
         form.fields[form_fields::edit_modal::PROJECT].value.clone()
     } else {
         String::new()
     };
 
+    if project_name != prev_project {
+        if let AppMode::EditModal { form, .. } = &mut app.mode {
+            let original_project = form.fields[form_fields::edit_modal::PROJECT].original_value.clone();
+            let original_task = form.fields[form_fields::edit_modal::TASK].original_value.clone();
+            let task = &mut form.fields[form_fields::edit_modal::TASK];
+            task.value = if project_name == original_project { original_task } else { String::new() };
+            task.cursor = task.value.len();
+            task.ac_index = None;
+        }
+    }
+
+    // Update task completions based on selected project
     if !project_name.is_empty() {
         let tasks = app.task_names_for_project(&project_name);
         let task_colors = app.task_colors_for_project(&project_name);
@@ -640,18 +674,33 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 }
 
 fn handle_edit_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let prev_project = if let AppMode::EditEventModal { form, .. } = &app.mode {
+        form.fields[form_fields::edit_event_modal::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
     let result = match &mut app.mode {
         AppMode::EditEventModal { form, .. } => form.handle_key(key),
         _ => return Ok(()),
     };
 
     let project_name = if let AppMode::EditEventModal { form, .. } = &app.mode {
-        form.fields[form_fields::edit_event_modal::PROJECT]
-            .value
-            .clone()
+        form.fields[form_fields::edit_event_modal::PROJECT].value.clone()
     } else {
         String::new()
     };
+
+    if project_name != prev_project {
+        if let AppMode::EditEventModal { form, .. } = &mut app.mode {
+            let original_project = form.fields[form_fields::edit_event_modal::PROJECT].original_value.clone();
+            let original_task = form.fields[form_fields::edit_event_modal::TASK].original_value.clone();
+            let task = &mut form.fields[form_fields::edit_event_modal::TASK];
+            task.value = if project_name == original_project { original_task } else { String::new() };
+            task.cursor = task.value.len();
+            task.ac_index = None;
+        }
+    }
 
     if !project_name.is_empty() {
         let tasks = app.task_names_for_project(&project_name);
@@ -750,20 +799,35 @@ fn handle_add_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
 }
 
 fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    let prev_project = if let AppMode::AddManualEntry(form) = &app.mode {
+        form.fields[form_fields::add_manual_entry::PROJECT].value.clone()
+    } else {
+        String::new()
+    };
+
     let result = match &mut app.mode {
         AppMode::AddManualEntry(form) => form.handle_key(key),
         _ => return Ok(()),
     };
 
-    // Update task completions based on selected project
     let project_name = if let AppMode::AddManualEntry(form) = &app.mode {
-        form.fields[form_fields::add_manual_entry::PROJECT]
-            .value
-            .clone()
+        form.fields[form_fields::add_manual_entry::PROJECT].value.clone()
     } else {
         String::new()
     };
 
+    if project_name != prev_project {
+        if let AppMode::AddManualEntry(form) = &mut app.mode {
+            let original_project = form.fields[form_fields::add_manual_entry::PROJECT].original_value.clone();
+            let original_task = form.fields[form_fields::add_manual_entry::TASK].original_value.clone();
+            let task = &mut form.fields[form_fields::add_manual_entry::TASK];
+            task.value = if project_name == original_project { original_task } else { String::new() };
+            task.cursor = task.value.len();
+            task.ac_index = None;
+        }
+    }
+
+    // Update task completions based on selected project
     if !project_name.is_empty() {
         let tasks = app.task_names_for_project(&project_name);
         let task_colors = app.task_colors_for_project(&project_name);

@@ -19,6 +19,7 @@ pub enum FieldKind {
 pub struct Field {
     pub label: &'static str,
     pub value: String,
+    pub original_value: String,
     pub cursor: usize,
     pub completions: Vec<String>,
     pub completion_colors: Vec<Option<String>>,
@@ -36,9 +37,11 @@ impl Field {
     pub fn new(label: &'static str, value: impl Into<String>) -> Self {
         let value = value.into();
         let cursor = value.len();
+        let original_value = value.clone();
         Self {
             label,
             value,
+            original_value,
             cursor,
             completions: vec![],
             completion_colors: vec![],
@@ -48,9 +51,11 @@ impl Field {
     }
 
     pub fn toggle(label: &'static str, on: bool) -> Self {
+        let value = if on { "true" } else { "false" }.to_string();
         Self {
             label,
-            value: if on { "true" } else { "false" }.to_string(),
+            original_value: value.clone(),
+            value,
             cursor: 0,
             completions: vec![],
             completion_colors: vec![],
