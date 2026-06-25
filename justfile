@@ -37,9 +37,13 @@ ui *ARGS:
 cli *ARGS:
     cargo run -p tmkpr-cli -- --db {{ TEST_DB }} {{ ARGS }}
 
-# Run the Pomodoro timer against the test database (audio=false to disable)
-pomo audio="true" *ARGS:
-    cargo run -p tmkpr-pomodoro {{ if audio == "true" { "--features audio" } else { "" } }} -- --db {{ TEST_DB }} {{ ARGS }}
+# Run the Pomodoro timer against the test database (with audio)
+pomo *ARGS:
+    cargo run -p tmkpr-pomodoro --features audio -- --db {{ TEST_DB }} {{ ARGS }}
+
+# Run the Pomodoro timer against the test database (without audio)
+pomo-no-audio *ARGS:
+    cargo run -p tmkpr-pomodoro -- --db {{ TEST_DB }} {{ ARGS }}
 
 # Install all binaries (tmkpr, tmkpr-ui, tmkpr-pomodoro) to ~/.cargo/bin (audio=false to disable)
 install audio="true":
