@@ -24,6 +24,6 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get install -y libasound2-dev
       - name: Build
-        run: cargo build --verbose --release
+        run: cargo build --verbose --release --features tmkpr-pomodoro/audio
       - name: Test
-        run: cargo test --workspace --verbose
+        run: cargo test --workspace --verbose --features tmkpr-pomodoro/audio

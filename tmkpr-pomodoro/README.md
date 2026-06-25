@@ -323,6 +323,24 @@ RUST_LOG=debug cargo run -p tmkpr-pomodoro
 
 ## Troubleshooting
 
+### Build fails: "Package alsa was not found in the pkg-config search path"
+
+This error occurs on Linux when building with `--features audio` and the ALSA development headers are not installed. Install them before building:
+
+```bash
+# Debian / Ubuntu
+sudo apt install libasound2-dev
+
+# Fedora / RHEL
+sudo dnf install alsa-lib-devel
+```
+
+Alternatively, build without the audio feature — the terminal bell is used instead:
+
+```bash
+cargo build -p tmkpr-pomodoro --release
+```
+
 ### Settings Not Saving
 
 - Ensure `~/.config/tmkpr/` directory is writable

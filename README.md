@@ -85,30 +85,44 @@ tmkpr pomodoro   # via the CLI
 
 ## Installation
 
-### Github releases 
+### Github releases
 
-Download the latest (or any other ) binary for your OS from the [Github Releases](https://github.com/ljantzen/timekeeper/releases) page
+Download the latest binary for your OS from the [Github Releases](https://github.com/ljantzen/timekeeper/releases) page. Release binaries are built with audio support enabled. If you do not want audio support, build from source (see below).
 
 ### From Source
 
 ```bash
-# Install all three tools
+# Install all three tools (with audio)
 cargo install --path tmkpr-cli
 cargo install --path tmkpr-ui
-cargo install --path tmkpr-pomodoro
+cargo install --path tmkpr-pomodoro --features audio
 ```
 
 ### Building
 
 ```bash
-# Build all
-cargo build --release
+# Build all (with audio)
+cargo build --release --features tmkpr-pomodoro/audio
 
 # Build specific tool
 cargo build -p tmkpr-cli --release
 cargo build -p tmkpr-ui --release
-cargo build -p tmkpr-pomodoro --release
+cargo build -p tmkpr-pomodoro --release --features audio
 ```
+
+#### Building without audio
+
+Linux requires `libasound2-dev` to compile with audio. If you prefer a build without the audio dependency, omit `--features audio`:
+
+```bash
+# Build without audio
+cargo build --release
+
+# Install without audio
+cargo install --path tmkpr-pomodoro
+```
+
+Without audio, `tmkpr-pomodoro` falls back to a terminal bell on phase transitions.
 
 ## Storage and Configuration
 

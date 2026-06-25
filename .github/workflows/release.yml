@@ -38,7 +38,7 @@ jobs:
         run: sudo apt-get install -y libasound2-dev
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} --features tmkpr-pomodoro/audio
 
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
