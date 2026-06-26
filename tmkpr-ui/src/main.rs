@@ -122,6 +122,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, mut app: App) -> a
                 app.date_format = cfg.display.date_format.clone();
                 app.week_start = chrono::Weekday::from(cfg.display.week_start);
                 app.status_timeout_secs = cfg.display.status_timeout_secs;
+                app.config = cfg;
             }
             app.set_status("Config reloaded.".to_string(), false);
         }

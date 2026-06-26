@@ -210,7 +210,6 @@ wait_for_workflow() {
     print_info "Watching workflow for tag: $tag"
     echo ""
 
-    # Use gh run watch to monitor the run for this specific tag
     # Get the commit SHA that the tag points to (dereference annotated tag)
     local commit_sha=$(git rev-parse "$tag^{commit}" 2>/dev/null || git rev-list -n 1 "$tag")
 
@@ -222,55 +221,57 @@ wait_for_workflow() {
     print_info "Waiting for workflow run to appear in GitHub API (looking for commit $commit_sha)..."
 
     while [ -z "$run_id" ] && [ $attempts -lt $max_attempts ]; do
-        # Get recent runs for the workflow with all relevant fields
-        local run_list=$(gh run list --workflow "$WORKFLOW_NAME" --repo $REPO_OWNER/$REPO_NAME --limit 10 --json databaseId,headSha,name,createdAt 2>/dev/null)
+        local run_list=$(gh run list --workflow "$WORKFLOW_NAME" --repo $REPO_OWNER/$REPO_NAME --limit 10 --json databaseId,headSha 2>/dev/null)
 
-
-        # Find the run that matches our commit SHA
         if [ -n "$run_list" ] && [ "$run_list" != "[]" ]; then
             run_id=$(echo "$run_list" | jq -r ".[] | select(.headSha == \"$commit_sha\") | .databaseId" 2>/dev/null | head -1)
-
-            if [ -n "$run_id" ] && [ "$run_id" != "null" ]; then
-                break
-            fi
+            [ -n "$run_id" ] && [ "$run_id" != "null" ] && break
         fi
 
         attempts=$((attempts + 1))
-        if [ $attempts -lt $max_attempts ]; then
-            echo -n "."
-            sleep 5
-        fi
+        [ $attempts -lt $max_attempts ] && { echo -n "."; sleep 5; }
     done
 
     if [ -z "$run_id" ]; then
-        print_error "Could not find workflow run"
-        print_info "Checking workflow status at: https://github.com/$REPO_OWNER/$REPO_NAME/actions"
-        echo ""
-        print_info "Please check GitHub Actions manually. You may need to:"
-        echo "  1. Wait for the workflow to complete"
-        echo "  2. Run 'cargo publish' manually when ready"
+        print_error "Could not find workflow run for commit $commit_sha"
+        print_info "Check status at: https://github.com/$REPO_OWNER/$REPO_NAME/actions"
         return 1
     fi
 
-    print_info "Watching run ID: $run_id"
+    echo ""
+    print_info "Found run ID: $run_id — polling for completion..."
+    print_info "View live at: https://github.com/$REPO_OWNER/$REPO_NAME/actions/runs/$run_id"
     echo ""
 
-    # Watch the run until completion (with custom timeout)
-    if timeout $MAX_WAIT_TIME gh run watch $run_id --repo $REPO_OWNER/$REPO_NAME --exit-status; then
-        echo ""
-        print_success "GitHub Actions workflow completed successfully"
-        return 0
-    else
-        local exit_code=$?
-        echo ""
-        if [ $exit_code -eq 124 ]; then
-            print_error "Timeout waiting for GitHub Actions workflow (${MAX_WAIT_TIME}s)"
-        else
-            print_error "GitHub Actions workflow failed or was interrupted"
+    # Poll gh run view until the run reaches a terminal state.
+    # Avoids gh run watch, which requires a TTY and can hang after completion.
+    local elapsed=0
+    while [ $elapsed -lt $MAX_WAIT_TIME ]; do
+        local result=$(gh run view "$run_id" --repo $REPO_OWNER/$REPO_NAME --json status,conclusion 2>/dev/null)
+        local status=$(echo "$result" | jq -r '.status // ""')
+        local conclusion=$(echo "$result" | jq -r '.conclusion // ""')
+
+        if [ "$status" = "completed" ]; then
+            echo ""
+            if [ "$conclusion" = "success" ]; then
+                print_success "GitHub Actions workflow completed successfully"
+                return 0
+            else
+                print_error "GitHub Actions workflow finished with conclusion: $conclusion"
+                print_info "View details at: https://github.com/$REPO_OWNER/$REPO_NAME/actions/runs/$run_id"
+                return 1
+            fi
         fi
-        print_info "View status at: https://github.com/$REPO_OWNER/$REPO_NAME/actions/runs/$run_id"
-        return 1
-    fi
+
+        echo -n "."
+        sleep "$POLL_INTERVAL"
+        elapsed=$(( elapsed + POLL_INTERVAL ))
+    done
+
+    echo ""
+    print_error "Timed out waiting for GitHub Actions workflow after ${MAX_WAIT_TIME}s"
+    print_info "View status at: https://github.com/$REPO_OWNER/$REPO_NAME/actions/runs/$run_id"
+    return 1
 }
 
 # Publish to crates.io in dependency order
