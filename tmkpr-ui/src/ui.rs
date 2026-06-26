@@ -29,23 +29,12 @@ mod layout {
     pub const SETTINGS_HEIGHT: u16 = 80;
 }
 
-fn parse_hex_color(hex: &str) -> Option<Color> {
-    let hex = hex.trim_start_matches('#');
-    if hex.len() != 6 {
-        return None;
-    }
-    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-    Some(Color::Rgb(r, g, b))
-}
-
 fn project_color(app: &App, project_id: &str) -> Option<Color> {
     app.projects
         .iter()
         .find(|p| p.id == project_id)
         .and_then(|p| p.color.as_ref())
-        .and_then(|c| parse_hex_color(c))
+        .and_then(|c| crate::color::parse_color(c))
 }
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -577,7 +566,7 @@ fn render_form_modal(
                 .position(|c| c == &field.value)
                 .and_then(|i| field.completion_colors.get(i))
                 .and_then(|c| c.as_deref())
-                .and_then(parse_hex_color);
+                .and_then(crate::color::parse_color);
 
             let display = if focused {
                 let before = &field.value[..field.cursor];
@@ -644,7 +633,7 @@ fn render_form_modal(
             .iter()
             .map(|(name, color)| {
                 let style = color
-                    .and_then(parse_hex_color)
+                    .and_then(crate::color::parse_color)
                     .map(|c| Style::default().fg(c))
                     .unwrap_or_default();
                 ListItem::new(Line::from(Span::styled(*name, style)))
@@ -790,7 +779,7 @@ fn render_manage_projects(frame: &mut Frame, app: &App, area: Rect) {
         let items: Vec<ListItem> = projects
             .iter()
             .map(|p| {
-                let color = p.color.as_ref().and_then(|c| parse_hex_color(c));
+                let color = p.color.as_ref().and_then(|c| crate::color::parse_color(c));
                 let style = color.map(|c| Style::default().fg(c)).unwrap_or_default();
                 let color_indicator = color.map(|_| "●").unwrap_or(" ");
 
@@ -1353,6 +1342,7 @@ fn render_settings(frame: &mut Frame, app: &App, area: Rect) {
         theme_idx,
         date_fmt_idx,
         week_start,
+        status_timeout_secs,
         obs_enabled,
         obs_vault,
         obs_activity,
@@ -1440,6 +1430,18 @@ fn render_settings(frame: &mut Frame, app: &App, area: Rect) {
             format!("  {:<22} ◀  {}  ▶", "Week start:", week_label),
             *cursor == 2,
         ),
+        sel(
+            format!(
+                "  {:<22} ◀  {}  ▶",
+                "Status timeout:",
+                if *status_timeout_secs == 0 {
+                    "Off".to_string()
+                } else {
+                    format!("{}s", status_timeout_secs)
+                }
+            ),
+            *cursor == 3,
+        ),
         Line::from(""),
         Line::from(Span::styled(
             "  Obsidian logging",
@@ -1451,11 +1453,11 @@ fn render_settings(frame: &mut Frame, app: &App, area: Rect) {
                 "Enabled:",
                 if *obs_enabled { "[✓] On" } else { "[ ] Off" }
             ),
-            *cursor == 3,
+            *cursor == 4,
         ),
-        text_row("Vault directory:", obs_vault, 4, *text_editing),
-        text_row("Activity category:", obs_activity, 5, *text_editing),
-        text_row("Comment category:", obs_comment, 6, *text_editing),
+        text_row("Vault directory:", obs_vault, 5, *text_editing),
+        text_row("Activity category:", obs_activity, 6, *text_editing),
+        text_row("Comment category:", obs_comment, 7, *text_editing),
         Line::from(""),
         Line::from(Span::styled(hint, Style::default().fg(dim))),
         Line::from(""),
