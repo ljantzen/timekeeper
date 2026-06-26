@@ -29,6 +29,10 @@ build audio="true":
 build-release audio="true":
     cargo build --all --release {{ if audio == "true" { "--features tmkpr-pomodoro/audio" } else { "" } }}
 
+push:
+    jj bookmark set -r @- main
+    jj git push
+
 # Run the TUI against the test database
 ui *ARGS:
     cargo run -p tmkpr-ui -- --db {{ TEST_DB }} {{ ARGS }}
