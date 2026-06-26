@@ -1,6 +1,7 @@
 use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Utc, Weekday};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
+use std::time::Instant;
 use tmkpr_lib::{
     config::Config,
     models::{
@@ -410,6 +411,7 @@ pub enum AppMode {
         theme_idx: usize,
         date_fmt_idx: usize,
         week_start: chrono::Weekday,
+        status_timeout_secs: u64,
         obs_enabled: bool,
         obs_vault: String,
         obs_activity: String,
@@ -490,6 +492,8 @@ pub struct App {
     pub list_state: ListState,
     pub mode: AppMode,
     pub status: Option<(String, bool)>,
+    pub status_set_at: Option<Instant>,
+    pub status_timeout_secs: u64,
     pub entry_filter: EntryFilterInput,
     pub entries_with_comments: HashSet<String>,
     pub entry_sort: EntrySort,
@@ -544,6 +548,8 @@ impl App {
             list_state,
             mode: AppMode::Normal,
             status: None,
+            status_set_at: None,
+            status_timeout_secs: config.display.status_timeout_secs,
             entry_filter: EntryFilterInput::default(),
             entries_with_comments: HashSet::new(),
             entry_sort: EntrySort::StartDesc,
@@ -806,7 +812,7 @@ impl App {
             }
             "theme" => {
                 if arg.is_empty() {
-                    self.status = Some(("Usage: theme <name>".into(), true));
+                    self.set_status("Usage: theme <name>".into(), true);
                 } else {
                     let themes = self.themes.clone();
                     self.theme = crate::theme::Theme::resolve(arg, &themes);
@@ -826,10 +832,10 @@ impl App {
                     self.theme_name = name;
                     self.date_format = cfg.display.date_format.clone();
                     self.week_start = chrono::Weekday::from(cfg.display.week_start);
-                    self.status = Some(("Config reloaded.".into(), false));
+                    self.set_status("Config reloaded.".into(), false);
                 }
                 Err(e) => {
-                    self.status = Some((format!("Config reload failed: {e}"), true));
+                    self.set_status(format!("Config reload failed: {e}"), true);
                 }
             },
             "config-write" => match tmkpr_lib::config::Config::load() {
@@ -838,13 +844,13 @@ impl App {
                     cfg.display.date_format = self.date_format.clone();
                     cfg.display.week_start = weekday_to_def(self.week_start);
                     if let Err(e) = cfg.save() {
-                        self.status = Some((format!("Write failed: {e}"), true));
+                        self.set_status(format!("Write failed: {e}"), true);
                     } else {
-                        self.status = Some(("Config written.".into(), false));
+                        self.set_status("Config written.".into(), false);
                     }
                 }
                 Err(e) => {
-                    self.status = Some((format!("Config write failed: {e}"), true));
+                    self.set_status(format!("Config write failed: {e}"), true);
                 }
             },
             "config-open" => match tmkpr_lib::config::config_path() {
@@ -852,7 +858,7 @@ impl App {
                     self.pending_open = Some(path);
                 }
                 Err(e) => {
-                    self.status = Some((format!("Cannot resolve config path: {e}"), true));
+                    self.set_status(format!("Cannot resolve config path: {e}"), true);
                 }
             },
             "set" => {
@@ -923,7 +929,7 @@ impl App {
             }
             "" => {}
             other => {
-                self.status = Some((format!("Unknown command: '{other}'"), true));
+                self.set_status(format!("Unknown command: '{other}'"), true);
             }
         }
         Ok(())
@@ -1074,6 +1080,22 @@ impl App {
         if self.selected > 0 {
             self.selected -= 1;
             self.list_state.select(Some(self.selected));
+        }
+    }
+
+    pub fn set_status(&mut self, msg: String, is_error: bool) {
+        self.status = Some((msg, is_error));
+        self.status_set_at = Some(Instant::now());
+    }
+
+    pub fn tick_status(&mut self) {
+        if let Some(set_at) = self.status_set_at {
+            if self.status_timeout_secs > 0
+                && set_at.elapsed().as_secs() >= self.status_timeout_secs
+            {
+                self.status = None;
+                self.status_set_at = None;
+            }
         }
     }
 
@@ -1331,7 +1353,7 @@ impl App {
         let entry = match &self.active_entry {
             Some(e) => e.clone(),
             None => {
-                self.status = Some(("No active entry.".into(), true));
+                self.set_status("No active entry.".into(), true);
                 return;
             }
         };
@@ -1441,7 +1463,7 @@ impl App {
             );
         }
         self.refresh()?;
-        self.status = Some(("Stopped.".into(), false));
+        self.set_status("Stopped.".into(), false);
         Ok(())
     }
 
@@ -1473,7 +1495,7 @@ impl App {
             svc.delete(id)?;
         }
         self.refresh()?;
-        self.status = Some(("Entry deleted.".into(), false));
+        self.set_status("Entry deleted.".into(), false);
         Ok(())
     }
 
@@ -1509,7 +1531,7 @@ impl App {
             obsidian_logger::ActivityAction::Started,
         );
         self.refresh()?;
-        self.status = Some(("Started.".into(), false));
+        self.set_status("Started.".into(), false);
         Ok(())
     }
 
@@ -1611,7 +1633,7 @@ impl App {
             )?;
         }
         self.refresh()?;
-        self.status = Some(("Updated.".into(), false));
+        self.set_status("Updated.".into(), false);
         Ok(())
     }
 
@@ -1753,7 +1775,7 @@ impl App {
         );
 
         self.refresh()?;
-        self.status = Some(("Entry created.".into(), false));
+        self.set_status("Entry created.".into(), false);
         Ok(())
     }
 
@@ -1764,9 +1786,9 @@ impl App {
         let id = self.entries[self.selected].id.clone();
         let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
         if !svc.fill_gaps(&id)? {
-            self.status = Some(("No adjacent entries found.".into(), false));
+            self.set_status("No adjacent entries found.".into(), false);
         } else {
-            self.status = Some(("Gaps filled.".into(), false));
+            self.set_status("Gaps filled.".into(), false);
         }
         self.refresh()?;
         Ok(())
@@ -1778,15 +1800,15 @@ impl App {
                 let id = e.id.clone();
                 let svc = EntryService::new(self.storage.as_ref(), &self.user_id);
                 if !svc.fill_gaps(&id)? {
-                    self.status = Some(("No adjacent entries found.".into(), false));
+                    self.set_status("No adjacent entries found.".into(), false);
                 } else {
-                    self.status = Some(("Gaps filled.".into(), false));
+                    self.set_status("Gaps filled.".into(), false);
                 }
                 self.refresh()?;
                 Ok(())
             }
             None => {
-                self.status = Some(("No active entry.".into(), true));
+                self.set_status("No active entry.".into(), true);
                 Ok(())
             }
         }
@@ -1822,7 +1844,7 @@ impl App {
         );
 
         self.refresh()?;
-        self.status = Some(("Entries merged.".into(), false));
+        self.set_status("Entries merged.".into(), false);
         Ok(())
     }
 
@@ -1857,7 +1879,7 @@ impl App {
             let entry_id = entry.id.clone();
             self.refresh_comments_mode(entry_id, 0)?;
         } else {
-            self.status = Some(("No active entry.".into(), true));
+            self.set_status("No active entry.".into(), true);
         }
         Ok(())
     }
@@ -1887,7 +1909,7 @@ impl App {
         }
         self.entries_with_comments.insert(entry_id.clone());
         self.refresh_comments_mode(entry_id, 0)?;
-        self.status = Some(("Comment added.".into(), false));
+        self.set_status("Comment added.".into(), false);
         Ok(())
     }
 
@@ -1923,7 +1945,7 @@ impl App {
                 self.entries_with_comments.remove(&entry_id);
             }
         }
-        self.status = Some(("Comment deleted.".into(), false));
+        self.set_status("Comment deleted.".into(), false);
         Ok(())
     }
 
@@ -1958,7 +1980,7 @@ impl App {
             let svc = CommentService::new(self.storage.as_ref(), &self.user_id);
             svc.edit(&comment_id, body)?;
         }
-        self.status = Some(("Comment updated.".into(), false));
+        self.set_status("Comment updated.".into(), false);
         Ok(())
     }
 
@@ -1987,11 +2009,16 @@ impl App {
     }
 
     pub fn open_add_project_modal(&mut self) {
+        let color_names: Vec<String> = crate::color::COLOR_NAMES
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         self.mode = AppMode::AddProject(Form {
             fields: vec![
                 Field::new("Name", ""),
                 Field::new("Description (optional)", ""),
-                Field::new("Color (optional, e.g. #ff0000)", ""),
+                Field::new("Color (optional, e.g. #ff0000 or 'red')", "")
+                    .with_completions(color_names),
             ],
             focused: 0,
         });
@@ -2083,7 +2110,7 @@ impl App {
             projects,
             selected: 0,
         };
-        self.status = Some((format!("Project '{name}' deleted."), false));
+        self.set_status(format!("Project '{name}' deleted."), false);
         Ok(())
     }
 
@@ -2115,6 +2142,10 @@ impl App {
                 return Ok(());
             }
             let proj = &projects[*selected];
+            let color_names: Vec<String> = crate::color::COLOR_NAMES
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
             let form = Form {
                 fields: vec![
                     Field::new("Name", proj.name.clone()),
@@ -2123,9 +2154,10 @@ impl App {
                         proj.description.clone().unwrap_or_default(),
                     ),
                     Field::new(
-                        "Color (optional, e.g. #ff0000)",
+                        "Color (optional, e.g. #ff0000 or 'red')",
                         proj.color.clone().unwrap_or_default(),
-                    ),
+                    )
+                    .with_completions(color_names),
                 ],
                 focused: 0,
             };
@@ -2176,7 +2208,7 @@ impl App {
             svc.add(name, desc, col)?;
         }
         self.refresh()?;
-        self.status = Some((format!("Project '{name}' created."), false));
+        self.set_status(format!("Project '{name}' created."), false);
         Ok(())
     }
 
@@ -2221,7 +2253,7 @@ impl App {
         let projects = self.apply_project_sort_filter(self.projects.clone());
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited project in list
         self.mode = AppMode::ManageProjects { projects, selected };
-        self.status = Some((format!("Project '{name}' updated."), false));
+        self.set_status(format!("Project '{name}' updated."), false);
         Ok(())
     }
 
@@ -2242,7 +2274,7 @@ impl App {
             svc.add(project, name, desc)?;
         }
         self.refresh()?;
-        self.status = Some((format!("Task '{name}' created in '{project}'."), false));
+        self.set_status(format!("Task '{name}' created in '{project}'."), false);
         Ok(())
     }
 
@@ -2398,7 +2430,7 @@ impl App {
         let tasks = self.apply_task_sort_filter(self.tasks.clone());
         let selected = 0; // Reset on edit for simplicity; could preserve position by finding edited task in list
         self.mode = AppMode::ManageTasks { tasks, selected };
-        self.status = Some((format!("Task '{name}' updated."), false));
+        self.set_status(format!("Task '{name}' updated."), false);
         Ok(())
     }
 
@@ -2455,7 +2487,7 @@ impl App {
         } else {
             "Task reactivated."
         };
-        self.status = Some((msg.to_string(), false));
+        self.set_status(msg.to_string(), false);
         Ok(())
     }
 
@@ -2598,7 +2630,7 @@ impl App {
 
         self.refresh()?;
         if show_message && !project.is_empty() {
-            self.status = Some(("Filter applied.".into(), false));
+            self.set_status("Filter applied.".into(), false);
         } else if show_message {
             self.status = None;
         }
@@ -2759,6 +2791,7 @@ impl App {
             theme_idx,
             date_fmt_idx,
             week_start: self.week_start,
+            status_timeout_secs: self.status_timeout_secs,
             obs_enabled: self.config.obsidian.enabled,
             obs_vault,
             obs_activity,
@@ -2773,6 +2806,7 @@ impl App {
             theme_idx,
             date_fmt_idx,
             week_start,
+            status_timeout_secs,
             obs_enabled,
             obs_vault,
             obs_activity,
@@ -2789,6 +2823,7 @@ impl App {
             .map(|(_, fmt)| fmt.to_string())
             .unwrap_or_else(|| self.date_format.clone());
         let week_start = *week_start;
+        let status_timeout_secs = *status_timeout_secs;
         let obs_enabled = *obs_enabled;
         let obs_vault = obs_vault.clone();
         let obs_activity = obs_activity.clone();
@@ -2800,11 +2835,13 @@ impl App {
         self.theme_name = theme_name.clone();
         self.date_format = date_format.clone();
         self.week_start = week_start;
+        self.status_timeout_secs = status_timeout_secs;
 
         // Apply to config struct and write to disk
         self.config.display.theme = theme_name;
         self.config.display.date_format = date_format;
         self.config.display.week_start = weekday_to_def(week_start);
+        self.config.display.status_timeout_secs = status_timeout_secs;
         self.config.obsidian.enabled = obs_enabled;
         self.config.obsidian.vault_dir = if obs_vault.is_empty() {
             None
@@ -2824,7 +2861,7 @@ impl App {
 
         self.config.save()?;
         self.mode = AppMode::Normal;
-        self.status = Some(("Settings saved.".into(), false));
+        self.set_status("Settings saved.".into(), false);
         Ok(())
     }
 }
@@ -3719,5 +3756,73 @@ mod tests {
         let result = app.settings_save();
         assert!(result.is_ok());
         assert!(matches!(app.mode, AppMode::Normal));
+    }
+
+    // --- status_timeout_secs in settings ---
+
+    #[test]
+    fn open_settings_reads_status_timeout_secs() {
+        let mut app = make_app();
+        app.status_timeout_secs = 12;
+        app.open_settings();
+        let AppMode::Settings {
+            status_timeout_secs,
+            ..
+        } = &app.mode
+        else {
+            panic!("expected Settings mode");
+        };
+        assert_eq!(*status_timeout_secs, 12);
+    }
+
+    #[test]
+    fn settings_save_applies_status_timeout_to_live_state() {
+        let mut app = make_app();
+        app.open_settings();
+        if let AppMode::Settings {
+            status_timeout_secs,
+            ..
+        } = &mut app.mode
+        {
+            *status_timeout_secs = 30;
+        }
+        app.settings_save().unwrap();
+        assert_eq!(app.status_timeout_secs, 30);
+        assert_eq!(app.config.display.status_timeout_secs, 30);
+    }
+
+    // --- tick_status ---
+
+    #[test]
+    fn tick_status_does_not_clear_before_timeout() {
+        let mut app = make_app();
+        app.status_timeout_secs = 60;
+        app.set_status("hello".into(), false);
+        app.tick_status();
+        assert!(app.status.is_some());
+    }
+
+    #[test]
+    fn tick_status_clears_after_timeout() {
+        use std::time::{Duration, Instant};
+        let mut app = make_app();
+        app.status_timeout_secs = 1;
+        app.set_status("hello".into(), false);
+        // Back-date the timestamp so elapsed >= 1s
+        app.status_set_at = Some(Instant::now() - Duration::from_secs(2));
+        app.tick_status();
+        assert!(app.status.is_none());
+        assert!(app.status_set_at.is_none());
+    }
+
+    #[test]
+    fn tick_status_zero_timeout_never_clears() {
+        use std::time::{Duration, Instant};
+        let mut app = make_app();
+        app.status_timeout_secs = 0;
+        app.set_status("hello".into(), false);
+        app.status_set_at = Some(Instant::now() - Duration::from_secs(9999));
+        app.tick_status();
+        assert!(app.status.is_some());
     }
 }

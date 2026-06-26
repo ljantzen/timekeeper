@@ -1,4 +1,5 @@
 mod app;
+mod color;
 mod form;
 mod input;
 mod theme;
@@ -120,11 +121,13 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, mut app: App) -> a
                 app.theme_name = name;
                 app.date_format = cfg.display.date_format.clone();
                 app.week_start = chrono::Weekday::from(cfg.display.week_start);
+                app.status_timeout_secs = cfg.display.status_timeout_secs;
             }
-            app.status = Some(("Config reloaded.".into(), false));
+            app.set_status("Config reloaded.".to_string(), false);
         }
 
         if last_tick.elapsed() >= tick {
+            app.tick_status();
             last_tick = Instant::now();
         }
 

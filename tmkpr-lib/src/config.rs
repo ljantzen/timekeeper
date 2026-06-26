@@ -59,10 +59,16 @@ pub struct DisplayConfig {
     pub time_format: TimeFormat,
     #[serde(default = "default_theme_name")]
     pub theme: String,
+    #[serde(default = "default_status_timeout_secs")]
+    pub status_timeout_secs: u64,
 }
 
 fn default_theme_name() -> String {
     String::from("default")
+}
+
+fn default_status_timeout_secs() -> u64 {
+    5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,6 +144,7 @@ impl Default for Config {
                 week_start: WeekdayDef::Mon,
                 time_format: TimeFormat::H24,
                 theme: default_theme_name(),
+                status_timeout_secs: default_status_timeout_secs(),
             },
             pomodoro: PomodoroConfig::default(),
             obsidian: ObsidianConfig::default(),

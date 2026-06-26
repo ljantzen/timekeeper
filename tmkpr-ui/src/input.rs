@@ -48,21 +48,21 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             if app.active_entry.is_none() {
                 app.open_start_modal();
             } else {
-                app.status = Some(("Already tracking. Stop first with [x].".into(), true));
+                app.set_status("Already tracking. Stop first with [x].".into(), true);
             }
         }
         KeyCode::Char('S') => {
             if app.active_entry.is_none() {
                 app.open_start_modal_from_selected();
             } else {
-                app.status = Some(("Already tracking. Stop first with [x].".into(), true));
+                app.set_status("Already tracking. Stop first with [x].".into(), true);
             }
         }
         KeyCode::Char('n') => {
             if app.active_entry.is_none() {
                 app.open_add_manual_entry_modal();
             } else {
-                app.status = Some(("Already tracking. Stop first with [x].".into(), true));
+                app.set_status("Already tracking. Stop first with [x].".into(), true);
             }
         }
         KeyCode::Char('v') => {
@@ -71,10 +71,10 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('x') => {
             if app.active_entry.is_some() {
                 if let Err(e) = app.stop_active() {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             } else {
-                app.status = Some(("Not currently tracking.".into(), true));
+                app.set_status("Not currently tracking.".into(), true);
             }
         }
         KeyCode::Char('e') if !app.entries.is_empty() => {
@@ -92,68 +92,68 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         KeyCode::Char('o') => {
             app.entry_sort = app.entry_sort.next();
             if let Err(e) = app.refresh() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('T') => {
             if let Err(e) = app.apply_filter("", "today") {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('Y') => {
             if let Err(e) = app.apply_filter("", "yesterday") {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('P') => {
             if let Err(e) = app.filter_prev_week() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('N') => {
             if let Err(e) = app.filter_next_week() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('r') => match app.refresh() {
-            Ok(()) => app.status = Some(("Refreshed.".into(), false)),
-            Err(e) => app.status = Some((e.to_string(), true)),
+            Ok(()) => app.set_status("Refreshed.".into(), false),
+            Err(e) => app.set_status(e.to_string(), true),
         },
         KeyCode::Char('g') if !app.entries.is_empty() => {
             if let Err(e) = app.fill_gaps() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('G') => {
             if let Err(e) = app.fill_gaps_active() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('m') if !app.entries.is_empty() => {
             if let Err(e) = app.merge_with_next() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('c') if !app.entries.is_empty() => {
             if let Err(e) = app.open_comments() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('C') => {
             if let Err(e) = app.open_comments_for_active() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('p') => app.open_manage_projects(),
         KeyCode::Char('t') => app.open_manage_tasks(),
         KeyCode::Char('<') => {
             if let Err(e) = app.prev_week() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('>') => {
             if let Err(e) = app.next_week() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('i') => {
@@ -215,7 +215,7 @@ fn handle_filter(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let project = form.fields[form_fields::filter::PROJECT].value.clone();
                 let date_str = form.fields[form_fields::filter::DATE].value.clone();
                 if let Err(e) = app.apply_filter(&project, &date_str) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                     app.mode = AppMode::Normal;
                 }
             }
@@ -280,7 +280,7 @@ fn handle_add_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .clone();
                 let color = form.fields[form_fields::add_project::COLOR].value.clone();
                 if let Err(e) = app.add_project(&name, &description, &color) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                     app.mode = AppMode::AddProject(form);
                 } else {
                     app.open_manage_projects();
@@ -307,7 +307,7 @@ fn handle_manage_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         KeyCode::Char('e') => {
             if let Err(e) = app.open_edit_selected_project() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('s') => {
@@ -319,7 +319,7 @@ fn handle_manage_projects(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         KeyCode::Char('d') => {
             if let Err(e) = app.open_confirm_delete_project() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         _ => {}
@@ -333,7 +333,7 @@ fn handle_confirm_delete_project(app: &mut App, key: KeyEvent) -> anyhow::Result
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::ConfirmDeleteProject { id, name } = old {
                 if let Err(e) = app.delete_project(&id, &name) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -390,7 +390,7 @@ fn handle_edit_project(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .clone();
                 let color = form.fields[form_fields::edit_project::COLOR].value.clone();
                 if let Err(e) = app.submit_edit_project(project_id, &name, &description, &color) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -418,7 +418,7 @@ fn handle_add_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .value
                     .clone();
                 if let Err(e) = app.add_task(&project, &name, &description) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                     app.mode = AppMode::AddTask(form);
                 } else {
                     app.open_manage_tasks();
@@ -445,17 +445,17 @@ fn handle_manage_tasks(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         KeyCode::Char('e') => {
             if let Err(e) = app.open_edit_selected_task() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('d') => {
             if let Err(e) = app.delete_selected_task() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('c') => {
             if let Err(e) = app.toggle_complete_selected_task() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('s') => {
@@ -492,7 +492,7 @@ fn handle_edit_task(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .value
                     .clone();
                 if let Err(e) = app.submit_edit_task(task_id, &name, &description) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -571,7 +571,7 @@ fn handle_start_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                         create_task,
                     };
                 } else if let Err(e) = app.start_entry(&project, &task, &note, &tags) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -600,7 +600,7 @@ fn handle_confirm_create(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     create_project,
                     create_task,
                 ) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -665,7 +665,7 @@ fn handle_edit_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                 let end = form.fields[form_fields::edit_modal::END].value.clone();
                 let tags = form.fields[form_fields::edit_modal::TAGS].value.clone();
                 if let Err(e) = app.edit_entry(&id, &project, &task, &note, &start, &end, &tags) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -735,7 +735,7 @@ fn handle_edit_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .value
                     .clone();
                 if let Err(e) = app.edit_event_entry(&id, &project, &task, &note, &time, &tags) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -790,7 +790,7 @@ fn handle_add_event_modal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     .value
                     .clone();
                 if let Err(e) = app.add_event_entry(&project, &task, &note, &time, &tags) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -893,7 +893,7 @@ fn handle_add_manual_entry(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                     &tags,
                     snap_to_existing,
                 ) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -907,7 +907,7 @@ fn handle_confirm_delete(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             let old = std::mem::replace(&mut app.mode, AppMode::Normal);
             if let AppMode::ConfirmDelete { id, .. } = old {
                 if let Err(e) = app.delete_entry(&id) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -943,12 +943,12 @@ fn handle_comments(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         KeyCode::Char('e') => {
             if let Err(e) = app.open_edit_comment() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         KeyCode::Char('d') => {
             if let Err(e) = app.delete_selected_comment() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         _ => {}
@@ -967,7 +967,7 @@ fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Cancel => {
             if let Err(e) = app.cancel_add_comment() {
                 app.mode = AppMode::Normal;
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         FormResult::Submit => {
@@ -975,7 +975,7 @@ fn handle_add_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             if let AppMode::AddComment { entry_id, form } = old {
                 let body = form.fields[form_fields::add_comment::BODY].value.clone();
                 if let Err(e) = app.submit_add_comment(entry_id, body) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -994,7 +994,7 @@ fn handle_edit_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         FormResult::Cancel => {
             if let Err(e) = app.cancel_edit_comment() {
                 app.mode = AppMode::Normal;
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         FormResult::Submit => {
@@ -1007,9 +1007,9 @@ fn handle_edit_comment(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             {
                 let body = form.fields[form_fields::edit_comment::BODY].value.clone();
                 if let Err(e) = app.submit_edit_comment(comment_id, body) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 } else if let Err(e) = app.refresh_comments_mode(entry_id, 0) {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
@@ -1051,20 +1051,20 @@ fn handle_settings(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
                         && !key.modifiers.contains(KeyModifiers::ALT) =>
                 {
                     match cursor {
-                        4 => obs_vault.push(c),
-                        5 => obs_activity.push(c),
-                        6 => obs_comment.push(c),
+                        5 => obs_vault.push(c),
+                        6 => obs_activity.push(c),
+                        7 => obs_comment.push(c),
                         _ => {}
                     }
                 }
                 KeyCode::Backspace => match cursor {
-                    4 => {
+                    5 => {
                         obs_vault.pop();
                     }
-                    5 => {
+                    6 => {
                         obs_activity.pop();
                     }
-                    6 => {
+                    7 => {
                         obs_comment.pop();
                     }
                     _ => {}
@@ -1085,31 +1085,31 @@ fn handle_settings(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
         }
         KeyCode::Char('j') | KeyCode::Down => {
             if let AppMode::Settings { cursor, .. } = &mut app.mode {
-                *cursor = (*cursor + 1) % 7;
+                *cursor = (*cursor + 1) % 8;
             }
         }
         KeyCode::Char('k') | KeyCode::Up => {
             if let AppMode::Settings { cursor, .. } = &mut app.mode {
-                *cursor = (*cursor + 6) % 7;
+                *cursor = (*cursor + 7) % 8;
             }
         }
         KeyCode::Left | KeyCode::Char('h') => settings_adjust(app, -1),
         KeyCode::Right | KeyCode::Char('l') | KeyCode::Char(' ') => settings_adjust(app, 1),
         KeyCode::Enter => {
-            let is_text_row = matches!(&app.mode, AppMode::Settings { cursor, .. } if *cursor >= 4);
+            let is_text_row = matches!(&app.mode, AppMode::Settings { cursor, .. } if *cursor >= 5);
             if is_text_row {
                 if let AppMode::Settings { text_editing, .. } = &mut app.mode {
                     *text_editing = true;
                 }
             } else {
                 if let Err(e) = app.settings_save() {
-                    app.status = Some((e.to_string(), true));
+                    app.set_status(e.to_string(), true);
                 }
             }
         }
         KeyCode::Char('s') => {
             if let Err(e) = app.settings_save() {
-                app.status = Some((e.to_string(), true));
+                app.set_status(e.to_string(), true);
             }
         }
         _ => {}
@@ -1136,6 +1136,7 @@ fn settings_adjust(app: &mut App, delta: i64) {
             theme_idx,
             date_fmt_idx,
             week_start,
+            status_timeout_secs,
             obs_enabled,
             ..
         } = &mut app.mode
@@ -1161,6 +1162,14 @@ fn settings_adjust(app: &mut App, delta: i64) {
                 None
             }
             3 => {
+                if delta > 0 {
+                    *status_timeout_secs = status_timeout_secs.saturating_add(1);
+                } else {
+                    *status_timeout_secs = status_timeout_secs.saturating_sub(1);
+                }
+                None
+            }
+            4 => {
                 *obs_enabled = !*obs_enabled;
                 None
             }
