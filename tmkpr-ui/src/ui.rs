@@ -132,7 +132,9 @@ fn render_active(frame: &mut Frame, app: &App, area: Rect) {
         }
         None => Line::from(Span::styled(
             "No active entry",
-            Style::default().fg(app.theme.dim),
+            Style::default()
+                .fg(app.theme.error)
+                .add_modifier(Modifier::BOLD),
         )),
     };
 
