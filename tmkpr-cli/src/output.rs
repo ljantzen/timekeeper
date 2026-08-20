@@ -126,7 +126,7 @@ pub fn print_entries_table(
     }
 
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+    table.load_style(UTF8_FULL);
     table.set_header(vec![
         "ID", "Project", "Task", "Note", "Tags", "Started", "Finished", "Duration",
     ]);
@@ -209,7 +209,7 @@ pub fn print_report_table(report: &ReportData, projects: &ProjectIndex, color: b
     }
 
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+    table.load_style(UTF8_FULL);
     table.set_header(vec!["Project", "Task", "Entries", "Duration"]);
 
     for proj in &report.by_project {
@@ -272,7 +272,7 @@ pub fn print_projects_table(projects: &[Project], color: bool) {
         return;
     }
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+    table.load_style(UTF8_FULL);
     table.set_header(vec!["#", "Name", "Description", "Color", "Archived"]);
     for p in projects {
         let name_cell = if color {
@@ -303,7 +303,7 @@ pub fn print_tasks_table(tasks: &[Task]) {
         return;
     }
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+    table.load_style(UTF8_FULL);
     table.set_header(vec!["#", "Name", "Description", "Archived", "Completed"]);
     for t in tasks {
         let name_cell = if t.completed {
@@ -400,7 +400,7 @@ pub fn print_gaps_table(
     let total_secs: i64 = gaps.iter().map(|(s, e)| (*e - *s).num_seconds()).sum();
 
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+    table.load_style(UTF8_FULL);
     table.set_header(vec!["From", "To", "Duration"]);
 
     for (start, end) in gaps {
@@ -578,7 +578,7 @@ pub fn print_comments(comments: &[Comment], date_fmt: &str, format: &str) {
                 return;
             }
             let mut table = Table::new();
-            table.load_preset(UTF8_FULL);
+            table.load_style(UTF8_FULL);
             table.set_header(vec!["ID", "Entry", "Body", "Created"]);
             for c in comments {
                 table.add_row(vec![
@@ -687,7 +687,7 @@ pub fn print_week_report(report: &WeekReport, format: &str) {
     header.extend(day_headers);
     header.push("Total".to_string());
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
+    table.load_style(UTF8_FULL);
     table.set_header(header);
 
     for (proj, total) in &report.totals_by_project {
@@ -764,7 +764,7 @@ pub fn print_tags(tags: &[(String, usize)], format: &str) {
         }
         _ => {
             let mut table = Table::new();
-            table.load_preset(UTF8_FULL);
+            table.load_style(UTF8_FULL);
             table.set_header(vec!["Tag", "Entries"]);
             for (t, c) in tags {
                 table.add_row(vec![
