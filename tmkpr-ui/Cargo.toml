@@ -20,4 +20,4 @@ crossterm = { workspace = true }
 chrono    = { workspace = true }
 anyhow    = { workspace = true }
 clap             = { workspace = true }
-csscolorparser   = "0.8"
+csscolorparser   = "0.9"
