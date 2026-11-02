@@ -69,6 +69,42 @@ pub fn run(
     Ok(())
 }
 
+fn suggest_start(
+    storage: &dyn Storage,
+    user_id: &str,
+    date_fmt: &str,
+) -> Result<chrono::DateTime<Utc>> {
+    let today_local = Local::now().date_naive();
+    let today_start = Local
+        .from_local_datetime(&today_local.and_hms_opt(0, 0, 0).unwrap())
+        .single()
+        .unwrap()
+        .with_timezone(&Utc);
+
+    let entries = EntryService::new(storage, user_id).list(EntryFilter {
+        user_id: user_id.to_string(),
+        from: Some(today_start),
+        include_active: false,
+        ..Default::default()
+    })?;
+
+    let last_end = entries.iter().filter_map(|e| e.finished_at).max();
+
+    match last_end {
+        Some(t) => {
+            let formatted = output::format_datetime(&t, date_fmt);
+            if prompt::confirm(&format!("Use last entry end ({}) as start?", formatted)) {
+                Ok(t)
+            } else {
+                Err(anyhow::anyhow!("Please provide --start"))
+            }
+        }
+        None => Err(anyhow::anyhow!(
+            "No previous entry found today. Please provide --start."
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
@@ -152,41 +188,5 @@ mod tests {
             .unwrap();
         let dur = entries[0].finished_at.unwrap() - entries[0].started_at;
         assert_eq!(dur.num_seconds(), 2700);
-    }
-}
-
-fn suggest_start(
-    storage: &dyn Storage,
-    user_id: &str,
-    date_fmt: &str,
-) -> Result<chrono::DateTime<Utc>> {
-    let today_local = Local::now().date_naive();
-    let today_start = Local
-        .from_local_datetime(&today_local.and_hms_opt(0, 0, 0).unwrap())
-        .single()
-        .unwrap()
-        .with_timezone(&Utc);
-
-    let entries = EntryService::new(storage, user_id).list(EntryFilter {
-        user_id: user_id.to_string(),
-        from: Some(today_start),
-        include_active: false,
-        ..Default::default()
-    })?;
-
-    let last_end = entries.iter().filter_map(|e| e.finished_at).max();
-
-    match last_end {
-        Some(t) => {
-            let formatted = output::format_datetime(&t, date_fmt);
-            if prompt::confirm(&format!("Use last entry end ({}) as start?", formatted)) {
-                Ok(t)
-            } else {
-                Err(anyhow::anyhow!("Please provide --start"))
-            }
-        }
-        None => Err(anyhow::anyhow!(
-            "No previous entry found today. Please provide --start."
-        )),
     }
 }
