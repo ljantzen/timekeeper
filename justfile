@@ -18,6 +18,18 @@ clippy:
 test:
     cargo test --all
 
+# Build the user manual (mdbook)
+book-build:
+    mdbook build docs
+
+# Serve the user manual locally with live reload
+book-serve:
+    mdbook serve docs --open
+
+# Check the user manual's code examples and links
+book-test:
+    mdbook test docs
+
 # Run fmt + clippy + tests (pre-commit gate)
 check: fmt clippy test
 

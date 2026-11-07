@@ -1,0 +1,15 @@
+[book]
+title = "tmkpr User Manual"
+description = "User manual for tmkpr: a fast, offline-first time tracking suite for the terminal."
+authors = ["tmkpr contributors"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/ljantzen/timekeeper"
+edit-url-template = "https://github.com/ljantzen/timekeeper/edit/main/docs/{path}"
+
+[output.html.search]
+limit-results = 20
