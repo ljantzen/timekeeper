@@ -4,6 +4,8 @@ A comprehensive, fast, and offline time tracker written in Rust. Track time agai
 
 ![tmkpr-ui screenshot](timekeeper.png)
 
+📖 **[Full user manual](https://ljantzen.github.io/timekeeper/)** — installation, configuration, and the complete command/keybinding reference for all three tools.
+
 ## Features
 
 - **Project & Task Management**: Organize your work with projects and flexible task hierarchies
